@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a Vue 3 + PrimeVue + Capacitor hybrid mobile app boilerplate. The project uses:
+This is a Vue 3 + PrimeVue + Capacitor hybrid mobile app (Triada budget app). The project uses:
 - **Vue 3** with Composition API (`<script setup>`)
 - **PrimeVue** UI component library (v4)
 - **Pinia** for state management
@@ -12,6 +12,8 @@ This is a Vue 3 + PrimeVue + Capacitor hybrid mobile app boilerplate. The projec
 - **TypeScript** with strict mode
 - **Vitest** for unit testing
 - **ESLint** + **Prettier** for code quality
+- **vue-i18n** for internationalization
+- **@capacitor-community/sqlite** for local SQLite database
 
 ---
 
@@ -74,12 +76,12 @@ pnpm cap:open:android # Open Android Studio
 ### Vue 3 + Composition API
 - Use `<script setup lang="ts">` syntax
 - Prefer `ref()` over `reactive()` for primitives
-- Use composables for reusable logic (put in `src/composables/`)
+- Use composables for reusable logic (put in `src/shared/composables/`)
 - Use Pinia stores for global state (put in `src/stores/`)
 
 ### Imports
 - Use path alias `@/` for `src/` directory
-- Order imports: Vue → Router → Pinia → PrimeVue → External → Internal
+- Order imports: Vue → Router → Pinia → PrimeVue → i18n → External → Internal
 
 ### PrimeVue Components
 - Import components directly (tree-shaking is automatic in v4)
@@ -90,51 +92,83 @@ pnpm cap:open:android # Open Android Studio
 
 ## Architecture
 
-### Atomic Design
-
-Structure the codebase following Atomic Design principles:
+### Feature-Based + Clean Architecture
 
 ```
 src/
-├── atoms/          # Basic UI elements (Button, Input, Icon)
-├── molecules/      # Simple combinations (SearchBar, FormField)
-├── organisms/      # Complex UI sections (Header, Sidebar)
-├── templates/      # Page layouts (AuthLayout, DashboardLayout)
-├── pages/          # Full pages (HomePage, ProfilePage)
-├── composables/    # Reusable logic (useAuth, useFetch)
-├── stores/         # Pinia stores
-├── services/       # External API integrations
-├── types/          # TypeScript interfaces/types
-└── utils/          # Helper functions
-```
-
-### Hexagonal Architecture
-
-```
-src/
-├── domain/              # Business logic (core)
-│   ├── entities/        # Business objects
-│   ├── repositories/    # Repository interfaces
-│   └── usecases/        # Business use cases
-├── application/         # Application services
-│   └── ports/          # Input/output ports
-├── infrastructure/      # External implementations
-│   ├── api/            # HTTP clients
-│   ├── storage/        # Local storage
-│   └── plugins/        # Framework integrations
-└── presentation/       # UI layer
-    ├── atoms/
-    ├── molecules/
-    ├── organisms/
-    ├── templates/
-    └── pages/
+├── domain/
+│   └── entities/           # BudgetYear, BudgetMonth, Bucket, Transaction
+├── data/
+│   ├── database/          # SQLite init, migrations
+│   └── repositories/       # BudgetRepository, TransactionRepository
+├── features/
+│   ├── setup/
+│   │   └── pages/         # SetupPage
+│   └── dashboard/
+│       └── pages/         # DashboardPage
+├── shared/
+│   ├── components/        # Atomic: Button, Input, Card, BucketDisplay
+│   ├── composables/       # useCurrency, useTheme
+│   ├── i18n/              # Internationalization (es, en)
+│   │   └── locales/       # Translation files
+│   └── router/
+└── App.vue
 ```
 
 ### Key Principles
 1. **Dependency rule**: Domain layer has no external dependencies
-2. **Ports & Adapters**: Define interfaces in application layer, implement in infrastructure
-3. **Use cases**: encapsulate business logic in `src/domain/usecases/`
-4. **Repositories**: Abstract data access behind interfaces
+2. **Feature-first**: Each feature has its own folder under `features/`
+3. **Shared components**: Reusable UI in `shared/components/`
+4. **i18n**: All user-facing text goes through `useI18n()` from vue-i18n
+
+---
+
+## Internationalization (i18n)
+
+### Structure
+- Default locale: **Spanish (es)**
+- Supported locales: Spanish (es), English (en)
+- Translation files: `src/shared/i18n/locales/`
+
+### Usage
+```typescript
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+
+// In template
+{{ t('setup.title') }}
+{{ t('dashboard.monthlyIncome') }}
+```
+
+### Changing Locale
+```typescript
+import { setLocale, getLocale } from '@/shared/i18n';
+
+setLocale('en'); // Switch to English
+getLocale(); // Get current locale
+```
+
+---
+
+## Currency
+
+### Supported Currencies
+- USD ($) - US Dollar (default)
+- EUR (€) - Euro
+
+### Usage
+```typescript
+import { useCurrency } from '@/shared/composables/useCurrency';
+
+const { currency, currencyInfo, formatCurrency, setCurrency } = useCurrency();
+
+// Format amount (stored as minor units, e.g., cents)
+formatCurrency(1500); // Returns "$15.00" or "€15.00"
+
+// Set currency
+setCurrency('EUR');
+```
 
 ---
 
@@ -185,11 +219,11 @@ pnpm test:unit:watch
 1. **Plan**: Create a todo list with specific, actionable tasks
 2. **Implement**: Write the minimum code needed
 3. **Test First**: Write tests BEFORE implementation (TDD)
-4. **Verify**: Run linter and full test suite
+4. **Verify**: Run linter and full test suite (`pnpm lint:fix && pnpm build`)
 5. **Confirm**: Wait for user approval before continuing
 
 ### Before Each Step
-- Always run `pnpm lint:fix` and `pnpm test:unit` before marking a task complete
+- Always run `pnpm lint:fix` and `pnpm build` before marking a task complete
 - Never proceed to the next task without explicit user confirmation
 
 ### Commit Messages
@@ -200,8 +234,9 @@ pnpm test:unit:watch
 
 ## Important Notes
 
-- This is a **boilerplate** - extend it as needed
+- **Triada** is a budget app following the 50/30/20 rule
 - Mobile-first approach for UI design
 - Use PrimeVue components for consistency
 - Keep business logic in domain layer, away from Vue components
 - Always write tests for new features (TDD)
+- All monetary values stored as **minor units** (cents/pennies) as integers

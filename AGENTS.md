@@ -49,11 +49,22 @@ pnpm test:unit -- run -t "test name"              # Run tests matching pattern
 
 ### Capacitor
 ```bash
-pnpm cap:add:ios       # Add iOS platform
-pnpm cap:add:android   # Add Android platform
-pnpm cap:sync          # Sync web assets to native
-pnpm cap:open:ios     # Open Xcode
-pnpm cap:open:android # Open Android Studio
+pnpm cap:add:ios         # Add iOS platform (requires CocoaPods)
+pnpm cap:add:android     # Add Android platform
+pnpm cap:sync            # Sync web assets to native (both platforms)
+pnpm cap:sync:ios        # Sync iOS and run pod install
+pnpm cap:sync:android    # Sync Android
+pnpm cap:open:ios        # Open Xcode
+pnpm cap:open:android    # Open Android Studio
+pnpm cap:build:ios       # Build iOS app (requires simulator name)
+pnpm cap:build:android   # Build Android debug APK
+```
+
+### Environment Setup
+For Android development, ensure ANDROID_HOME is set:
+```bash
+export ANDROID_HOME=~/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
 ```
 
 ---

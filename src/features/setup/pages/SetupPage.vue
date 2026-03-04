@@ -107,12 +107,9 @@ async function createBudget(): Promise<void> {
   if (!isValid.value) return;
 
   isLoading.value = true;
-  console.log('[Setup] createBudget called');
 
   try {
-    console.log('[Setup] Calling initDatabase...');
     await initDatabase();
-    console.log('[Setup] initDatabase done');
 
     const existing = await getLatestBudgetYear();
     const currentYear = new Date().getFullYear();
@@ -128,9 +125,7 @@ async function createBudget(): Promise<void> {
       return;
     }
 
-    console.log('[Setup] Creating year with allocations...');
     await createYearWithAllocations(monthlyIncomeNumber.value, currentYear, selectedCurrency.value);
-    console.log('[Setup] Year created');
 
     toast.add({
       severity: 'success',

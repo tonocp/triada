@@ -1,4 +1,5 @@
 import { CapacitorSQLite } from '@capacitor-community/sqlite';
+import { Capacitor } from '@capacitor/core';
 
 const DB_NAME = 'triada';
 
@@ -15,6 +16,11 @@ export async function initDatabase(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     return;
+  }
+
+  if (!Capacitor.isNativePlatform()) {
+    console.error('[DB] SQLite is only available on native platforms (iOS/Android)');
+    throw new Error('SQLite is only available on native platforms. Use a device or emulator.');
   }
 
   isInitializing = true;
@@ -63,6 +69,7 @@ export async function initDatabase(): Promise<void> {
       `,
     });
 
+    console.log('[DB] Database initialized successfully');
     isDbReady = true;
     isInitializing = false;
   } catch (error) {

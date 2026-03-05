@@ -20,6 +20,7 @@ export default {
   dashboard: {
     monthlyIncome: 'Ingreso Mensual',
     addExpense: 'Agregar Gasto',
+    noBudgetForPeriod: 'No hay presupuesto para el mes y año seleccionados.',
     allocated: 'Asignado',
     spent: 'Gastado',
     remaining: 'Restante',

@@ -169,6 +169,25 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     };
   },
 
+  async getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
+    await initIndexedDb();
+
+    const rows = await readAllBudgetYears();
+    const found = rows.find((row) => row.year === year);
+    if (!found) {
+      return null;
+    }
+
+    return {
+      id: found.id,
+      monthlyIncome: found.monthly_income,
+      year: found.year,
+      currency: found.currency,
+      createdAt: found.created_at,
+      updatedAt: found.updated_at,
+    };
+  },
+
   async createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
     await initIndexedDb();
 

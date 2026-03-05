@@ -31,6 +31,10 @@ export async function getLatestBudgetYear(): Promise<BudgetYear | null> {
   return getRepository().getLatestBudgetYear();
 }
 
+export async function getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
+  return getRepository().getBudgetYearByYear(year);
+}
+
 export async function createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
   return getRepository().createBudgetMonth(input);
 }

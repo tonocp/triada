@@ -58,6 +58,31 @@ export const sqliteBudgetRepository: BudgetRepository = {
     };
   },
 
+  async getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
+    const result = await query<{
+      id: string;
+      monthly_income: number;
+      year: number;
+      currency: string;
+      created_at: string;
+      updated_at: string;
+    }>(`SELECT * FROM budget_years WHERE year = ? LIMIT 1`, [year]);
+
+    if (result.length === 0) return null;
+
+    const [row] = result;
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      monthlyIncome: row.monthly_income,
+      year: row.year,
+      currency: row.currency as SupportedCurrency,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  },
+
   async createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
     const id = generateUUID();
     const now = getCurrentTimestamp();

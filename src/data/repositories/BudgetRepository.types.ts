@@ -11,6 +11,7 @@ import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 export interface BudgetRepository {
   createBudgetYear(input: CreateBudgetYearInput): Promise<BudgetYear>;
   getLatestBudgetYear(): Promise<BudgetYear | null>;
+  getBudgetYearByYear(year: number): Promise<BudgetYear | null>;
   createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth>;
   getBudgetMonth(budgetYearId: string, month: number): Promise<BudgetMonth | null>;
   createBudgetAllocation(input: CreateBudgetAllocationInput): Promise<BudgetAllocation>;

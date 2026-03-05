@@ -3,14 +3,14 @@
     <div class="dashboard-header">
       <div class="month-selector">
         <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
-        <span class="current-month">{{ monthNames }} {{ currentYear }}</span>
-        <Button
-          icon="pi pi-chevron-right"
-          severity="secondary"
-          outlined
-          :disabled="isCurrentMonth"
-          @click="nextMonth"
+        <DatePicker
+          v-model="selectedPeriod"
+          view="month"
+          date-format="MM yy"
+          :manual-input="false"
+          class="month-picker"
         />
+        <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
       </div>
     </div>
 
@@ -21,7 +21,7 @@
       </div>
     </div>
 
-    <div class="buckets-section">
+    <div v-if="budgetMonth" class="buckets-section">
       <BucketDisplay
         v-for="allocation in allocations"
         :key="allocation.bucket"
@@ -31,7 +31,11 @@
       />
     </div>
 
-    <div class="actions-section">
+    <div v-else class="empty-state">
+      <p>{{ t('dashboard.noBudgetForPeriod') }}</p>
+    </div>
+
+    <div v-if="budgetMonth && budgetYear" class="actions-section">
       <Button
         :label="t('dashboard.addExpense')"
         icon="pi pi-plus"
@@ -76,15 +80,16 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import { getBudgetMonth, getLatestBudgetYear } from '@/data/repositories';
+import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
 import type { BudgetAllocation, BudgetMonth, BudgetYear } from '@/domain/entities';
 import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
+import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -95,41 +100,13 @@ const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const budgetYear = ref<BudgetYear | null>(null);
 const budgetMonth = ref<BudgetMonth | null>(null);
-const currentMonth = ref(new Date().getMonth() + 1);
-const currentYear = new Date().getFullYear();
+const selectedPeriod = ref<Date | null>(new Date());
 
 const showAddExpense = ref(false);
 const expenseAmount = ref<string>('');
 const expenseCategory = ref('');
 
 const categories = ['needs', 'wants', 'savings'];
-
-const monthNames = computed(() => {
-  const idx = currentMonth.value - 1;
-  const key = `dashboard.monthNames.${idx}`;
-  const translated = t(key);
-  if (translated !== key) return translated;
-  return [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ][idx];
-});
-
-const isCurrentMonth = computed(() => {
-  return (
-    currentMonth.value === new Date().getMonth() + 1 && currentYear === new Date().getFullYear()
-  );
-});
 
 const allocations = computed<BudgetAllocation[]>(() => {
   return budgetMonth.value?.allocations || [];
@@ -141,27 +118,42 @@ const isExpenseValid = computed(() => {
 });
 
 function previousMonth(): void {
-  if (currentMonth.value === 1) {
-    currentMonth.value = 12;
-  } else {
-    currentMonth.value--;
+  if (!selectedPeriod.value) {
+    selectedPeriod.value = new Date();
+    return;
   }
-  loadMonthData();
+
+  const nextDate = new Date(selectedPeriod.value);
+  nextDate.setMonth(nextDate.getMonth() - 1);
+  selectedPeriod.value = nextDate;
 }
 
 function nextMonth(): void {
-  if (currentMonth.value === 12) {
-    currentMonth.value = 1;
-  } else {
-    currentMonth.value++;
+  if (!selectedPeriod.value) {
+    selectedPeriod.value = new Date();
+    return;
   }
-  loadMonthData();
+
+  const nextDate = new Date(selectedPeriod.value);
+  nextDate.setMonth(nextDate.getMonth() + 1);
+  selectedPeriod.value = nextDate;
 }
 
 async function loadMonthData(): Promise<void> {
-  if (!budgetYear.value) return;
+  if (!selectedPeriod.value) return;
 
-  budgetMonth.value = await getBudgetMonth(budgetYear.value.id, currentMonth.value);
+  const selectedYear = selectedPeriod.value.getFullYear();
+  const selectedMonth = selectedPeriod.value.getMonth() + 1;
+
+  const resolvedBudgetYear = await getBudgetYearByYear(selectedYear);
+  if (!resolvedBudgetYear) {
+    budgetYear.value = null;
+    budgetMonth.value = null;
+    return;
+  }
+
+  budgetYear.value = resolvedBudgetYear;
+  budgetMonth.value = await getBudgetMonth(resolvedBudgetYear.id, selectedMonth);
 }
 
 async function addExpense(): Promise<void> {
@@ -189,7 +181,8 @@ async function loadData(): Promise<void> {
       return;
     }
 
-    budgetYear.value = year;
+    const defaultMonth = new Date().getMonth();
+    selectedPeriod.value = new Date(year.year, defaultMonth, 1);
     await loadMonthData();
   } catch (error) {
     console.error('Failed to load data:', error);
@@ -201,6 +194,25 @@ async function loadData(): Promise<void> {
     });
   }
 }
+
+watch(selectedPeriod, async (newValue) => {
+  if (!newValue) {
+    selectedPeriod.value = new Date();
+    return;
+  }
+
+  try {
+    await loadMonthData();
+  } catch (error) {
+    console.error('Failed to load month data:', error);
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('setup.errorCreating'),
+      life: 3000,
+    });
+  }
+});
 
 onMounted(() => {
   loadData();
@@ -219,11 +231,14 @@ onMounted(() => {
   gap: 1rem;
 }
 
-.current-month {
-  font-size: 1.25rem;
-  font-weight: 600;
-  min-width: 150px;
+.month-picker {
+  min-width: 170px;
+}
+
+.empty-state {
+  margin: 2rem 0;
   text-align: center;
+  color: var(--p-text-muted-color);
 }
 
 .budget-summary {

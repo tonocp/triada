@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   BUCKET_ICONS,
-  BUCKET_LABELS,
   BUCKET_ORDER,
   BUCKET_PERCENTAGES,
   BucketType,
@@ -36,14 +35,6 @@ describe('domain/entities - Bucket', () => {
   describe('BUCKET_ORDER', () => {
     it('should preserve needs wants savings order', () => {
       expect(BUCKET_ORDER).toEqual([BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS]);
-    });
-  });
-
-  describe('BUCKET_LABELS', () => {
-    it('should have correct labels', () => {
-      expect(BUCKET_LABELS[BucketType.NEEDS]).toBe('Necesidades');
-      expect(BUCKET_LABELS[BucketType.WANTS]).toBe('Gastos personales');
-      expect(BUCKET_LABELS[BucketType.SAVINGS]).toBe('Ahorro e inversión');
     });
   });
 

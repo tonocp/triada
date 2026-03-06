@@ -24,12 +24,6 @@ const BUCKET_ORDER_INDEX: Record<BucketType, number> = {
   savings: 2,
 };
 
-export const BUCKET_LABELS: Record<BucketType, string> = {
-  needs: 'Necesidades',
-  wants: 'Gastos personales',
-  savings: 'Ahorro e inversión',
-};
-
 export const BUCKET_ICONS: Record<BucketType, string> = {
   needs: 'pi pi-home',
   wants: 'pi pi-shopping-bag',

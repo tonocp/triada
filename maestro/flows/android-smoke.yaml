@@ -3,9 +3,10 @@ appId: com.triada.app
 - launchApp:
     clearState: true
 - assertVisible: 'Bienvenido a Triada'
-- tapOn: '0.00'
+- tapOn:
+    id: income
 - inputText: '1200'
-- tapOn: 'Done'
+- hideKeyboard
 - tapOn: 'Crear Presupuesto'
 - assertVisible: 'Agregar Gasto'
 - assertVisible: '$1200.00'

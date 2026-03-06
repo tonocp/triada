@@ -4,6 +4,8 @@ import es from './locales/es';
 
 export type SupportedLocale = 'es' | 'en';
 
+type LocaleChangeListener = (locale: SupportedLocale) => void;
+
 export const supportedLocales: { code: SupportedLocale; name: string }[] = [
   { code: 'es', name: 'Español' },
   { code: 'en', name: 'English' },
@@ -23,13 +25,27 @@ export const i18n = createI18n({
   },
 });
 
+const localeChangeListeners = new Set<LocaleChangeListener>();
+
 export function setLocale(locale: SupportedLocale): void {
   i18n.global.locale.value = locale;
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('triada-locale', locale);
   }
+
+  for (const listener of localeChangeListeners) {
+    listener(locale);
+  }
 }
 
 export function getLocale(): SupportedLocale {
   return i18n.global.locale.value as SupportedLocale;
+}
+
+export function onLocaleChange(listener: LocaleChangeListener): () => void {
+  localeChangeListeners.add(listener);
+
+  return () => {
+    localeChangeListeners.delete(listener);
+  };
 }

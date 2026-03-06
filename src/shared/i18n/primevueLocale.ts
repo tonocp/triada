@@ -1,0 +1,83 @@
+import type { SupportedLocale } from '@/shared/i18n';
+import type { PrimeVueLocaleOptions } from 'primevue/config';
+
+const PRIMEVUE_LOCALE_BY_LANGUAGE: Record<SupportedLocale, Partial<PrimeVueLocaleOptions>> = {
+  en: {
+    dayNames: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    dayNamesShort: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    dayNamesMin: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+    monthNames: [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ],
+    monthNamesShort: [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ],
+    firstDayOfWeek: 0,
+    today: 'Today',
+    clear: 'Clear',
+    weekHeader: 'Wk',
+  },
+  es: {
+    dayNames: ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'],
+    dayNamesShort: ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'],
+    dayNamesMin: ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa'],
+    monthNames: [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ],
+    monthNamesShort: [
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ],
+    firstDayOfWeek: 1,
+    today: 'Hoy',
+    clear: 'Limpiar',
+    weekHeader: 'Sem',
+  },
+};
+
+export function getPrimeVueLocale(locale: SupportedLocale): PrimeVueLocaleOptions {
+  return PRIMEVUE_LOCALE_BY_LANGUAGE[locale] as PrimeVueLocaleOptions;
+}

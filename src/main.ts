@@ -8,7 +8,8 @@ import App from './App.vue';
 import './assets/primevue-variables.css';
 import './assets/style.css';
 import router from './router';
-import { i18n } from './shared/i18n';
+import { getLocale, i18n, onLocaleChange } from './shared/i18n';
+import { getPrimeVueLocale } from './shared/i18n/primevueLocale';
 
 const pinia = createPinia();
 const app = createApp(App);
@@ -23,8 +24,19 @@ app.use(PrimeVue, {
       darkModeSelector: '.dark',
     },
   },
+  locale: getPrimeVueLocale(getLocale()),
 });
 app.use(ToastService);
+
+onLocaleChange((locale) => {
+  const primeVue = app.config.globalProperties.$primevue as
+    | { config?: { locale?: unknown } }
+    | undefined;
+
+  if (primeVue?.config) {
+    primeVue.config.locale = getPrimeVueLocale(locale);
+  }
+});
 
 router.beforeEach(async (_to, _from, next) => {
   next();

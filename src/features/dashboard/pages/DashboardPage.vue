@@ -60,7 +60,7 @@
         <div class="form-group">
           <label>{{ t('settings.currency') }}</label>
           <select v-model="expenseCategory" class="category-select">
-            <option value="">Select category</option>
+            <option value="">{{ t('dashboard.selectCategory') }}</option>
             <option v-for="cat in categories" :key="cat" :value="cat">
               {{ t(`buckets.${cat}`) }}
             </option>

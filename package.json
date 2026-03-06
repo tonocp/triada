@@ -20,11 +20,16 @@
     "cap:copy": "npx cap copy",
     "cap:build:ios": "xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build",
     "cap:build:android": "./android/gradlew -p android assembleDebug",
-    "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
-    "lint:quiet": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --quiet",
-    "lint:fix": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
-    "test:unit": "vitest --run",
-    "test:unit:watch": "vitest"
+    "test:unit": "vitest",
+    "test:unit:coverage": "vitest run --coverage",
+    "test:e2e": "start-server-and-test preview http://localhost:4173 'cypress run --e2e'",
+    "test:e2e:dev": "start-server-and-test 'vite dev --port 4173' http://localhost:4173 'cypress open --e2e'",
+    "type-check": "vue-tsc --build",
+    "lint": "eslint . --fix --cache",
+    "lint:check": "eslint . --cache",
+    "format": "prettier --write --experimental-cli src/",
+    "format:check": "prettier --check src/",
+    "build:check": "pnpm format && pnpm test:unit:coverage && pnpm type-check && pnpm lint:check && pnpm build"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^7.0.3",

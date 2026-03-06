@@ -158,6 +158,15 @@ Derived from `prettier.config.cjs`, `common.config.cjs`, `eslint.config.mjs`, an
 pnpm lint:fix && pnpm test:unit && pnpm build
 ```
 
+## Iterative Workflow (Requested by User)
+- Work in explicitly authorized steps. Complete one step at a time.
+- At the end of each step, run:
+```bash
+pnpm build:check
+```
+- Do not continue to the next step until the user explicitly authorizes it.
+- If tests or build fail, fix issues within the current step before considering it complete.
+
 ## Cursor and Copilot Rules
 - `.cursorrules`: not found
 - `.cursor/rules/`: not found

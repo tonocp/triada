@@ -32,7 +32,8 @@
     "lint:check": "eslint src --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "format": "prettier --write --experimental-cli src/",
     "format:check": "prettier --check src/",
-    "build:check": "pnpm format && pnpm test:unit:coverage && pnpm type-check && pnpm lint:check && pnpm build"
+    "build:check": "pnpm format && pnpm test:unit:coverage && pnpm type-check && pnpm lint:check && pnpm build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^7.0.3",
@@ -78,6 +79,7 @@
     "eslint-plugin-vue": "10.8.0",
     "fake-indexeddb": "^6.2.5",
     "globals": "16.5.0",
+    "husky": "^9.1.7",
     "jsdom": "26.1.0",
     "prettier": "^3.8.1",
     "prettier-plugin-organize-imports": "4.3.0",

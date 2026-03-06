@@ -6,8 +6,13 @@ interface IndexedDbMockResult {
   storeCreateIndexMap: Record<string, ReturnType<typeof vi.fn>>;
 }
 
-function setupIndexedDbMock(options?: { failOpen?: boolean }): IndexedDbMockResult {
+function setupIndexedDbMock(options?: {
+  failOpen?: boolean;
+  failOpenWithoutError?: boolean;
+  existingStores?: Array<'budget_years' | 'budget_months' | 'budget_allocations'>;
+}): IndexedDbMockResult {
   const storeCreateIndexMap: Record<string, ReturnType<typeof vi.fn>> = {};
+  const existingStores = new Set(options?.existingStores ?? []);
 
   const createObjectStore = vi.fn((storeName: string) => {
     const createIndex = vi.fn();
@@ -20,7 +25,7 @@ function setupIndexedDbMock(options?: { failOpen?: boolean }): IndexedDbMockResu
 
   const db = {
     objectStoreNames: {
-      contains: vi.fn().mockReturnValue(false),
+      contains: vi.fn((storeName: string) => existingStores.has(storeName as never)),
     },
     createObjectStore,
     close: vi.fn(),
@@ -37,7 +42,10 @@ function setupIndexedDbMock(options?: { failOpen?: boolean }): IndexedDbMockResu
     } as unknown as IDBOpenDBRequest;
 
     queueMicrotask(() => {
-      if (options?.failOpen) {
+      if (options?.failOpen || options?.failOpenWithoutError) {
+        if (options.failOpenWithoutError) {
+          (request as unknown as { error: null }).error = null;
+        }
         request.onerror?.(new Event('error'));
         return;
       }
@@ -123,11 +131,62 @@ describe('data/database indexeddb', () => {
     expect(indexedDbModule.isDatabaseReady()).toBe(false);
   });
 
+  it('should close opened connection on version change', async () => {
+    const indexedDbMock = setupIndexedDbMock();
+    const indexedDbModule = await import('./indexeddb');
+
+    await indexedDbModule.initDatabase();
+    indexedDbMock.db.onversionchange?.(
+      new Event('versionchange') as unknown as IDBVersionChangeEvent,
+    );
+
+    expect(indexedDbMock.db.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not create stores that already exist', async () => {
+    const indexedDbMock = setupIndexedDbMock({
+      existingStores: ['budget_years', 'budget_months', 'budget_allocations'],
+    });
+    const indexedDbModule = await import('./indexeddb');
+
+    await indexedDbModule.initDatabase();
+
+    expect(indexedDbMock.db.createObjectStore).not.toHaveBeenCalled();
+  });
+
+  it('should ignore close when database was never initialized', async () => {
+    setupIndexedDbMock();
+    const indexedDbModule = await import('./indexeddb');
+
+    await indexedDbModule.closeDatabase();
+
+    expect(indexedDbModule.isDatabaseReady()).toBe(false);
+  });
+
+  it('should reopen a new connection after close', async () => {
+    const indexedDbMock = setupIndexedDbMock();
+    const indexedDbModule = await import('./indexeddb');
+
+    await indexedDbModule.getIndexedDb();
+    await indexedDbModule.closeDatabase();
+    await indexedDbModule.getIndexedDb();
+
+    expect(indexedDbMock.open).toHaveBeenCalledTimes(2);
+  });
+
   it('should throw when opening IndexedDB fails', async () => {
     setupIndexedDbMock({ failOpen: true });
     const indexedDbModule = await import('./indexeddb');
 
     await expect(indexedDbModule.initDatabase()).rejects.toThrow('IndexedDB unavailable');
+    expect(indexedDbModule.isDatabaseReady()).toBe(false);
+  });
+
+  it('should throw fallback error when IndexedDB fails without explicit request error', async () => {
+    setupIndexedDbMock({ failOpenWithoutError: true });
+    const indexedDbModule = await import('./indexeddb');
+
+    await expect(indexedDbModule.initDatabase()).rejects.toThrow('Failed to open IndexedDB');
     expect(indexedDbModule.isDatabaseReady()).toBe(false);
   });
 });

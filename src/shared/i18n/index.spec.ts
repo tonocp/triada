@@ -51,4 +51,32 @@ describe('shared/i18n index', () => {
 
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  it('should notify all listeners and keep active subscriptions only', async () => {
+    localStorageMock.getItem.mockReturnValue('es');
+
+    const { onLocaleChange, setLocale } = await import('./index');
+    const listenerA = vi.fn<(locale: 'es' | 'en') => void>();
+    const listenerB = vi.fn<(locale: 'es' | 'en') => void>();
+
+    const unsubscribeA = onLocaleChange(listenerA);
+    onLocaleChange(listenerB);
+
+    setLocale('en');
+    unsubscribeA();
+    setLocale('es');
+
+    expect(listenerA).toHaveBeenCalledTimes(1);
+    expect(listenerB).toHaveBeenCalledTimes(2);
+  });
+
+  it('should work without localStorage global', async () => {
+    vi.unstubAllGlobals();
+
+    const { getLocale, setLocale } = await import('./index');
+
+    expect(getLocale()).toBe('es');
+    expect(() => setLocale('en')).not.toThrow();
+    expect(getLocale()).toBe('en');
+  });
 });

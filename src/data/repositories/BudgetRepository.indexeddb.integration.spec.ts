@@ -64,6 +64,7 @@ interface IndexedDbRepositoryModule {
       budgetMonthId: string;
       bucket: 'needs' | 'wants' | 'savings';
       allocated: number;
+      spent: number;
     }>;
     getAllocationsByMonth: (budgetMonthId: string) => Promise<
       Array<{
@@ -144,6 +145,16 @@ describe('data/repositories IndexedDB integration', () => {
     expect(firstMonth?.allocations[0]?.allocated).toBe(50_000);
     expect(firstMonth?.allocations[1]?.allocated).toBe(30_000);
     expect(firstMonth?.allocations[2]?.allocated).toBe(20_000);
+
+    expect(result.months[11]?.month).toBe(12);
+  });
+
+  it('should return null when latest year does not exist', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const latest = await repositoryModule.indexedDbBudgetRepository.getLatestBudgetYear();
+
+    expect(latest).toBeNull();
   });
 
   it('should return latest year only when it has months', async () => {
@@ -169,6 +180,45 @@ describe('data/repositories IndexedDB integration', () => {
     expect(latest?.year).toBe(2026);
   });
 
+  it('should return null as latest when all years are missing months', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 80_000,
+      year: 2025,
+      currency: 'USD',
+    });
+    await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 90_000,
+      year: 2026,
+      currency: 'EUR',
+    });
+
+    const latest = await repositoryModule.indexedDbBudgetRepository.getLatestBudgetYear();
+    expect(latest).toBeNull();
+  });
+
+  it('should prioritize latest created_at for same year in latest selection', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const newer = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      120_000,
+      2026,
+      'EUR',
+    );
+
+    const latest = await repositoryModule.indexedDbBudgetRepository.getLatestBudgetYear();
+
+    expect(latest?.id).toBe(newer.budgetYear.id);
+    expect(latest?.currency).toBe('EUR');
+  });
+
   it('should return the latest candidate with months for the same year', async () => {
     const { repositoryModule } = await loadModules();
 
@@ -185,6 +235,34 @@ describe('data/repositories IndexedDB integration', () => {
     expect(found).not.toBeNull();
     expect(found?.id).not.toBe(newerWithoutMonths.id);
     expect(found?.year).toBe(2026);
+  });
+
+  it('should return null when searching for year without valid months', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 100_000,
+      year: 2030,
+      currency: 'USD',
+    });
+
+    const result = await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2030);
+
+    expect(result).toBeNull();
+  });
+
+  it('should return null when budget month does not exist', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 100_000,
+      year: 2026,
+      currency: 'USD',
+    });
+
+    const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 8);
+
+    expect(month).toBeNull();
   });
 
   it('should return allocations sorted by bucket order even when inserted unordered', async () => {
@@ -227,5 +305,44 @@ describe('data/repositories IndexedDB integration', () => {
     const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 3);
     expect(month).not.toBeNull();
     expect(month?.allocations.map((allocation) => allocation.bucket)).toEqual(BUCKET_ORDER);
+  });
+
+  it('should keep spent as zero when allocation is created', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 100_000,
+      year: 2026,
+      currency: 'USD',
+    });
+
+    const budgetMonth = await repositoryModule.indexedDbBudgetRepository.createBudgetMonth({
+      budgetYearId: budgetYear.id,
+      month: 4,
+      year: 2026,
+    });
+
+    const allocation = await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
+      budgetMonthId: budgetMonth.id,
+      bucket: 'wants',
+      allocated: 30_000,
+    });
+
+    expect(allocation.spent).toBe(0);
+  });
+
+  it('should floor allocation values for non-divisible incomes', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      101,
+      2026,
+      'USD',
+    );
+    const month = result.months[0];
+
+    expect(month?.allocations[0]?.allocated).toBe(50);
+    expect(month?.allocations[1]?.allocated).toBe(30);
+    expect(month?.allocations[2]?.allocated).toBe(20);
   });
 });

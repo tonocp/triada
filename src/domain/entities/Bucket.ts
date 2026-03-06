@@ -13,13 +13,13 @@ export const BUCKET_PERCENTAGES: Record<BucketType, number> = {
 };
 
 export const BUCKET_LABELS: Record<BucketType, string> = {
-  needs: 'Needs',
-  wants: 'Wants',
-  savings: 'Savings',
+  needs: 'Necesidades',
+  wants: 'Gastos personales',
+  savings: 'Ahorro e inversión',
 };
 
 export const BUCKET_ICONS: Record<BucketType, string> = {
   needs: 'pi pi-home',
-  wants: 'pi pi-heart',
+  wants: 'pi pi-shopping-bag',
   savings: 'pi pi-wallet',
 };

@@ -9,6 +9,15 @@
     <Card class="setup-card">
       <template #content>
         <div class="form-group">
+          <label for="language">{{ t('settings.language') }}</label>
+          <select id="language" v-model="selectedLocale" class="currency-select">
+            <option v-for="lang in supportedLocales" :key="lang.code" :value="lang.code">
+              {{ lang.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label for="currency">{{ t('settings.currency') }}</label>
           <select id="currency" v-model="selectedCurrency" class="currency-select">
             <option v-for="curr in supportedCurrencies" :key="curr.code" :value="curr.code">
@@ -71,6 +80,7 @@ import {
 } from '@/data/repositories';
 import { Button, Card, Input } from '@/shared/components/atoms';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
+import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -89,7 +99,12 @@ const {
 
 const monthlyIncome = ref<string>('');
 const isLoading = ref(false);
+const selectedLocale = ref<SupportedLocale>(getLocale());
 const selectedCurrency = ref<SupportedCurrency>(currency.value);
+
+watch(selectedLocale, (newVal) => {
+  setLocale(newVal);
+});
 
 watch(selectedCurrency, (newVal) => {
   setCurrency(newVal);

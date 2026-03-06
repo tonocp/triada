@@ -41,9 +41,9 @@ export default {
     ],
   },
   buckets: {
-    needs: 'Needs',
-    wants: 'Wants',
-    savings: 'Savings',
+    needs: 'Necesidades',
+    wants: 'Gastos personales',
+    savings: 'Ahorro e inversión',
   },
   settings: {
     title: 'Settings',

@@ -28,17 +28,17 @@ describe('domain/entities - Bucket', () => {
 
   describe('BUCKET_LABELS', () => {
     it('should have correct labels', () => {
-      expect(BUCKET_LABELS[BucketType.NEEDS]).toBe('Needs');
-      expect(BUCKET_LABELS[BucketType.WANTS]).toBe('Wants');
-      expect(BUCKET_LABELS[BucketType.SAVINGS]).toBe('Savings');
+      expect(BUCKET_LABELS[BucketType.NEEDS]).toBe('Necesidades');
+      expect(BUCKET_LABELS[BucketType.WANTS]).toBe('Gastos personales');
+      expect(BUCKET_LABELS[BucketType.SAVINGS]).toBe('Ahorro e inversión');
     });
   });
 
   describe('BUCKET_ICONS', () => {
     it('should have icons for each bucket', () => {
-      expect(BUCKET_ICONS[BucketType.NEEDS]).toBeDefined();
-      expect(BUCKET_ICONS[BucketType.WANTS]).toBeDefined();
-      expect(BUCKET_ICONS[BucketType.SAVINGS]).toBeDefined();
+      expect(BUCKET_ICONS[BucketType.NEEDS]).toBe('pi pi-home');
+      expect(BUCKET_ICONS[BucketType.WANTS]).toBe('pi pi-shopping-bag');
+      expect(BUCKET_ICONS[BucketType.SAVINGS]).toBe('pi pi-wallet');
     });
   });
 });

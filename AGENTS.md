@@ -57,12 +57,14 @@ Operational guide for coding agents working in this repository.
 - Framework: Vitest.
 - Cover pure logic, i18n behavior, simple composables, and facade contracts.
 - File naming: `*.spec.ts`.
+- Include edge cases, error paths, and fallback behavior (not only happy paths).
 
 ### 4.2 Integration tests
 
 - Cover real repository/infrastructure behavior.
 - Use `fake-indexeddb` for web persistence integration tests.
 - Validate business invariants (for example 50/30/20 allocation and bucket order).
+- Validate null/empty states, partial/corrupted data recovery paths, and sorting consistency.
 
 ### 4.3 Web E2E
 
@@ -71,6 +73,7 @@ Operational guide for coding agents working in this repository.
   - initial setup,
   - setup -> dashboard redirect when budget exists,
   - persistence after reload.
+- Also cover critical UX edge cases when relevant (invalid income, locale/currency persistence, rounding display behavior).
 
 ### 4.4 Native E2E
 
@@ -79,6 +82,13 @@ Operational guide for coding agents working in this repository.
   - app launch,
   - setup completion,
   - dashboard visible with expected budget output.
+- Prefer stable selectors/identifiers (for example `id`) when available, and keep separate flows per platform when interactions differ.
+
+### 4.5 Coverage policy
+
+- Runtime logic should keep line coverage at 100%.
+- Files that only declare static types/contracts or static locale dictionaries may be excluded from coverage thresholds when they do not represent executable runtime logic.
+- Any exclusion must be explicit and justified in `vitest.config.ts`.
 
 ## 5) Official commands
 
@@ -150,7 +160,19 @@ pnpm test:e2e
 
 If native UX is affected, also run Maestro tests on iOS and Android when environment is available.
 
-## 7) Commit and PR expectations
+## 7) Git hooks and local quality gates
+
+- Husky is enabled in this repository (`prepare` script in `package.json`).
+- `pre-commit` runs:
+
+```bash
+pnpm build:check
+```
+
+- Do not bypass hooks unless explicitly requested by the user.
+- If hooks fail, fix the root cause before committing.
+
+## 8) Commit and PR expectations
 
 - Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`.
 - Keep PRs focused and avoid unrelated refactors.
@@ -159,9 +181,10 @@ If native UX is affected, also run Maestro tests on iOS and Android when environ
   - platform impact,
   - evidence of executed tests.
 
-## 8) Agent restrictions
+## 9) Agent restrictions
 
 - Do not revert user changes unless explicitly requested.
 - Do not use destructive git commands.
 - Do not add dependencies without clear technical justification.
 - Any domain contract change requires corresponding test updates.
+- Do not disable or weaken existing test/coverage/hook guardrails without explicit user approval.

@@ -8,7 +8,12 @@ import type {
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
 } from '@/domain/entities';
-import { BUCKET_PERCENTAGES, BucketType } from '@/domain/entities';
+import {
+  BUCKET_ORDER,
+  BUCKET_PERCENTAGES,
+  compareBuckets,
+  type BucketType,
+} from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -190,15 +195,17 @@ export const sqliteBudgetRepository: BudgetRepository = {
       updated_at: string;
     }>(`SELECT * FROM budget_allocations WHERE budget_month_id = ?`, [budgetMonthId]);
 
-    return result.map((row) => ({
-      id: row.id,
-      budgetMonthId: row.budget_month_id,
-      bucket: row.bucket as BucketType,
-      allocated: Number(row.allocated),
-      spent: Number(row.spent),
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return result
+      .map((row) => ({
+        id: row.id,
+        budgetMonthId: row.budget_month_id,
+        bucket: row.bucket as BucketType,
+        allocated: Number(row.allocated),
+        spent: Number(row.spent),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+      .sort((left, right) => compareBuckets(left.bucket, right.bucket));
   },
 
   async createYearWithAllocations(
@@ -222,11 +229,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
       const allocations: BudgetAllocation[] = [];
 
-      for (const [bucket, percentage] of Object.entries(BUCKET_PERCENTAGES)) {
+      for (const bucket of BUCKET_ORDER) {
+        const percentage = BUCKET_PERCENTAGES[bucket];
         const allocated = Math.floor((monthlyIncome * percentage) / 100);
         const allocation = await sqliteBudgetRepository.createBudgetAllocation({
           budgetMonthId: budgetMonth.id,
-          bucket: bucket as BucketType,
+          bucket,
           allocated,
         });
         allocations.push(allocation);

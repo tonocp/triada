@@ -32,7 +32,7 @@
 
 <script setup lang="ts">
 import type { BucketType } from '@/domain/entities';
-import { BUCKET_ICONS, BUCKET_LABELS, BUCKET_PERCENTAGES } from '@/domain/entities';
+import { BUCKET_ICONS, BUCKET_PERCENTAGES } from '@/domain/entities';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -46,7 +46,7 @@ const props = defineProps<{
   spent: number;
 }>();
 
-const bucketLabel = computed(() => BUCKET_LABELS[props.bucket]);
+const bucketLabel = computed(() => t(`buckets.${props.bucket}`));
 const bucketIcon = computed(() => BUCKET_ICONS[props.bucket]);
 const bucketPercentage = computed(() => BUCKET_PERCENTAGES[props.bucket]);
 
@@ -114,14 +114,6 @@ const progressPercent = computed(() => {
 }
 
 .amount-value.spent {
-  color: var(--p-red-500);
-}
-
-.amount-value.remaining-positive {
-  color: var(--p-green-500);
-}
-
-.amount-value.remaining-negative {
   color: var(--p-red-500);
 }
 

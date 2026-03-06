@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BUCKET_ICONS, BUCKET_LABELS, BUCKET_PERCENTAGES, BucketType } from './Bucket';
+import {
+  BUCKET_ICONS,
+  BUCKET_LABELS,
+  BUCKET_ORDER,
+  BUCKET_PERCENTAGES,
+  BucketType,
+  compareBuckets,
+} from './Bucket';
 
 describe('domain/entities - Bucket', () => {
   describe('BucketType', () => {
@@ -26,6 +33,12 @@ describe('domain/entities - Bucket', () => {
     });
   });
 
+  describe('BUCKET_ORDER', () => {
+    it('should preserve needs wants savings order', () => {
+      expect(BUCKET_ORDER).toEqual([BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS]);
+    });
+  });
+
   describe('BUCKET_LABELS', () => {
     it('should have correct labels', () => {
       expect(BUCKET_LABELS[BucketType.NEEDS]).toBe('Necesidades');
@@ -39,6 +52,14 @@ describe('domain/entities - Bucket', () => {
       expect(BUCKET_ICONS[BucketType.NEEDS]).toBe('pi pi-home');
       expect(BUCKET_ICONS[BucketType.WANTS]).toBe('pi pi-shopping-bag');
       expect(BUCKET_ICONS[BucketType.SAVINGS]).toBe('pi pi-wallet');
+    });
+  });
+
+  describe('compareBuckets', () => {
+    it('should sort buckets using domain order', () => {
+      const unordered = [BucketType.SAVINGS, BucketType.NEEDS, BucketType.WANTS];
+      const sorted = [...unordered].sort(compareBuckets);
+      expect(sorted).toEqual([BucketType.NEEDS, BucketType.WANTS, BucketType.SAVINGS]);
     });
   });
 });

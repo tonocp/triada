@@ -91,8 +91,9 @@ import {
   getLatestBudgetYear,
 } from '@/data/repositories';
 import {
+  BUCKET_ORDER,
   BUCKET_PERCENTAGES,
-  type BucketType,
+  compareBuckets,
   type BudgetAllocation,
   type BudgetMonth,
   type BudgetYear,
@@ -125,10 +126,12 @@ const showAddExpense = ref(false);
 const expenseAmount = ref<string>('');
 const expenseCategory = ref('');
 
-const categories = ['needs', 'wants', 'savings'];
+const categories = BUCKET_ORDER;
 
 const allocations = computed<BudgetAllocation[]>(() => {
-  return budgetMonth.value?.allocations || [];
+  return [...(budgetMonth.value?.allocations ?? [])].sort((left, right) =>
+    compareBuckets(left.bucket, right.bucket),
+  );
 });
 
 const isExpenseValid = computed(() => {
@@ -289,7 +292,8 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
       continue;
     }
 
-    for (const [bucket, percentage] of Object.entries(BUCKET_PERCENTAGES)) {
+    for (const bucket of BUCKET_ORDER) {
+      const percentage = BUCKET_PERCENTAGES[bucket];
       const hasAllocation = existingMonth.allocations.some((item) => item.bucket === bucket);
       if (hasAllocation) {
         continue;
@@ -300,7 +304,7 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
       try {
         await createBudgetAllocation({
           budgetMonthId: existingMonth.id,
-          bucket: bucket as BucketType,
+          bucket,
           allocated,
         });
       } catch (error) {

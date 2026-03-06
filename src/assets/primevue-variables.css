@@ -1,0 +1,15 @@
+:root {
+  /* PrimeVue Aura Theme CSS Variables */
+  --p-primary-color: #10b981;
+  --p-primary-contrast-color: #ffffff;
+  --p-content-background: #ffffff;
+  --p-surface-100: #f8fafc;
+  --p-surface-200: #e2e8f0;
+  --p-text-color: #1e293b;
+  --p-text-muted-color: #64748b;
+  --p-input-background: #ffffff;
+  --p-input-border-color: #cbd5e1;
+  --p-input-color: #1e293b;
+  --p-red-500: #ef4444;
+  --p-green-500: #22c55e;
+}

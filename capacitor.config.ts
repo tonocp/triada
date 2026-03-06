@@ -1,15 +1,19 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
-// TODO: Remove the server option if you are in production
 const config: CapacitorConfig = {
-  appId: 'com.template.app',
-  appName: 'Plantilla',
+  appId: 'com.triada.app',
+  appName: 'Triada',
   zoomEnabled: false,
   webDir: 'dist',
   server: {
     cleartext: true,
   },
   plugins: {
+    CapacitorSQLite: {
+      iosDatabaseLocation: 'Library/CapacitorDatabase',
+      iosIsEncryption: false,
+      androidIsEncryption: false,
+    },
     StatusBar: {
       style: 'DARK',
       overlaysWebView: false,

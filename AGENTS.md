@@ -1,207 +1,174 @@
-# AGENTS.md - Project Guidelines
+# AGENTS.md
 
-## Overview
+## Purpose
+Operational guide for coding agents working in this repository.
+Follow these commands and conventions unless the user explicitly asks otherwise.
 
-This is a Vue 3 + PrimeVue + Capacitor hybrid mobile app boilerplate. The project uses:
-- **Vue 3** with Composition API (`<script setup>`)
-- **PrimeVue** UI component library (v4)
-- **Pinia** for state management
-- **Vue Router** for routing
-- **Capacitor** for hybrid mobile (iOS/Android)
-- **Vite** as build tool
-- **TypeScript** with strict mode
-- **Vitest** for unit testing
-- **ESLint** + **Prettier** for code quality
+## Project Snapshot
+- Vue 3 + TypeScript + Vite hybrid mobile app (Capacitor)
+- PrimeVue 4 UI + PrimeIcons + Aura theme
+- State: Pinia
+- Router: Vue Router
+- i18n: vue-i18n (`es` default, `en` fallback)
+- Persistence: SQLite on native, IndexedDB on web
+- Package manager: `pnpm@10.30.3`
+- Node baseline: Volta pin `v22.21.1`
 
----
+## Install and Setup
+```bash
+pnpm install
+```
 
-## Commands
+Android local environment:
+```bash
+export ANDROID_HOME=~/Library/Android/sdk
+export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
+```
+
+## Build, Lint, and Test Commands
 
 ### Development
 ```bash
-pnpm dev              # Start Vite dev server (accessible on network)
-pnpm dev:android      # Run on Android device/emulator
-pnpm dev:ios          # Run on iOS simulator/device
+pnpm dev
+pnpm dev:server
+pnpm dev:android
+pnpm dev:ios
 ```
 
-### Build & Preview
+### Build / Preview
 ```bash
-pnpm build            # TypeScript check + Vite production build
-pnpm preview          # Preview production build
+pnpm build
+pnpm preview
 ```
+`pnpm build` runs `vue-tsc -p tsconfig.app.json --noEmit` then `vite build`.
 
-### Linting
+### Lint
 ```bash
-pnpm lint             # Run ESLint
-pnpm lint:fix         # Run ESLint with auto-fix
-pnpm lint:quiet       # Run ESLint (errors only)
+pnpm lint
+pnpm lint:quiet
+pnpm lint:fix
 ```
 
-### Testing
+### Unit Tests (Vitest)
 ```bash
-pnpm test:unit              # Run all unit tests (Vitest)
-pnpm test:unit:watch        # Run tests in watch mode
-pnpm test:unit -- run src/views/HomePage.spec.ts   # Run single test file
-pnpm test:unit -- run -t "test name"              # Run tests matching pattern
-```
-
-### Capacitor
-```bash
-pnpm cap:add:ios       # Add iOS platform
-pnpm cap:add:android   # Add Android platform
-pnpm cap:sync          # Sync web assets to native
-pnpm cap:open:ios     # Open Xcode
-pnpm cap:open:android # Open Android Studio
-```
-
----
-
-## Code Style Guidelines
-
-### General
-- **Language**: English for code, comments, and commit messages
-- **Quotes**: Single quotes (`'`) everywhere
-- **Arrow functions**: Always use parentheses `() =>`
-- **Print width**: 100 characters max
-- **No comments**: Unless absolutely necessary for explaining complex logic
-
-### TypeScript
-- **Strict mode**: Enabled in `tsconfig.app.json`
-- **TypeScript features**: Use `erasableSyntaxOnly` (no `enum`, no `namespace`)
-- **Explicit types**: Always define return types for functions when not obvious
-- **Avoid `any`**: Use `unknown` or proper types instead
-
-### Vue 3 + Composition API
-- Use `<script setup lang="ts">` syntax
-- Prefer `ref()` over `reactive()` for primitives
-- Use composables for reusable logic (put in `src/composables/`)
-- Use Pinia stores for global state (put in `src/stores/`)
-
-### Imports
-- Use path alias `@/` for `src/` directory
-- Order imports: Vue → Router → Pinia → PrimeVue → External → Internal
-
-### PrimeVue Components
-- Import components directly (tree-shaking is automatic in v4)
-- Use built-in props (no custom wrappers unless needed)
-- Follow PrimeVue naming: `Button`, `InputText`, `Card`, etc.
-
----
-
-## Architecture
-
-### Atomic Design
-
-Structure the codebase following Atomic Design principles:
-
-```
-src/
-├── atoms/          # Basic UI elements (Button, Input, Icon)
-├── molecules/      # Simple combinations (SearchBar, FormField)
-├── organisms/      # Complex UI sections (Header, Sidebar)
-├── templates/      # Page layouts (AuthLayout, DashboardLayout)
-├── pages/          # Full pages (HomePage, ProfilePage)
-├── composables/    # Reusable logic (useAuth, useFetch)
-├── stores/         # Pinia stores
-├── services/       # External API integrations
-├── types/          # TypeScript interfaces/types
-└── utils/          # Helper functions
-```
-
-### Hexagonal Architecture
-
-```
-src/
-├── domain/              # Business logic (core)
-│   ├── entities/        # Business objects
-│   ├── repositories/    # Repository interfaces
-│   └── usecases/        # Business use cases
-├── application/         # Application services
-│   └── ports/          # Input/output ports
-├── infrastructure/      # External implementations
-│   ├── api/            # HTTP clients
-│   ├── storage/        # Local storage
-│   └── plugins/        # Framework integrations
-└── presentation/       # UI layer
-    ├── atoms/
-    ├── molecules/
-    ├── organisms/
-    ├── templates/
-    └── pages/
-```
-
-### Key Principles
-1. **Dependency rule**: Domain layer has no external dependencies
-2. **Ports & Adapters**: Define interfaces in application layer, implement in infrastructure
-3. **Use cases**: encapsulate business logic in `src/domain/usecases/`
-4. **Repositories**: Abstract data access behind interfaces
-
----
-
-## TDD Workflow
-
-### Test Structure
-- Use **Vitest** with **Vue Test Utils**
-- Place tests alongside source files: `HomePage.vue` → `HomePage.spec.ts`
-- Use descriptive test names: `should display user name when logged in`
-
-### Test File Example
-```typescript
-import { describe, it, expect, beforeEach } from 'vitest';
-import { mount } from '@vue/test-utils';
-import HomePage from './HomePage.vue';
-
-describe('HomePage', () => {
-  let wrapper: ReturnType<typeof mount>;
-
-  beforeEach(() => {
-    wrapper = mount(HomePage);
-  });
-
-  it('should render welcome message', () => {
-    expect(wrapper.text()).toContain('Welcome');
-  });
-});
-```
-
-### Running Tests
-```bash
-# Single test file
-pnpm test:unit -- run src/views/HomePage.spec.ts
-
-# Single test by name
-pnpm test:unit -- run -t "should render welcome"
-
-# Watch mode
+pnpm test:unit
 pnpm test:unit:watch
 ```
 
----
+Single test file:
+```bash
+pnpm test:unit -- run src/domain/entities/Bucket.spec.ts
+```
 
-## Development Workflow
+Single test by name pattern:
+```bash
+pnpm test:unit -- run -t "should total 100"
+```
 
-### Iteration Process
+Single file in watch mode:
+```bash
+pnpm vitest src/domain/entities/Bucket.spec.ts
+```
 
-1. **Plan**: Create a todo list with specific, actionable tasks
-2. **Implement**: Write the minimum code needed
-3. **Test First**: Write tests BEFORE implementation (TDD)
-4. **Verify**: Run linter and full test suite
-5. **Confirm**: Wait for user approval before continuing
+### Capacitor Utilities
+```bash
+pnpm cap:add:ios
+pnpm cap:add:android
+pnpm cap:sync
+pnpm cap:sync:ios
+pnpm cap:sync:android
+pnpm cap:open:ios
+pnpm cap:open:android
+pnpm cap:build:ios
+pnpm cap:build:android
+```
 
-### Before Each Step
-- Always run `pnpm lint:fix` and `pnpm test:unit` before marking a task complete
-- Never proceed to the next task without explicit user confirmation
+## Code Style Guidelines
+Derived from `prettier.config.cjs`, `common.config.cjs`, `eslint.config.mjs`, and TS configs.
 
-### Commit Messages
-- Use conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
-- Keep messages short and descriptive
+### Formatting
+- Use single quotes.
+- Always include arrow-function parentheses.
+- Target max line length of 100 characters.
+- Let Prettier + ESLint format code; avoid manual style churn.
+- Imports are auto-organized via `prettier-plugin-organize-imports`.
 
----
+### Imports
+- Prefer `@/` alias for `src/*` imports.
+- Use `import type` for type-only imports.
+- Avoid fragile deep relative paths when alias imports are clearer.
+- Keep imports used; unused imports fail type/lint checks.
 
-## Important Notes
+### TypeScript
+- Strict typing is required (`strict: true`).
+- Avoid `any`; use concrete types or `unknown` with narrowing.
+- Prefer explicit return types on exported/non-trivial functions.
+- Respect `erasableSyntaxOnly` (no `enum`, no `namespace`).
+- Model nullable states explicitly (`T | null`) and guard them.
+- Prefer `as const` for fixed domain constants.
 
-- This is a **boilerplate** - extend it as needed
-- Mobile-first approach for UI design
-- Use PrimeVue components for consistency
-- Keep business logic in domain layer, away from Vue components
-- Always write tests for new features (TDD)
+### Vue / Composition API
+- Use `<script setup lang="ts">` for SFC logic.
+- Prefer `ref`, `computed`, `watch`, `onMounted` patterns.
+- Keep feature pages under `src/features/*/pages`.
+- Put reusable UI in `src/shared/components`.
+- Put shared composables in `src/shared/composables`.
+
+### Naming Conventions
+- Component and page filenames: PascalCase.
+- Composables: `useXxx` naming.
+- Variables/functions: camelCase.
+- Constants: UPPER_SNAKE_CASE for static config maps.
+- Types/interfaces: PascalCase.
+- DTO-like creation payloads: suffix with `Input`.
+
+### Error Handling
+- Wrap async UI/data boundaries in `try/catch`.
+- Log actionable context: `console.error('Failed to ...', error)`.
+- Show user-facing feedback for failures (toast/dialog/message).
+- Re-throw only when upstream handling is required.
+- Guard early for invalid state and return fast.
+
+### Testing
+- Frameworks: Vitest + Vue Test Utils.
+- Co-locate tests with source as `*.spec.ts`.
+- Prefer behavior-focused assertions over implementation details.
+- Use descriptive names (`should ... when ...`).
+- Keep tests deterministic and side-effect-light.
+
+## Architecture and Domain Notes
+- Keep `domain` framework-agnostic.
+- Use repository abstraction in `src/data/repositories`.
+- Runtime storage is platform-aware (SQLite native, IndexedDB web).
+- Store money as integer minor units (cents), not floats.
+- Budget buckets implement 50/30/20 (`needs`, `wants`, `savings`).
+
+## i18n Requirements
+- Avoid hardcoded user-facing strings when translation keys exist.
+- Update both locales when adding new keys:
+  - `src/shared/i18n/locales/es.ts`
+  - `src/shared/i18n/locales/en.ts`
+- Preserve locale defaults (`es`) and fallback (`en`).
+
+## Commit / PR Expectations
+- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`).
+- Keep PRs focused; avoid unrelated refactors.
+- Before finishing substantial work, run:
+```bash
+pnpm lint:fix && pnpm test:unit && pnpm build
+```
+
+## Iterative Workflow (Requested by User)
+- Work in explicitly authorized steps. Complete one step at a time.
+- At the end of each step, run:
+```bash
+pnpm build:check
+```
+- Do not continue to the next step until the user explicitly authorizes it.
+- If tests or build fail, fix issues within the current step before considering it complete.
+
+## Cursor and Copilot Rules
+- `.cursorrules`: not found
+- `.cursor/rules/`: not found
+- `.github/copilot-instructions.md`: not found
+- If added later, treat those files as higher-priority agent instructions.

@@ -4,5 +4,5 @@ module.exports = {
   singleQuote: commonConfig.singleQuote,
   arrowParens: commonConfig.arrowParens,
   printWidth: commonConfig.printWidth,
-  plugins: ['prettier-plugin-organize-imports', 'prettier-plugin-sort-json'],
+  plugins: ['prettier-plugin-organize-imports'],
 };

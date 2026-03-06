@@ -16,19 +16,5 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', 'e2e/**'],
-    environmentOptions: {
-      jsdom: {
-        resources: 'usable',
-      },
-    },
-    pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: true,
-      },
-    },
-    deps: {
-      inline: ['@vitejs/plugin-vue'],
-    },
   },
 });

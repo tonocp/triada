@@ -1,10 +1,51 @@
-import { CapacitorSQLite } from '@capacitor-community/sqlite';
+import {
+  CapacitorSQLite,
+  SQLiteConnection,
+  type SQLiteDBConnection,
+} from '@capacitor-community/sqlite';
 import { Capacitor } from '@capacitor/core';
 
 const DB_NAME = 'triada';
+const DB_VERSION = 1;
 
+const sqlite = new SQLiteConnection(CapacitorSQLite);
+
+let dbConnection: SQLiteDBConnection | null = null;
 let isDbReady = false;
 let isInitializing = false;
+
+function isNativeRuntime(): boolean {
+  const platform = Capacitor.getPlatform();
+  return platform === 'ios' || platform === 'android';
+}
+
+async function getConnection(): Promise<SQLiteDBConnection> {
+  if (dbConnection) {
+    return dbConnection;
+  }
+
+  const consistency = await sqlite.checkConnectionsConsistency().catch(() => ({ result: false }));
+  const isConnection = await sqlite.isConnection(DB_NAME, false);
+
+  if (consistency.result && isConnection.result) {
+    dbConnection = await sqlite.retrieveConnection(DB_NAME, false);
+  } else {
+    dbConnection = await sqlite.createConnection(
+      DB_NAME,
+      false,
+      'no-encryption',
+      DB_VERSION,
+      false,
+    );
+  }
+
+  const dbOpen = await dbConnection.isDBOpen();
+  if (!dbOpen.result) {
+    await dbConnection.open();
+  }
+
+  return dbConnection;
+}
 
 export async function initDatabase(): Promise<void> {
   if (isDbReady) {
@@ -18,25 +59,18 @@ export async function initDatabase(): Promise<void> {
     return;
   }
 
-  if (!Capacitor.isNativePlatform()) {
-    console.error('[DB] SQLite is only available on native platforms (iOS/Android)');
+  if (!isNativeRuntime()) {
     throw new Error('SQLite is only available on native platforms. Use a device or emulator.');
   }
 
   isInitializing = true;
 
   try {
-    await CapacitorSQLite.createConnection({
-      database: DB_NAME,
-    });
+    const db = await getConnection();
 
-    await CapacitorSQLite.open({
-      database: DB_NAME,
-    });
-
-    await CapacitorSQLite.execute({
-      database: DB_NAME,
-      statements: `
+    // noinspection SqlNoDataSourceInspection
+    await db.execute(
+      `
         CREATE TABLE IF NOT EXISTS budget_years (
           id TEXT PRIMARY KEY,
           monthly_income INTEGER NOT NULL,
@@ -67,15 +101,12 @@ export async function initDatabase(): Promise<void> {
           FOREIGN KEY (budget_month_id) REFERENCES budget_months(id)
         );
       `,
-    });
+      false,
+    );
 
-    console.log('[DB] Database initialized successfully');
     isDbReady = true;
+  } finally {
     isInitializing = false;
-  } catch (error) {
-    console.error('[DB] Failed to initialize database:', error);
-    isInitializing = false;
-    throw error;
   }
 }
 
@@ -84,10 +115,8 @@ export async function execute(statements: string): Promise<unknown> {
     await initDatabase();
   }
 
-  return CapacitorSQLite.execute({
-    database: DB_NAME,
-    statements,
-  });
+  const db = await getConnection();
+  return db.execute(statements, false);
 }
 
 export async function query<T = Record<string, unknown>>(
@@ -98,12 +127,9 @@ export async function query<T = Record<string, unknown>>(
     await initDatabase();
   }
 
-  const result = await CapacitorSQLite.query({
-    database: DB_NAME,
-    statement,
-    values,
-  });
-  return result.values as T[];
+  const db = await getConnection();
+  const result = await db.query(statement, values);
+  return (result.values ?? []) as T[];
 }
 
 export async function run(statement: string, values: (string | number)[] = []): Promise<unknown> {
@@ -111,18 +137,30 @@ export async function run(statement: string, values: (string | number)[] = []): 
     await initDatabase();
   }
 
-  return CapacitorSQLite.run({
-    database: DB_NAME,
-    statement,
-    values,
-  });
+  const db = await getConnection();
+  return db.run(statement, values, false);
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (isDbReady) {
-    await CapacitorSQLite.closeConnection({ database: DB_NAME });
+  if (!dbConnection) {
     isDbReady = false;
+    return;
   }
+
+  try {
+    await dbConnection.close();
+  } catch {
+    // ignore close errors, we'll still try to clear connection references
+  }
+
+  try {
+    await sqlite.closeConnection(DB_NAME, false);
+  } catch {
+    // ignore close connection errors
+  }
+
+  dbConnection = null;
+  isDbReady = false;
 }
 
 export function isDatabaseReady(): boolean {

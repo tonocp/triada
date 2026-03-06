@@ -4,11 +4,13 @@
       <div class="month-selector">
         <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
         <DatePicker
-          v-model="selectedPeriod"
+          :model-value="selectedPeriod"
           view="month"
           date-format="MM yy"
           :manual-input="false"
+          update-model-type="date"
           class="month-picker"
+          @update:model-value="onPeriodChange"
         />
         <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
       </div>
@@ -39,7 +41,7 @@
       <Button
         :label="t('dashboard.addExpense')"
         icon="pi pi-plus"
-        button-class="w-full"
+        class="w-full"
         @click="showAddExpense = true"
       />
     </div>
@@ -80,8 +82,21 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
-import type { BudgetAllocation, BudgetMonth, BudgetYear } from '@/domain/entities';
+import {
+  createBudgetAllocation,
+  createBudgetMonth,
+  createYearWithAllocations,
+  getBudgetMonth,
+  getBudgetYearByYear,
+  getLatestBudgetYear,
+} from '@/data/repositories';
+import {
+  BUCKET_PERCENTAGES,
+  type BucketType,
+  type BudgetAllocation,
+  type BudgetMonth,
+  type BudgetYear,
+} from '@/domain/entities';
 import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
@@ -89,7 +104,7 @@ import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -100,7 +115,11 @@ const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const budgetYear = ref<BudgetYear | null>(null);
 const budgetMonth = ref<BudgetMonth | null>(null);
-const selectedPeriod = ref<Date | null>(new Date());
+const activeYear = ref(new Date().getFullYear());
+const activeMonth = ref(new Date().getMonth() + 1);
+const selectedPeriod = ref<Date>(new Date(activeYear.value, activeMonth.value - 1, 1));
+let isRepairingYear = false;
+let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
 const expenseAmount = ref<string>('');
@@ -117,35 +136,41 @@ const isExpenseValid = computed(() => {
   return !isNaN(amount) && amount > 0 && expenseCategory.value !== '';
 });
 
-function previousMonth(): void {
-  if (!selectedPeriod.value) {
-    selectedPeriod.value = new Date();
+function setActivePeriod(year: number, month: number): void {
+  const normalizedYear = Number(year);
+  const normalizedMonth = Number(month);
+
+  if (!Number.isFinite(normalizedYear) || !Number.isFinite(normalizedMonth)) {
     return;
   }
 
-  const nextDate = new Date(selectedPeriod.value);
-  nextDate.setMonth(nextDate.getMonth() - 1);
-  selectedPeriod.value = nextDate;
+  const clampedMonth = Math.min(12, Math.max(1, Math.trunc(normalizedMonth)));
+  const normalizedDate = new Date(Math.trunc(normalizedYear), clampedMonth - 1, 1);
+
+  activeYear.value = normalizedDate.getFullYear();
+  activeMonth.value = normalizedDate.getMonth() + 1;
+  selectedPeriod.value = new Date(activeYear.value, activeMonth.value - 1, 1);
+}
+
+function previousMonth(): void {
+  shiftMonth(-1);
 }
 
 function nextMonth(): void {
-  if (!selectedPeriod.value) {
-    selectedPeriod.value = new Date();
-    return;
-  }
-
-  const nextDate = new Date(selectedPeriod.value);
-  nextDate.setMonth(nextDate.getMonth() + 1);
-  selectedPeriod.value = nextDate;
+  shiftMonth(1);
 }
 
 async function loadMonthData(): Promise<void> {
-  if (!selectedPeriod.value) return;
+  const normalizedYear = Number(activeYear.value);
+  const normalizedMonth = Number(activeMonth.value);
 
-  const selectedYear = selectedPeriod.value.getFullYear();
-  const selectedMonth = selectedPeriod.value.getMonth() + 1;
+  if (!Number.isFinite(normalizedYear) || !Number.isFinite(normalizedMonth)) {
+    budgetYear.value = null;
+    budgetMonth.value = null;
+    return;
+  }
 
-  const resolvedBudgetYear = await getBudgetYearByYear(selectedYear);
+  const resolvedBudgetYear = await getBudgetYearByYear(normalizedYear);
   if (!resolvedBudgetYear) {
     budgetYear.value = null;
     budgetMonth.value = null;
@@ -153,7 +178,193 @@ async function loadMonthData(): Promise<void> {
   }
 
   budgetYear.value = resolvedBudgetYear;
-  budgetMonth.value = await getBudgetMonth(resolvedBudgetYear.id, selectedMonth);
+  const selectedMonthData = await getBudgetMonth(resolvedBudgetYear.id, normalizedMonth);
+  if (selectedMonthData) {
+    budgetMonth.value = selectedMonthData;
+    return;
+  }
+
+  for (let month = 1; month <= 12; month++) {
+    const monthData = await getBudgetMonth(resolvedBudgetYear.id, month);
+    if (monthData) {
+      setActivePeriod(resolvedBudgetYear.year, month);
+      budgetMonth.value = monthData;
+      return;
+    }
+  }
+
+  if (!isRepairingYear) {
+    isRepairingYear = true;
+
+    try {
+      await repairMissingMonths(resolvedBudgetYear);
+      const repairedMonth = await getBudgetMonth(resolvedBudgetYear.id, activeMonth.value);
+      if (repairedMonth) {
+        budgetMonth.value = repairedMonth;
+        return;
+      }
+
+      for (let month = 1; month <= 12; month++) {
+        const monthData = await getBudgetMonth(resolvedBudgetYear.id, month);
+        if (monthData) {
+          setActivePeriod(resolvedBudgetYear.year, month);
+          budgetMonth.value = monthData;
+          return;
+        }
+      }
+    } finally {
+      isRepairingYear = false;
+    }
+  }
+
+  if (!isRebuildingYear) {
+    isRebuildingYear = true;
+
+    try {
+      const rebuilt = await createYearWithAllocations(
+        resolvedBudgetYear.monthlyIncome,
+        resolvedBudgetYear.year,
+        resolvedBudgetYear.currency,
+      );
+
+      budgetYear.value = rebuilt.budgetYear;
+
+      const rebuiltMonth = await getBudgetMonth(rebuilt.budgetYear.id, activeMonth.value);
+      if (rebuiltMonth) {
+        budgetMonth.value = rebuiltMonth;
+        return;
+      }
+
+      for (let month = 1; month <= 12; month++) {
+        const monthData = await getBudgetMonth(rebuilt.budgetYear.id, month);
+        if (monthData) {
+          setActivePeriod(rebuilt.budgetYear.year, month);
+          budgetMonth.value = monthData;
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to rebuild budget year data', error);
+    } finally {
+      isRebuildingYear = false;
+    }
+  }
+
+  budgetMonth.value = null;
+}
+
+async function repairMissingMonths(year: BudgetYear): Promise<void> {
+  if (!Number.isFinite(year.monthlyIncome) || year.monthlyIncome <= 0) {
+    console.error('Cannot repair budget year with invalid monthly income', year);
+    return;
+  }
+
+  for (let month = 1; month <= 12; month++) {
+    let existingMonth = await getBudgetMonth(year.id, month);
+
+    if (!existingMonth) {
+      try {
+        const createdMonth = await createBudgetMonth({
+          budgetYearId: year.id,
+          month,
+          year: year.year,
+        });
+
+        existingMonth = {
+          ...createdMonth,
+          allocations: [],
+        };
+      } catch (error) {
+        console.warn('Failed to create missing month, retrying fetch', {
+          year: year.year,
+          month,
+          error,
+        });
+
+        existingMonth = await getBudgetMonth(year.id, month);
+      }
+    }
+
+    if (!existingMonth) {
+      continue;
+    }
+
+    for (const [bucket, percentage] of Object.entries(BUCKET_PERCENTAGES)) {
+      const hasAllocation = existingMonth.allocations.some((item) => item.bucket === bucket);
+      if (hasAllocation) {
+        continue;
+      }
+
+      const allocated = Math.floor((year.monthlyIncome * percentage) / 100);
+
+      try {
+        await createBudgetAllocation({
+          budgetMonthId: existingMonth.id,
+          bucket: bucket as BucketType,
+          allocated,
+        });
+      } catch (error) {
+        console.warn('Failed to create missing allocation, continuing', {
+          year: year.year,
+          month,
+          bucket,
+          error,
+        });
+      }
+    }
+  }
+}
+
+async function refreshMonthData(): Promise<void> {
+  try {
+    await loadMonthData();
+  } catch (error) {
+    console.error('Failed to load month data:', error);
+  }
+}
+
+function shiftMonth(delta: number): void {
+  const nextDate = new Date(activeYear.value, activeMonth.value - 1, 1);
+  nextDate.setMonth(nextDate.getMonth() + delta);
+
+  setActivePeriod(nextDate.getFullYear(), nextDate.getMonth() + 1);
+  void refreshMonthData();
+}
+
+function toDate(value: unknown): Date | null {
+  if (value && typeof value === 'object' && 'value' in value) {
+    return toDate((value as { value: unknown }).value);
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const firstValid = value.find(
+      (entry) => entry instanceof Date && !Number.isNaN(entry.getTime()),
+    );
+    return firstValid ?? null;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+}
+
+function onPeriodChange(value: unknown): void {
+  const parsedDate = toDate(value);
+  if (!parsedDate) {
+    console.error('Invalid period received from DatePicker', value);
+    selectedPeriod.value = new Date(activeYear.value, activeMonth.value - 1, 1);
+    return;
+  }
+
+  setActivePeriod(parsedDate.getFullYear(), parsedDate.getMonth() + 1);
+  void refreshMonthData();
 }
 
 async function addExpense(): Promise<void> {
@@ -181,9 +392,8 @@ async function loadData(): Promise<void> {
       return;
     }
 
-    const defaultMonth = new Date().getMonth();
-    selectedPeriod.value = new Date(year.year, defaultMonth, 1);
-    await loadMonthData();
+    setActivePeriod(year.year, new Date().getMonth() + 1);
+    await refreshMonthData();
   } catch (error) {
     console.error('Failed to load data:', error);
     toast.add({
@@ -194,25 +404,6 @@ async function loadData(): Promise<void> {
     });
   }
 }
-
-watch(selectedPeriod, async (newValue) => {
-  if (!newValue) {
-    selectedPeriod.value = new Date();
-    return;
-  }
-
-  try {
-    await loadMonthData();
-  } catch (error) {
-    console.error('Failed to load month data:', error);
-    toast.add({
-      severity: 'error',
-      summary: t('setup.error'),
-      detail: t('setup.errorCreating'),
-      life: 3000,
-    });
-  }
-});
 
 onMounted(() => {
   loadData();
@@ -271,10 +462,6 @@ onMounted(() => {
 
 .actions-section {
   margin-top: 1rem;
-}
-
-.w-full {
-  width: 100%;
 }
 
 .expense-form {

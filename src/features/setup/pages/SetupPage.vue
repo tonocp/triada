@@ -25,7 +25,6 @@
               id="income"
               v-model="monthlyIncome"
               :placeholder="t('setup.incomePlaceholder')"
-              input-class="income-input"
             />
           </div>
           <p class="help-text">{{ t('setup.incomeHelp') }}</p>
@@ -54,7 +53,7 @@
             icon="pi pi-check"
             :loading="isLoading"
             :disabled="!isValid"
-            button-class="w-full"
+            class="w-full"
             @click="createBudget"
           />
         </div>
@@ -65,11 +64,15 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import { createYearWithAllocations, getLatestBudgetYear } from '@/data/repositories';
+import {
+  createYearWithAllocations,
+  getBudgetMonth,
+  getLatestBudgetYear,
+} from '@/data/repositories';
 import { Button, Card, Input } from '@/shared/components/atoms';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { useToast } from 'primevue/usetoast';
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -103,6 +106,17 @@ const savingsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.2)
 
 const isValid = computed(() => monthlyIncomeNumber.value > 0);
 
+async function hasAnyMonthForYear(budgetYearId: string): Promise<boolean> {
+  for (let month = 1; month <= 12; month++) {
+    const budgetMonth = await getBudgetMonth(budgetYearId, month);
+    if (budgetMonth) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 async function createBudget(): Promise<void> {
   if (!isValid.value) return;
 
@@ -114,7 +128,7 @@ async function createBudget(): Promise<void> {
     const existing = await getLatestBudgetYear();
     const currentYear = new Date().getFullYear();
 
-    if (existing && existing.year === currentYear) {
+    if (existing && existing.year === currentYear && (await hasAnyMonthForYear(existing.id))) {
       toast.add({
         severity: 'warn',
         summary: t('setup.budgetExists'),
@@ -147,6 +161,22 @@ async function createBudget(): Promise<void> {
     isLoading.value = false;
   }
 }
+
+async function checkExistingBudget(): Promise<void> {
+  try {
+    await initDatabase();
+    const existing = await getLatestBudgetYear();
+    if (existing && (await hasAnyMonthForYear(existing.id))) {
+      router.replace('/dashboard');
+    }
+  } catch (error) {
+    console.error('Failed to check existing budget on setup page:', error);
+  }
+}
+
+onMounted(() => {
+  checkExistingBudget();
+});
 </script>
 
 <style scoped>
@@ -200,11 +230,6 @@ async function createBudget(): Promise<void> {
   color: var(--p-text-muted-color);
 }
 
-.income-input {
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
 .help-text {
   font-size: 0.875rem;
   color: var(--p-text-muted-color);
@@ -242,9 +267,5 @@ async function createBudget(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.w-full {
-  width: 100%;
 }
 </style>

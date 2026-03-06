@@ -52,6 +52,11 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
+function toTimestamp(value: string): number {
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? 0 : time;
+}
+
 function transactionDone(transaction: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
@@ -120,6 +125,21 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   return rows;
 }
 
+async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetMonths, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetMonths).getAll(),
+  )) as BudgetMonthRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function hasBudgetMonthsForYear(budgetYearId: string): Promise<boolean> {
+  const months = await readAllBudgetMonths();
+  return months.some((month) => month.budget_year_id === budgetYearId);
+}
+
 export const indexedDbBudgetRepository: BudgetRepository = {
   async createBudgetYear(input: CreateBudgetYearInput): Promise<BudgetYear> {
     await initIndexedDb();
@@ -154,7 +174,23 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       return null;
     }
 
-    const [latest] = rows.sort((a, b) => b.year - a.year);
+    const sorted = rows.sort((a, b) => {
+      if (b.year !== a.year) {
+        return b.year - a.year;
+      }
+
+      return toTimestamp(b.created_at) - toTimestamp(a.created_at);
+    });
+
+    let latest: BudgetYearRow | undefined;
+    for (const row of sorted) {
+      const hasMonths = await hasBudgetMonthsForYear(row.id);
+      if (hasMonths) {
+        latest = row;
+        break;
+      }
+    }
+
     if (!latest) {
       return null;
     }
@@ -173,7 +209,19 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await initIndexedDb();
 
     const rows = await readAllBudgetYears();
-    const found = rows.find((row) => row.year === year);
+    const candidates = rows
+      .filter((row) => row.year === year)
+      .sort((a, b) => toTimestamp(b.created_at) - toTimestamp(a.created_at));
+
+    let found: BudgetYearRow | undefined;
+    for (const candidate of candidates) {
+      const hasMonths = await hasBudgetMonthsForYear(candidate.id);
+      if (hasMonths) {
+        found = candidate;
+        break;
+      }
+    }
+
     if (!found) {
       return null;
     }

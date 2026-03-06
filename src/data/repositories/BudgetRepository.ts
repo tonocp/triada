@@ -14,12 +14,17 @@ import type { BudgetRepository } from './BudgetRepository.types';
 
 let repository: BudgetRepository | null = null;
 
+function isNativeRuntime(): boolean {
+  const platform = Capacitor.getPlatform();
+  return platform === 'ios' || platform === 'android';
+}
+
 function getRepository(): BudgetRepository {
   if (repository) {
     return repository;
   }
 
-  repository = Capacitor.isNativePlatform() ? sqliteBudgetRepository : indexedDbBudgetRepository;
+  repository = isNativeRuntime() ? sqliteBudgetRepository : indexedDbBudgetRepository;
   return repository;
 }
 

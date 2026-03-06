@@ -12,8 +12,13 @@ import {
 
 export * from './utils';
 
+function isNativeRuntime(): boolean {
+  const platform = Capacitor.getPlatform();
+  return platform === 'ios' || platform === 'android';
+}
+
 export async function initDatabase(): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
+  if (isNativeRuntime()) {
     await initSqlite();
     return;
   }
@@ -22,7 +27,7 @@ export async function initDatabase(): Promise<void> {
 }
 
 export async function closeDatabase(): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
+  if (isNativeRuntime()) {
     await closeSqlite();
     return;
   }
@@ -31,5 +36,5 @@ export async function closeDatabase(): Promise<void> {
 }
 
 export function isDatabaseReady(): boolean {
-  return Capacitor.isNativePlatform() ? isSqliteReady() : isIndexedDbReady();
+  return isNativeRuntime() ? isSqliteReady() : isIndexedDbReady();
 }

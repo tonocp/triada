@@ -17,6 +17,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const id = generateUUID();
     const now = getCurrentTimestamp();
 
+    // noinspection SqlNoDataSourceInspection
     await run(
       `INSERT INTO budget_years (id, monthly_income, year, currency, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -34,6 +35,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
   },
 
   async getLatestBudgetYear(): Promise<BudgetYear | null> {
+    // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       monthly_income: number;
@@ -41,7 +43,16 @@ export const sqliteBudgetRepository: BudgetRepository = {
       currency: string;
       created_at: string;
       updated_at: string;
-    }>(`SELECT * FROM budget_years ORDER BY year DESC LIMIT 1`, []);
+    }>(
+      `SELECT * FROM budget_years
+       WHERE EXISTS (
+         SELECT 1 FROM budget_months
+         WHERE budget_months.budget_year_id = budget_years.id
+       )
+       ORDER BY year DESC, created_at DESC
+       LIMIT 1`,
+      [],
+    );
 
     if (result.length === 0) return null;
 
@@ -50,8 +61,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
     return {
       id: row.id,
-      monthlyIncome: row.monthly_income,
-      year: row.year,
+      monthlyIncome: Number(row.monthly_income),
+      year: Number(row.year),
       currency: row.currency as SupportedCurrency,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -59,6 +70,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
   },
 
   async getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
+    // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       monthly_income: number;
@@ -66,7 +78,17 @@ export const sqliteBudgetRepository: BudgetRepository = {
       currency: string;
       created_at: string;
       updated_at: string;
-    }>(`SELECT * FROM budget_years WHERE year = ? LIMIT 1`, [year]);
+    }>(
+      `SELECT * FROM budget_years
+       WHERE year = ?
+         AND EXISTS (
+           SELECT 1 FROM budget_months
+           WHERE budget_months.budget_year_id = budget_years.id
+         )
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [year],
+    );
 
     if (result.length === 0) return null;
 
@@ -75,8 +97,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
     return {
       id: row.id,
-      monthlyIncome: row.monthly_income,
-      year: row.year,
+      monthlyIncome: Number(row.monthly_income),
+      year: Number(row.year),
       currency: row.currency as SupportedCurrency,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -87,6 +109,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const id = generateUUID();
     const now = getCurrentTimestamp();
 
+    // noinspection SqlNoDataSourceInspection
     await run(
       `INSERT INTO budget_months (id, budget_year_id, month, year, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -105,6 +128,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
   },
 
   async getBudgetMonth(budgetYearId: string, month: number): Promise<BudgetMonth | null> {
+    // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       budget_year_id: string;
@@ -124,8 +148,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
     return {
       id: row.id,
       budgetYearId: row.budget_year_id,
-      month: row.month,
-      year: row.year,
+      month: Number(row.month),
+      year: Number(row.year),
       allocations,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -136,6 +160,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const id = generateUUID();
     const now = getCurrentTimestamp();
 
+    // noinspection SqlNoDataSourceInspection
     await run(
       `INSERT INTO budget_allocations (id, budget_month_id, bucket, allocated, spent, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -154,6 +179,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {
+    // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       budget_month_id: string;
@@ -168,8 +194,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: row.id,
       budgetMonthId: row.budget_month_id,
       bucket: row.bucket as BucketType,
-      allocated: row.allocated,
-      spent: row.spent,
+      allocated: Number(row.allocated),
+      spent: Number(row.spent),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));

@@ -10,6 +10,7 @@ Hybrid mobile application (web + iOS + Android) built with Vue 3, TypeScript, an
 - Pinia (state management)
 - Vue Router (navigation)
 - vue-i18n (`es` default, `en` fallback)
+- Offline-first PWA on web (Service Worker + installable manifest)
 - Platform-aware persistence:
   - SQLite on native runtime
   - IndexedDB on web runtime
@@ -78,6 +79,16 @@ Stop and remove containers:
 docker compose down
 ```
 
+PWA + Docker verification:
+
+```bash
+docker compose up --build -d
+```
+
+- Open `http://localhost:8081` and install the app from browser install UI.
+- After first dashboard load, reload once so the Service Worker controls the page.
+- Disconnect network and reload `/dashboard`; the app should still render cached shell and data.
+
 Capacitor:
 
 ```bash
@@ -119,6 +130,8 @@ Web E2E (Cypress):
 pnpm test:e2e
 pnpm test:e2e:dev
 ```
+
+Current Cypress coverage includes installability-related web behavior and an offline-first dashboard smoke flow after Service Worker activation.
 
 Native E2E (Maestro):
 

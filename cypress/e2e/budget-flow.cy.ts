@@ -25,9 +25,65 @@ function createBudget(monthlyIncome: string): void {
   cy.contains('button', 'Crear Presupuesto').click();
 }
 
+function setNetworkOffline() {
+  if (Cypress.browser.family !== 'chromium') {
+    return cy.wrap(null, { log: false });
+  }
+
+  return cy
+    .wrap(
+      Cypress.automation('remote:debugger:protocol', {
+        command: 'Network.enable',
+      }),
+      { log: false },
+    )
+    .then(async () => {
+      await Cypress.automation('remote:debugger:protocol', {
+        command: 'Network.emulateNetworkConditions',
+        params: {
+          offline: true,
+          latency: 0,
+          downloadThroughput: -1,
+          uploadThroughput: -1,
+          connectionType: 'none',
+        },
+      });
+    });
+}
+
+function setNetworkOnline() {
+  if (Cypress.browser.family !== 'chromium') {
+    return cy.wrap(null, { log: false });
+  }
+
+  return cy
+    .wrap(
+      Cypress.automation('remote:debugger:protocol', {
+        command: 'Network.enable',
+      }),
+      { log: false },
+    )
+    .then(async () => {
+      await Cypress.automation('remote:debugger:protocol', {
+        command: 'Network.emulateNetworkConditions',
+        params: {
+          offline: false,
+          latency: 0,
+          downloadThroughput: -1,
+          uploadThroughput: -1,
+          connectionType: 'wifi',
+        },
+      });
+    });
+}
+
 describe('Budget flow', () => {
   beforeEach(() => {
     resetBrowserState();
+  });
+
+  afterEach(() => {
+    setNetworkOnline();
   });
 
   it('should create a budget in setup and redirect to dashboard', () => {
@@ -102,5 +158,21 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
     cy.contains('€1000.00').should('be.visible');
+  });
+
+  it('should render dashboard while offline after service worker activation', () => {
+    createBudget('1300');
+
+    cy.url().should('include', '/dashboard');
+    cy.reload();
+
+    cy.window().its('navigator.serviceWorker.controller').should('exist');
+
+    setNetworkOffline();
+
+    cy.visit('/dashboard');
+    cy.url().should('include', '/dashboard');
+    cy.contains('Ingreso Mensual').should('be.visible');
+    cy.contains('$1300.00').should('be.visible');
   });
 });

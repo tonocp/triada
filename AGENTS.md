@@ -9,6 +9,7 @@ Operational guide for coding agents working in this repository.
 - PrimeVue 4 + PrimeIcons
 - Pinia for state
 - i18n with `es` default and `en` fallback
+- Web target is an installable offline-first PWA (manifest + Service Worker)
 - Platform-aware persistence:
   - native: SQLite
   - web: IndexedDB
@@ -72,7 +73,8 @@ Operational guide for coding agents working in this repository.
 - Minimum required flows:
   - initial setup,
   - setup -> dashboard redirect when budget exists,
-  - persistence after reload.
+  - persistence after reload,
+  - offline dashboard render after Service Worker activation.
 - Also cover critical UX edge cases when relevant (invalid income, locale/currency persistence, rounding display behavior).
 
 ### 4.4 Native E2E
@@ -137,6 +139,13 @@ pnpm test:e2e:dev
 pnpm test:e2e:native:android
 pnpm test:e2e:native:ios
 pnpm test:e2e:native
+```
+
+Web deploy/runtime checks:
+
+```bash
+docker compose up --build -d
+docker compose down
 ```
 
 Capacitor:

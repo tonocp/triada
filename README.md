@@ -77,6 +77,8 @@ pnpm type-check
 pnpm build:check
 ```
 
+`pnpm build:check` is scoped to `src/` checks only (format + Vitest coverage + type-check + lint).
+
 ## Testing
 
 Unit and integration (Vitest):

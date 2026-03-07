@@ -87,6 +87,7 @@ Operational guide for coding agents working in this repository.
 ### 4.5 Coverage policy
 
 - Runtime logic should keep line coverage at 100%.
+- Coverage execution is scoped to `src/` (`vitest run src --coverage`).
 - Files that only declare static types/contracts or static locale dictionaries may be excluded from coverage thresholds when they do not represent executable runtime logic.
 - Any exclusion must be explicit and justified in `vitest.config.ts`.
 
@@ -116,6 +117,14 @@ pnpm lint:check
 pnpm type-check
 pnpm build
 pnpm build:check
+```
+
+`pnpm build:check` is scoped to `src/` quality gates (format + Vitest coverage + type-check + lint) and does not run the production bundle build.
+
+Current script pipeline:
+
+```bash
+pnpm format && pnpm test:unit:coverage && pnpm type-check && pnpm lint:check
 ```
 
 Tests:
@@ -151,6 +160,8 @@ At the end of each user-authorized step, run:
 ```bash
 pnpm build:check
 ```
+
+Scope reminder: this command validates only `src/` quality gates.
 
 If user flow screens are changed (setup/dashboard/navigation), also run:
 

@@ -1,7 +1,20 @@
 :root {
-  /* PrimeVue Aura Theme CSS Variables */
-  --p-primary-color: #10b981;
-  --p-primary-contrast-color: #ffffff;
+  /* PrimeVue Aura semantic palette */
+  --p-primary-50: #eff4ff !important;
+  --p-primary-100: #dbe7ff !important;
+  --p-primary-200: #bfd3ff !important;
+  --p-primary-300: #97b8ff !important;
+  --p-primary-400: #6f95ff !important;
+  --p-primary-500: #2d6cdf !important;
+  --p-primary-600: #245ac0 !important;
+  --p-primary-700: #1e4b9f !important;
+  --p-primary-800: #183d81 !important;
+  --p-primary-900: #143268 !important;
+  --p-primary-950: #0d203f !important;
+
+  /* App aliases used in local components */
+  --p-primary-color: #2d6cdf !important;
+  --p-primary-contrast-color: #ffffff !important;
   --p-content-background: #ffffff;
   --p-surface-100: #f8fafc;
   --p-surface-200: #e2e8f0;
@@ -10,6 +23,21 @@
   --p-input-background: #ffffff;
   --p-input-border-color: #cbd5e1;
   --p-input-color: #1e293b;
-  --p-red-500: #ef4444;
-  --p-green-500: #22c55e;
+  --p-red-500: #ef4444 !important;
+  --p-green-500: #22c55e !important;
+
+  /* Aura component tokens to avoid emerald defaults */
+  --p-button-primary-background: var(--p-primary-color) !important;
+  --p-button-primary-border-color: var(--p-primary-color) !important;
+  --p-button-primary-color: var(--p-primary-contrast-color) !important;
+  --p-button-primary-hover-background: var(--p-primary-600) !important;
+  --p-button-primary-hover-border-color: var(--p-primary-600) !important;
+  --p-button-primary-hover-color: var(--p-primary-contrast-color) !important;
+  --p-button-primary-active-background: var(--p-primary-700) !important;
+  --p-button-primary-active-border-color: var(--p-primary-700) !important;
+  --p-button-primary-active-color: var(--p-primary-contrast-color) !important;
+
+  --p-highlight-background: var(--p-primary-100) !important;
+  --p-highlight-color: var(--p-primary-700) !important;
+  --p-focus-ring-color: var(--p-primary-500) !important;
 }

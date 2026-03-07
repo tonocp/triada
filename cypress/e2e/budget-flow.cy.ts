@@ -91,7 +91,7 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('$1000.00').should('be.visible');
+    cy.contains('€1000.00').should('be.visible');
     cy.contains('Necesidades').should('be.visible');
     cy.contains('Gastos personales').should('be.visible');
     cy.contains('Ahorro e inversión').should('be.visible');
@@ -105,7 +105,7 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('$2500.00').should('be.visible');
+    cy.contains('€2500.00').should('be.visible');
   });
 
   it('should redirect from setup to dashboard when a budget already exists', () => {
@@ -115,7 +115,7 @@ describe('Budget flow', () => {
     cy.visit('/setup');
 
     cy.url().should('include', '/dashboard');
-    cy.contains('$1750.00').should('be.visible');
+    cy.contains('€1750.00').should('be.visible');
   });
 
   it('should keep create action disabled for invalid income values', () => {
@@ -130,14 +130,19 @@ describe('Budget flow', () => {
     cy.contains('button', 'Crear Presupuesto').should('be.disabled');
   });
 
+  it('should default setup selectors to Spanish and Euro', () => {
+    cy.get('#language').should('have.value', 'es');
+    cy.get('#currency').should('have.value', 'EUR');
+  });
+
   it('should render floored 50/30/20 preview values for decimal inputs', () => {
     cy.get('#income').clear();
     cy.get('#income').type('1000.55');
 
     cy.contains('Desglose 50/30/20').should('be.visible');
-    cy.contains('$500.27').should('be.visible');
-    cy.contains('$300.16').should('be.visible');
-    cy.contains('$200.11').should('be.visible');
+    cy.contains('€500.27').should('be.visible');
+    cy.contains('€300.16').should('be.visible');
+    cy.contains('€200.11').should('be.visible');
   });
 
   it('should persist selected locale after reload', () => {
@@ -173,6 +178,6 @@ describe('Budget flow', () => {
     cy.visit('/dashboard');
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('$1300.00').should('be.visible');
+    cy.contains('€1300.00').should('be.visible');
   });
 });

@@ -13,13 +13,20 @@ export const supportedCurrencies: CurrencyInfo[] = [
   { code: 'EUR', symbol: '€', name: 'Euro' },
 ];
 
-const defaultCurrency: CurrencyInfo = supportedCurrencies[0]!;
+const defaultCurrency: CurrencyInfo = supportedCurrencies.find(
+  (currency) => currency.code === 'EUR',
+)!;
 
-const savedCurrency = (
-  typeof localStorage !== 'undefined' ? localStorage.getItem('triada-currency') : null
-) as SupportedCurrency | null;
+const savedCurrency =
+  typeof localStorage !== 'undefined' ? localStorage.getItem('triada-currency') : null;
 
-const currentCurrency = ref<SupportedCurrency>(savedCurrency || 'USD');
+function isSupportedCurrency(value: string | null): value is SupportedCurrency {
+  return value === 'USD' || value === 'EUR';
+}
+
+const currentCurrency = ref<SupportedCurrency>(
+  isSupportedCurrency(savedCurrency) ? savedCurrency : defaultCurrency.code,
+);
 
 export function useCurrency() {
   const currency = computed(() => currentCurrency.value);

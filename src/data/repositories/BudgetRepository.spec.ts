@@ -1,0 +1,128 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const indexedDbRepositoryMock = {
+  createBudgetYear: vi.fn(),
+  getLatestBudgetYear: vi.fn(),
+  getBudgetYearByYear: vi.fn(),
+  createBudgetMonth: vi.fn(),
+  getBudgetMonth: vi.fn(),
+  createBudgetAllocation: vi.fn(),
+  getAllocationsByMonth: vi.fn(),
+  createYearWithAllocations: vi.fn(),
+};
+
+const sqliteRepositoryMock = {
+  createBudgetYear: vi.fn(),
+  getLatestBudgetYear: vi.fn(),
+  getBudgetYearByYear: vi.fn(),
+  createBudgetMonth: vi.fn(),
+  getBudgetMonth: vi.fn(),
+  createBudgetAllocation: vi.fn(),
+  getAllocationsByMonth: vi.fn(),
+  createYearWithAllocations: vi.fn(),
+};
+
+const getPlatformMock = vi.fn<() => string>();
+
+describe('data/repositories BudgetRepository facade', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+
+    vi.doMock('@capacitor/core', () => ({
+      Capacitor: {
+        getPlatform: getPlatformMock,
+      },
+    }));
+
+    vi.doMock('./BudgetRepository.indexeddb', () => ({
+      indexedDbBudgetRepository: indexedDbRepositoryMock,
+    }));
+
+    vi.doMock('./BudgetRepository.sqlite', () => ({
+      sqliteBudgetRepository: sqliteRepositoryMock,
+    }));
+  });
+
+  it('should use IndexedDB repository on web platform', async () => {
+    getPlatformMock.mockReturnValue('web');
+    indexedDbRepositoryMock.getLatestBudgetYear.mockResolvedValue(null);
+
+    const repository = await import('./BudgetRepository');
+    await repository.getLatestBudgetYear();
+
+    expect(indexedDbRepositoryMock.getLatestBudgetYear).toHaveBeenCalledTimes(1);
+    expect(sqliteRepositoryMock.getLatestBudgetYear).not.toHaveBeenCalled();
+  });
+
+  it('should fallback to IndexedDB on unknown platform', async () => {
+    getPlatformMock.mockReturnValue('electron');
+    indexedDbRepositoryMock.getLatestBudgetYear.mockResolvedValue(null);
+
+    const repository = await import('./BudgetRepository');
+    await repository.getLatestBudgetYear();
+
+    expect(indexedDbRepositoryMock.getLatestBudgetYear).toHaveBeenCalledTimes(1);
+    expect(sqliteRepositoryMock.getLatestBudgetYear).not.toHaveBeenCalled();
+  });
+
+  it('should use SQLite repository on native platforms', async () => {
+    getPlatformMock.mockReturnValue('android');
+    sqliteRepositoryMock.getLatestBudgetYear.mockResolvedValue(null);
+
+    const repository = await import('./BudgetRepository');
+    await repository.getLatestBudgetYear();
+
+    expect(sqliteRepositoryMock.getLatestBudgetYear).toHaveBeenCalledTimes(1);
+    expect(indexedDbRepositoryMock.getLatestBudgetYear).not.toHaveBeenCalled();
+  });
+
+  it('should resolve repository once and reuse it across calls', async () => {
+    getPlatformMock.mockReturnValue('ios');
+    sqliteRepositoryMock.getLatestBudgetYear.mockResolvedValue(null);
+    sqliteRepositoryMock.getBudgetYearByYear.mockResolvedValue(null);
+
+    const repository = await import('./BudgetRepository');
+
+    await repository.getLatestBudgetYear();
+    await repository.getBudgetYearByYear(2026);
+
+    expect(getPlatformMock).toHaveBeenCalledTimes(1);
+    expect(sqliteRepositoryMock.getLatestBudgetYear).toHaveBeenCalledTimes(1);
+    expect(sqliteRepositoryMock.getBudgetYearByYear).toHaveBeenCalledWith(2026);
+  });
+
+  it('should delegate all facade operations with same arguments', async () => {
+    getPlatformMock.mockReturnValue('web');
+
+    const repository = await import('./BudgetRepository');
+
+    const yearInput = { monthlyIncome: 100_000, year: 2026, currency: 'USD' as const };
+    const monthInput = { budgetYearId: 'year-1', month: 4, year: 2026 };
+    const allocationInput = {
+      budgetMonthId: 'month-1',
+      bucket: 'needs' as const,
+      allocated: 50_000,
+    };
+
+    await repository.createBudgetYear(yearInput);
+    await repository.getBudgetYearByYear(2026);
+    await repository.createBudgetMonth(monthInput);
+    await repository.getBudgetMonth('year-1', 4);
+    await repository.createBudgetAllocation(allocationInput);
+    await repository.getAllocationsByMonth('month-1');
+    await repository.createYearWithAllocations(100_000, 2026, 'USD');
+
+    expect(indexedDbRepositoryMock.createBudgetYear).toHaveBeenCalledWith(yearInput);
+    expect(indexedDbRepositoryMock.getBudgetYearByYear).toHaveBeenCalledWith(2026);
+    expect(indexedDbRepositoryMock.createBudgetMonth).toHaveBeenCalledWith(monthInput);
+    expect(indexedDbRepositoryMock.getBudgetMonth).toHaveBeenCalledWith('year-1', 4);
+    expect(indexedDbRepositoryMock.createBudgetAllocation).toHaveBeenCalledWith(allocationInput);
+    expect(indexedDbRepositoryMock.getAllocationsByMonth).toHaveBeenCalledWith('month-1');
+    expect(indexedDbRepositoryMock.createYearWithAllocations).toHaveBeenCalledWith(
+      100_000,
+      2026,
+      'USD',
+    );
+  });
+});

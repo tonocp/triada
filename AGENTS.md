@@ -1,33 +1,106 @@
 # AGENTS.md
 
-## Purpose
 Operational guide for coding agents working in this repository.
-Follow these commands and conventions unless the user explicitly asks otherwise.
 
-## Project Snapshot
-- Vue 3 + TypeScript + Vite hybrid mobile app (Capacitor)
-- PrimeVue 4 UI + PrimeIcons + Aura theme
-- State: Pinia
-- Router: Vue Router
-- i18n: vue-i18n (`es` default, `en` fallback)
-- Persistence: SQLite on native, IndexedDB on web
-- Package manager: `pnpm@10.30.3`
-- Node baseline: Volta pin `v22.21.1`
+## 1) Project context
 
-## Install and Setup
+- Hybrid mobile app with Capacitor (web + iOS + Android)
+- Vue 3 + TypeScript + Vite
+- PrimeVue 4 + PrimeIcons
+- Pinia for state
+- i18n with `es` default and `en` fallback
+- Platform-aware persistence:
+  - native: SQLite
+  - web: IndexedDB
+
+## 2) Architecture principles (mandatory)
+
+1. **Layer separation**
+   - `domain`: pure business rules.
+   - `data`: infrastructure, repositories, adapters.
+   - `features/shared`: presentation and UI composables.
+   - Do not mix infrastructure concerns into `domain`.
+
+2. **Single repository facade**
+   - Consume persistence through `src/data/repositories/BudgetRepository.ts`.
+   - Do not import concrete implementations (`sqlite` / `indexeddb`) from UI.
+
+3. **Web/native parity**
+   - Any repository contract change must be mirrored in both implementations.
+   - Do not accept platform divergence unless explicitly documented and approved.
+
+4. **Money safety model**
+   - Keep money values in minor units (integer cents).
+   - Do not use floats as persisted financial source of truth.
+
+5. **Errors and recovery**
+   - Handle async boundaries with `try/catch`.
+   - Include actionable context in logs.
+   - Provide consistent user feedback (toast / empty state / error state).
+
+6. **i18n first**
+   - Avoid hardcoded user-facing strings when translation keys exist.
+   - When adding keys, update both `es.ts` and `en.ts`.
+
+## 3) Code standards
+
+- Use strict TypeScript and avoid `any` unless strongly justified.
+- Prefer `import type` for type-only imports.
+- Keep naming semantic and consistent.
+- Add comments only for non-obvious decisions.
+- Respect repository lint/format standards and avoid unnecessary style churn.
+
+## 4) Testing strategy (mandatory)
+
+### 4.1 Unit tests
+
+- Framework: Vitest.
+- Cover pure logic, i18n behavior, simple composables, and facade contracts.
+- File naming: `*.spec.ts`.
+- Include edge cases, error paths, and fallback behavior (not only happy paths).
+
+### 4.2 Integration tests
+
+- Cover real repository/infrastructure behavior.
+- Use `fake-indexeddb` for web persistence integration tests.
+- Validate business invariants (for example 50/30/20 allocation and bucket order).
+- Validate null/empty states, partial/corrupted data recovery paths, and sorting consistency.
+
+### 4.3 Web E2E
+
+- Framework: Cypress.
+- Minimum required flows:
+  - initial setup,
+  - setup -> dashboard redirect when budget exists,
+  - persistence after reload.
+- Also cover critical UX edge cases when relevant (invalid income, locale/currency persistence, rounding display behavior).
+
+### 4.4 Native E2E
+
+- Framework: Maestro.
+- Required smoke flows for iOS and Android when critical UX changes:
+  - app launch,
+  - setup completion,
+  - dashboard visible with expected budget output.
+- Prefer stable selectors/identifiers (for example `id`) when available, and keep separate flows per platform when interactions differ.
+
+### 4.5 Coverage policy
+
+- Runtime logic should keep line coverage at 100%.
+- Coverage execution is scoped to `src/` (`vitest run src --coverage`).
+- Files that only declare static types/contracts or static locale dictionaries may be excluded from coverage thresholds when they do not represent executable runtime logic.
+- Any exclusion must be explicit and justified in `vitest.config.ts`.
+
+## 5) Official commands
+
+Install:
+
 ```bash
 pnpm install
 ```
 
-Android local environment:
-```bash
-export ANDROID_HOME=~/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
-```
+Development:
 
-## Build, Lint, and Test Commands
-
-### Development
 ```bash
 pnpm dev
 pnpm dev:server
@@ -35,42 +108,39 @@ pnpm dev:android
 pnpm dev:ios
 ```
 
-### Build / Preview
-```bash
-pnpm build
-pnpm preview
-```
-`pnpm build` runs `vue-tsc -p tsconfig.app.json --noEmit` then `vite build`.
+Quality:
 
-### Lint
 ```bash
+pnpm format
 pnpm lint
-pnpm lint:quiet
-pnpm lint:fix
+pnpm lint:check
+pnpm type-check
+pnpm build
+pnpm build:check
 ```
 
-### Unit Tests (Vitest)
+`pnpm build:check` is scoped to `src/` quality gates (format + Vitest coverage + type-check + lint) and does not run the production bundle build.
+
+Current script pipeline:
+
+```bash
+pnpm format && pnpm test:unit:coverage && pnpm type-check && pnpm lint:check
+```
+
+Tests:
+
 ```bash
 pnpm test:unit
-pnpm test:unit:watch
+pnpm test:unit:coverage
+pnpm test:e2e
+pnpm test:e2e:dev
+pnpm test:e2e:native:android
+pnpm test:e2e:native:ios
+pnpm test:e2e:native
 ```
 
-Single test file:
-```bash
-pnpm test:unit -- run src/domain/entities/Bucket.spec.ts
-```
+Capacitor:
 
-Single test by name pattern:
-```bash
-pnpm test:unit -- run -t "should total 100"
-```
-
-Single file in watch mode:
-```bash
-pnpm vitest src/domain/entities/Bucket.spec.ts
-```
-
-### Capacitor Utilities
 ```bash
 pnpm cap:add:ios
 pnpm cap:add:android
@@ -83,92 +153,49 @@ pnpm cap:build:ios
 pnpm cap:build:android
 ```
 
-## Code Style Guidelines
-Derived from `prettier.config.cjs`, `common.config.cjs`, `eslint.config.mjs`, and TS configs.
+## 6) Step completion rule
 
-### Formatting
-- Use single quotes.
-- Always include arrow-function parentheses.
-- Target max line length of 100 characters.
-- Let Prettier + ESLint format code; avoid manual style churn.
-- Imports are auto-organized via `prettier-plugin-organize-imports`.
+At the end of each user-authorized step, run:
 
-### Imports
-- Prefer `@/` alias for `src/*` imports.
-- Use `import type` for type-only imports.
-- Avoid fragile deep relative paths when alias imports are clearer.
-- Keep imports used; unused imports fail type/lint checks.
-
-### TypeScript
-- Strict typing is required (`strict: true`).
-- Avoid `any`; use concrete types or `unknown` with narrowing.
-- Prefer explicit return types on exported/non-trivial functions.
-- Respect `erasableSyntaxOnly` (no `enum`, no `namespace`).
-- Model nullable states explicitly (`T | null`) and guard them.
-- Prefer `as const` for fixed domain constants.
-
-### Vue / Composition API
-- Use `<script setup lang="ts">` for SFC logic.
-- Prefer `ref`, `computed`, `watch`, `onMounted` patterns.
-- Keep feature pages under `src/features/*/pages`.
-- Put reusable UI in `src/shared/components`.
-- Put shared composables in `src/shared/composables`.
-
-### Naming Conventions
-- Component and page filenames: PascalCase.
-- Composables: `useXxx` naming.
-- Variables/functions: camelCase.
-- Constants: UPPER_SNAKE_CASE for static config maps.
-- Types/interfaces: PascalCase.
-- DTO-like creation payloads: suffix with `Input`.
-
-### Error Handling
-- Wrap async UI/data boundaries in `try/catch`.
-- Log actionable context: `console.error('Failed to ...', error)`.
-- Show user-facing feedback for failures (toast/dialog/message).
-- Re-throw only when upstream handling is required.
-- Guard early for invalid state and return fast.
-
-### Testing
-- Frameworks: Vitest + Vue Test Utils.
-- Co-locate tests with source as `*.spec.ts`.
-- Prefer behavior-focused assertions over implementation details.
-- Use descriptive names (`should ... when ...`).
-- Keep tests deterministic and side-effect-light.
-
-## Architecture and Domain Notes
-- Keep `domain` framework-agnostic.
-- Use repository abstraction in `src/data/repositories`.
-- Runtime storage is platform-aware (SQLite native, IndexedDB web).
-- Store money as integer minor units (cents), not floats.
-- Budget buckets implement 50/30/20 (`needs`, `wants`, `savings`).
-
-## i18n Requirements
-- Avoid hardcoded user-facing strings when translation keys exist.
-- Update both locales when adding new keys:
-  - `src/shared/i18n/locales/es.ts`
-  - `src/shared/i18n/locales/en.ts`
-- Preserve locale defaults (`es`) and fallback (`en`).
-
-## Commit / PR Expectations
-- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`).
-- Keep PRs focused; avoid unrelated refactors.
-- Before finishing substantial work, run:
-```bash
-pnpm lint:fix && pnpm test:unit && pnpm build
-```
-
-## Iterative Workflow (Requested by User)
-- Work in explicitly authorized steps. Complete one step at a time.
-- At the end of each step, run:
 ```bash
 pnpm build:check
 ```
-- Do not continue to the next step until the user explicitly authorizes it.
-- If tests or build fail, fix issues within the current step before considering it complete.
 
-## Cursor and Copilot Rules
-- `.cursorrules`: not found
-- `.cursor/rules/`: not found
-- `.github/copilot-instructions.md`: not found
-- If added later, treat those files as higher-priority agent instructions.
+Scope reminder: this command validates only `src/` quality gates.
+
+If user flow screens are changed (setup/dashboard/navigation), also run:
+
+```bash
+pnpm test:e2e
+```
+
+If native UX is affected, also run Maestro tests on iOS and Android when environment is available.
+
+## 7) Git hooks and local quality gates
+
+- Husky is enabled in this repository (`prepare` script in `package.json`).
+- `pre-commit` runs:
+
+```bash
+pnpm build:check
+```
+
+- Do not bypass hooks unless explicitly requested by the user.
+- If hooks fail, fix the root cause before committing.
+
+## 8) Commit and PR expectations
+
+- Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`.
+- Keep PRs focused and avoid unrelated refactors.
+- Include in PR description:
+  - functional changes,
+  - platform impact,
+  - evidence of executed tests.
+
+## 9) Agent restrictions
+
+- Do not revert user changes unless explicitly requested.
+- Do not use destructive git commands.
+- Do not add dependencies without clear technical justification.
+- Any domain contract change requires corresponding test updates.
+- Do not disable or weaken existing test/coverage/hook guardrails without explicit user approval.

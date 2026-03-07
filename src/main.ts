@@ -1,8 +1,10 @@
+import { Capacitor } from '@capacitor/core';
 import Aura from '@primeuix/themes/aura';
 import { createPinia } from 'pinia';
 import 'primeicons/primeicons.css';
 import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
+import { registerSW } from 'virtual:pwa-register';
 import { createApp } from 'vue';
 import App from './App.vue';
 import './assets/primevue-variables.css';
@@ -43,3 +45,7 @@ router.beforeEach(async (_to, _from, next) => {
 });
 
 app.mount('#app');
+
+if (Capacitor.getPlatform() === 'web') {
+  void registerSW({ immediate: true });
+}

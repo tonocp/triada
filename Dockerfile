@@ -1,15 +1,23 @@
-# Use an official nginx image
-FROM nginx:alpine
+FROM node:22-alpine AS builder
 
-# Copy the index.html file to the nginx web root directory
-COPY dist/ /usr/share/nginx/html/
+WORKDIR /app
 
-# add a custom config for nginx
-RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d
+RUN corepack enable
 
-# Expose the nginx port
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
+RUN pnpm build
+
+FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
 EXPOSE 80
 
-# Start nginx
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -q --spider http://localhost/ || exit 1
+
 CMD ["nginx", "-g", "daemon off;"]

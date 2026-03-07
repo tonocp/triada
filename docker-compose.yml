@@ -1,0 +1,9 @@
+services:
+  triada-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: triada-web
+    ports:
+      - '8081:80'
+    restart: unless-stopped

@@ -1,7 +1,10 @@
 {
-  "name": "my-vue-app",
+  "name": "triada",
+  "description": "TRIADA - Fintech APP which follows the '50/30/20' rule",
+  "author": "tonocp - website: https://tcarrascosa.dev",
+  "url": "https://github.com/tonocp/triada",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -48,7 +51,8 @@
     "primevue": "^4.5.4",
     "vue": "^3.5.29",
     "vue-i18n": "^11.2.8",
-    "vue-router": "^4.6.3"
+    "vue-router": "^4.6.3",
+    "workbox-window": "^7.4.0"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.4",
@@ -60,7 +64,7 @@
     "@types/node": "^24.10.0",
     "@typescript-eslint/eslint-plugin": "8.56.1",
     "@typescript-eslint/parser": "8.56.1",
-    "@vitejs/plugin-vue": "^5.2.4",
+    "@vitejs/plugin-vue": "^6.0.4",
     "@vitest/coverage-v8": "^4.0.18",
     "@vue/eslint-config-prettier": "10.2.0",
     "@vue/eslint-config-typescript": "14.7.0",
@@ -84,8 +88,10 @@
     "prettier": "^3.8.1",
     "prettier-plugin-organize-imports": "4.3.0",
     "start-server-and-test": "^2.1.5",
+    "terser": "^5.46.0",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0",
     "vitest": "4.0.18",
     "vue-eslint-parser": "10.4.0",
     "vue-tsc": "^3.2.5"

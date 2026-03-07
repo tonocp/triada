@@ -53,6 +53,31 @@ pnpm build
 pnpm preview
 ```
 
+PWA build verification:
+
+```bash
+pnpm build
+pnpm preview
+```
+
+Then open `http://localhost:4173`, verify installability in DevTools (`Application` -> `Manifest`) and test offline mode from DevTools (`Network` -> `Offline`).
+
+## Docker deployment
+
+Build and run with Docker Compose:
+
+```bash
+docker compose up --build -d
+```
+
+Open `http://localhost:8081`.
+
+Stop and remove containers:
+
+```bash
+docker compose down
+```
+
 Capacitor:
 
 ```bash

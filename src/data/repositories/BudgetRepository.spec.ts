@@ -7,6 +7,7 @@ const indexedDbRepositoryMock = {
   createBudgetMonth: vi.fn(),
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
+  addExpenseToAllocation: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -18,6 +19,7 @@ const sqliteRepositoryMock = {
   createBudgetMonth: vi.fn(),
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
+  addExpenseToAllocation: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -104,12 +106,18 @@ describe('data/repositories BudgetRepository facade', () => {
       bucket: 'needs' as const,
       allocated: 50_000,
     };
+    const expenseInput = {
+      budgetMonthId: 'month-1',
+      bucket: 'needs' as const,
+      amount: 12_345,
+    };
 
     await repository.createBudgetYear(yearInput);
     await repository.getBudgetYearByYear(2026);
     await repository.createBudgetMonth(monthInput);
     await repository.getBudgetMonth('year-1', 4);
     await repository.createBudgetAllocation(allocationInput);
+    await repository.addExpenseToAllocation(expenseInput);
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
 
@@ -118,6 +126,7 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.createBudgetMonth).toHaveBeenCalledWith(monthInput);
     expect(indexedDbRepositoryMock.getBudgetMonth).toHaveBeenCalledWith('year-1', 4);
     expect(indexedDbRepositoryMock.createBudgetAllocation).toHaveBeenCalledWith(allocationInput);
+    expect(indexedDbRepositoryMock.addExpenseToAllocation).toHaveBeenCalledWith(expenseInput);
     expect(indexedDbRepositoryMock.getAllocationsByMonth).toHaveBeenCalledWith('month-1');
     expect(indexedDbRepositoryMock.createYearWithAllocations).toHaveBeenCalledWith(
       100_000,

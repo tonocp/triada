@@ -1,4 +1,5 @@
 import type {
+  AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
@@ -15,6 +16,7 @@ export interface BudgetRepository {
   createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth>;
   getBudgetMonth(budgetYearId: string, month: number): Promise<BudgetMonth | null>;
   createBudgetAllocation(input: CreateBudgetAllocationInput): Promise<BudgetAllocation>;
+  addExpenseToAllocation(input: AddExpenseToAllocationInput): Promise<BudgetAllocation>;
   getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]>;
   createYearWithAllocations(
     monthlyIncome: number,

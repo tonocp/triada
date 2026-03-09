@@ -1,6 +1,7 @@
 import { query, run } from '@/data/database/database';
 import { generateUUID, getCurrentTimestamp } from '@/data/database/utils';
 import type {
+  AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
@@ -180,6 +181,50 @@ export const sqliteBudgetRepository: BudgetRepository = {
       spent: 0,
       createdAt: now,
       updatedAt: now,
+    };
+  },
+
+  async addExpenseToAllocation(input: AddExpenseToAllocationInput): Promise<BudgetAllocation> {
+    const now = getCurrentTimestamp();
+
+    // noinspection SqlNoDataSourceInspection
+    await run(
+      `UPDATE budget_allocations
+       SET spent = spent + ?, updated_at = ?
+       WHERE budget_month_id = ? AND bucket = ?`,
+      [input.amount, now, input.budgetMonthId, input.bucket],
+    );
+
+    // noinspection SqlNoDataSourceInspection
+    const result = await query<{
+      id: string;
+      budget_month_id: string;
+      bucket: string;
+      allocated: number;
+      spent: number;
+      created_at: string;
+      updated_at: string;
+    }>(`SELECT * FROM budget_allocations WHERE budget_month_id = ? AND bucket = ? LIMIT 1`, [
+      input.budgetMonthId,
+      input.bucket,
+    ]);
+
+    const [row] = result;
+
+    if (!row) {
+      throw new Error(
+        `Allocation not found for month ${input.budgetMonthId} and bucket ${input.bucket}`,
+      );
+    }
+
+    return {
+      id: row.id,
+      budgetMonthId: row.budget_month_id,
+      bucket: row.bucket as BucketType,
+      allocated: Number(row.allocated),
+      spent: Number(row.spent),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   },
 

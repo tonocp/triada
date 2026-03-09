@@ -40,6 +40,7 @@ interface IndexedDbRepositoryModule {
       allocations: Array<{
         bucket: 'needs' | 'wants' | 'savings';
         allocated: number;
+        spent: number;
       }>;
     }>;
     getBudgetMonth: (
@@ -53,6 +54,7 @@ interface IndexedDbRepositoryModule {
       allocations: Array<{
         bucket: 'needs' | 'wants' | 'savings';
         allocated: number;
+        spent: number;
       }>;
     } | null>;
     createBudgetAllocation: (input: {
@@ -66,10 +68,22 @@ interface IndexedDbRepositoryModule {
       allocated: number;
       spent: number;
     }>;
+    addExpenseToAllocation: (input: {
+      budgetMonthId: string;
+      bucket: 'needs' | 'wants' | 'savings';
+      amount: number;
+    }) => Promise<{
+      id: string;
+      budgetMonthId: string;
+      bucket: 'needs' | 'wants' | 'savings';
+      allocated: number;
+      spent: number;
+    }>;
     getAllocationsByMonth: (budgetMonthId: string) => Promise<
       Array<{
         bucket: 'needs' | 'wants' | 'savings';
         allocated: number;
+        spent: number;
       }>
     >;
     createYearWithAllocations: (
@@ -88,6 +102,7 @@ interface IndexedDbRepositoryModule {
         allocations: Array<{
           bucket: 'needs' | 'wants' | 'savings';
           allocated: number;
+          spent: number;
         }>;
       }>;
     }>;
@@ -329,6 +344,73 @@ describe('data/repositories IndexedDB integration', () => {
     });
 
     expect(allocation.spent).toBe(0);
+  });
+
+  it('should add expense to bucket spent and keep persistence', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 100_000,
+      year: 2026,
+      currency: 'USD',
+    });
+
+    const budgetMonth = await repositoryModule.indexedDbBudgetRepository.createBudgetMonth({
+      budgetYearId: budgetYear.id,
+      month: 4,
+      year: 2026,
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
+      budgetMonthId: budgetMonth.id,
+      bucket: 'needs',
+      allocated: 50_000,
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
+      budgetMonthId: budgetMonth.id,
+      bucket: 'wants',
+      allocated: 30_000,
+    });
+
+    const updated = await repositoryModule.indexedDbBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: budgetMonth.id,
+      bucket: 'needs',
+      amount: 12_345,
+    });
+
+    expect(updated.spent).toBe(12_345);
+
+    const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 4);
+    expect(month).not.toBeNull();
+    expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(
+      12_345,
+    );
+    expect(month?.allocations.find((allocation) => allocation.bucket === 'wants')?.spent).toBe(0);
+  });
+
+  it('should throw when adding expense to missing allocation', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
+      monthlyIncome: 100_000,
+      year: 2026,
+      currency: 'USD',
+    });
+
+    const budgetMonth = await repositoryModule.indexedDbBudgetRepository.createBudgetMonth({
+      budgetYearId: budgetYear.id,
+      month: 4,
+      year: 2026,
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: budgetMonth.id,
+        bucket: 'needs',
+        amount: 500,
+      }),
+    ).rejects.toThrow(`Allocation not found for month ${budgetMonth.id} and bucket needs`);
   });
 
   it('should floor allocation values for non-divisible incomes', async () => {

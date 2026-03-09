@@ -6,6 +6,7 @@ import {
 } from '@/data/database/indexeddb';
 import { generateUUID, getCurrentTimestamp } from '@/data/database/utils';
 import type {
+  AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
@@ -128,6 +129,18 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   )) as BudgetAllocationRow[];
   await transactionDone(tx);
   return rows;
+}
+
+function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
+  return {
+    id: row.id,
+    budgetMonthId: row.budget_month_id,
+    bucket: row.bucket,
+    allocated: row.allocated,
+    spent: row.spent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
@@ -315,21 +328,37 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     };
   },
 
+  async addExpenseToAllocation(input: AddExpenseToAllocationInput): Promise<BudgetAllocation> {
+    await initIndexedDb();
+
+    const rows = await readAllocationRowsByMonth(input.budgetMonthId);
+    const existing = rows.find((row) => row.bucket === input.bucket);
+
+    if (!existing) {
+      throw new Error(
+        `Allocation not found for month ${input.budgetMonthId} and bucket ${input.bucket}`,
+      );
+    }
+
+    const now = getCurrentTimestamp();
+    const updatedRow: BudgetAllocationRow = {
+      ...existing,
+      spent: existing.spent + input.amount,
+      updated_at: now,
+    };
+
+    await insertBudgetAllocation(updatedRow);
+
+    return mapAllocationRow(updatedRow);
+  },
+
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {
     await initIndexedDb();
 
     const rows = await readAllocationRowsByMonth(budgetMonthId);
 
     return rows
-      .map((row) => ({
-        id: row.id,
-        budgetMonthId: row.budget_month_id,
-        bucket: row.bucket,
-        allocated: row.allocated,
-        spent: row.spent,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }))
+      .map(mapAllocationRow)
       .sort((left, right) => compareBuckets(left.bucket, right.bucket));
   },
 

@@ -74,16 +74,14 @@
         </div>
         <div class="form-group">
           <label>{{ t('dashboard.amount') }}</label>
-          <InputNumber
+          <Input
             v-model="expenseAmount"
-            mode="decimal"
-            :min="0"
-            :min-fraction-digits="2"
-            :max-fraction-digits="2"
+            id="expense-amount"
+            type="number"
+            inputmode="decimal"
             :placeholder="t('setup.incomePlaceholder')"
             :disabled="expenseCategory === ''"
-            :input-props="{ inputmode: 'decimal' }"
-            class="w-full"
+            input-class="w-full"
           />
         </div>
       </div>
@@ -103,6 +101,7 @@
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
 import {
+  addExpenseToAllocation,
   createBudgetAllocation,
   createBudgetMonth,
   createYearWithAllocations,
@@ -119,12 +118,12 @@ import {
   type BudgetMonth,
   type BudgetYear,
 } from '@/domain/entities';
+import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
-import InputNumber from 'primevue/inputnumber';
 import RadioButton from 'primevue/radiobutton';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
@@ -145,7 +144,7 @@ let isRepairingYear = false;
 let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
-const expenseAmount = ref<number | null>(null);
+const expenseAmount = ref('');
 const expenseCategory = ref<BucketType | ''>('');
 
 const categories = BUCKET_ORDER;
@@ -157,7 +156,8 @@ const allocations = computed<BudgetAllocation[]>(() => {
 });
 
 const isExpenseValid = computed(() => {
-  return expenseAmount.value !== null && expenseAmount.value > 0 && expenseCategory.value !== '';
+  const amount = parseFloat(expenseAmount.value);
+  return !Number.isNaN(amount) && amount > 0 && expenseCategory.value !== '';
 });
 
 function setActivePeriod(year: number, month: number): void {
@@ -392,19 +392,57 @@ function onPeriodChange(value: unknown): void {
   void refreshMonthData();
 }
 
+function toMinorUnits(amount: number): number {
+  return Math.round(amount * 100);
+}
+
 async function addExpense(): Promise<void> {
-  if (!isExpenseValid.value || !budgetMonth.value) return;
+  if (!isExpenseValid.value || !budgetMonth.value) {
+    return;
+  }
 
-  toast.add({
-    severity: 'info',
-    summary: t('common.comingSoon'),
-    detail: t('common.comingSoon'),
-    life: 3000,
-  });
+  const normalizedAmount = parseFloat(expenseAmount.value);
+  const amount = toMinorUnits(normalizedAmount);
+  const selectedCategory = expenseCategory.value;
 
-  showAddExpense.value = false;
-  expenseAmount.value = null;
-  expenseCategory.value = '';
+  if (amount <= 0 || selectedCategory === '') {
+    return;
+  }
+
+  try {
+    await addExpenseToAllocation({
+      budgetMonthId: budgetMonth.value.id,
+      bucket: selectedCategory,
+      amount,
+    });
+
+    await refreshMonthData();
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.expenseAdded'),
+      detail: t('dashboard.expenseAdded'),
+      life: 3000,
+    });
+
+    showAddExpense.value = false;
+    expenseAmount.value = '';
+    expenseCategory.value = '';
+  } catch (error) {
+    console.error('Failed to add expense to allocation', {
+      error,
+      budgetMonthId: budgetMonth.value.id,
+      bucket: expenseCategory.value,
+      amount,
+    });
+
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.expenseAddError'),
+      life: 3000,
+    });
+  }
 }
 
 async function loadData(): Promise<void> {

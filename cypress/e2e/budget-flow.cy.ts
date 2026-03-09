@@ -165,6 +165,39 @@ describe('Budget flow', () => {
     cy.contains('€1000.00').should('be.visible');
   });
 
+  it('should add expense from dashboard form and persist after reload', () => {
+    createBudget('1000');
+
+    cy.url().should('include', '/dashboard');
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€0.00');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+    cy.get('.p-dialog:visible').within(() => {
+      cy.get('#expense-category-needs').check({ force: true });
+      cy.get('input[placeholder="0.00"]').last().clear();
+      cy.get('input[placeholder="0.00"]').last().type('100.50');
+      cy.contains('button', /^Agregar$/).click();
+    });
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€100.50');
+
+    cy.reload();
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€100.50');
+  });
+
   it('should render dashboard while offline after service worker activation', () => {
     createBudget('1300');
 

@@ -23,6 +23,8 @@ export default {
     amount: 'Amount',
     category: 'Category',
     selectCategory: 'Select a category',
+    expenseAdded: 'Expense added',
+    expenseAddError: 'Could not add expense. Please try again.',
     noBudgetForPeriod: 'No budget found for the selected month and year.',
     allocated: 'Allocated',
     spent: 'Spent',

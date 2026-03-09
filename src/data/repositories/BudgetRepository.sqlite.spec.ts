@@ -9,6 +9,8 @@ describe('data/repositories BudgetRepository.sqlite', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    queryMock.mockReset();
+    runMock.mockReset();
 
     generateUUIDMock
       .mockReturnValueOnce('year-id')
@@ -196,6 +198,47 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     expect(result.spent).toBe(0);
     expect(runMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('should add expense amount to allocation spent', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'alloc-2',
+        budget_month_id: 'month-id',
+        bucket: 'needs',
+        allocated: 50_000,
+        spent: 12_345,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: 'month-id',
+      bucket: 'needs',
+      amount: 12_345,
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(result.spent).toBe(12_345);
+    expect(result.bucket).toBe('needs');
+  });
+
+  it('should throw when adding expense to missing allocation', async () => {
+    queryMock.mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: 'month-id',
+        bucket: 'needs',
+        amount: 500,
+      }),
+    ).rejects.toThrow('Allocation not found for month month-id and bucket needs');
   });
 
   it('should return allocations sorted by bucket order', async () => {

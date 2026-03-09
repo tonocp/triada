@@ -15,3 +15,9 @@ export interface CreateBudgetAllocationInput {
   bucket: BucketType;
   allocated: number;
 }
+
+export interface AddExpenseToAllocationInput {
+  budgetMonthId: string;
+  bucket: BucketType;
+  amount: number;
+}

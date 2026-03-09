@@ -23,6 +23,8 @@ export default {
     amount: 'Cantidad',
     category: 'Categoría',
     selectCategory: 'Selecciona una categoría',
+    expenseAdded: 'Gasto agregado',
+    expenseAddError: 'No se pudo agregar el gasto. Intenta de nuevo.',
     noBudgetForPeriod: 'No hay presupuesto para el mes y año seleccionados.',
     allocated: 'Asignado',
     spent: 'Gastado',

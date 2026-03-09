@@ -1,5 +1,8 @@
 <template>
   <InputText
+    :id="id"
+    :type="type"
+    :inputmode="inputmode"
     :model-value="String(modelValue || '')"
     :placeholder="placeholder"
     :disabled="disabled"
@@ -12,6 +15,9 @@
 import InputText from 'primevue/inputtext';
 
 defineProps<{
+  id?: string;
+  type?: string;
+  inputmode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
   modelValue?: string | number;
   placeholder?: string;
   disabled?: boolean;

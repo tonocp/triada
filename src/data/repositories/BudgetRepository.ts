@@ -1,4 +1,5 @@
 import type {
+  AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
@@ -55,6 +56,12 @@ export async function createBudgetAllocation(
   input: CreateBudgetAllocationInput,
 ): Promise<BudgetAllocation> {
   return getRepository().createBudgetAllocation(input);
+}
+
+export async function addExpenseToAllocation(
+  input: AddExpenseToAllocationInput,
+): Promise<BudgetAllocation> {
+  return getRepository().addExpenseToAllocation(input);
 }
 
 export async function getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

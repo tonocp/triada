@@ -1,5 +1,5 @@
 const DB_NAME = 'triada-web';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORE_BUDGET_YEARS = 'budget_years';
 const STORE_BUDGET_MONTHS = 'budget_months';
@@ -25,32 +25,48 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result;
+      const upgradeTransaction = request.transaction as IDBTransaction;
 
-      if (!db.objectStoreNames.contains(STORE_BUDGET_YEARS)) {
-        db.createObjectStore(STORE_BUDGET_YEARS, { keyPath: 'id' });
+      const getOrCreateStore = (
+        storeName: string,
+        options?: IDBObjectStoreParameters,
+      ): IDBObjectStore => {
+        if (db.objectStoreNames.contains(storeName)) {
+          return upgradeTransaction.objectStore(storeName);
+        }
+
+        return db.createObjectStore(storeName, options);
+      };
+
+      getOrCreateStore(STORE_BUDGET_YEARS, { keyPath: 'id' });
+
+      {
+        const months = getOrCreateStore(STORE_BUDGET_MONTHS, { keyPath: 'id' });
+        if (!months.indexNames.contains(INDEX_BUDGET_MONTH_BY_YEAR_MONTH)) {
+          months.createIndex(INDEX_BUDGET_MONTH_BY_YEAR_MONTH, ['budget_year_id', 'month'], {
+            unique: true,
+          });
+        }
       }
 
-      if (!db.objectStoreNames.contains(STORE_BUDGET_MONTHS)) {
-        const months = db.createObjectStore(STORE_BUDGET_MONTHS, { keyPath: 'id' });
-        months.createIndex(INDEX_BUDGET_MONTH_BY_YEAR_MONTH, ['budget_year_id', 'month'], {
-          unique: true,
-        });
+      {
+        const allocations = getOrCreateStore(STORE_BUDGET_ALLOCATIONS, { keyPath: 'id' });
+        if (!allocations.indexNames.contains(INDEX_ALLOCATIONS_BY_MONTH)) {
+          allocations.createIndex(INDEX_ALLOCATIONS_BY_MONTH, 'budget_month_id', { unique: false });
+        }
       }
 
-      if (!db.objectStoreNames.contains(STORE_BUDGET_ALLOCATIONS)) {
-        const allocations = db.createObjectStore(STORE_BUDGET_ALLOCATIONS, { keyPath: 'id' });
-        allocations.createIndex(INDEX_ALLOCATIONS_BY_MONTH, 'budget_month_id', { unique: false });
+      {
+        const expenses = getOrCreateStore(STORE_BUDGET_EXPENSES, { keyPath: 'id' });
+        if (!expenses.indexNames.contains(INDEX_EXPENSES_BY_MONTH_BUCKET)) {
+          expenses.createIndex(INDEX_EXPENSES_BY_MONTH_BUCKET, ['budget_month_id', 'bucket']);
+        }
+        if (!expenses.indexNames.contains(INDEX_EXPENSES_BY_RULE)) {
+          expenses.createIndex(INDEX_EXPENSES_BY_RULE, 'recurring_rule_id', { unique: false });
+        }
       }
 
-      if (!db.objectStoreNames.contains(STORE_BUDGET_EXPENSES)) {
-        const expenses = db.createObjectStore(STORE_BUDGET_EXPENSES, { keyPath: 'id' });
-        expenses.createIndex(INDEX_EXPENSES_BY_MONTH_BUCKET, ['budget_month_id', 'bucket']);
-        expenses.createIndex(INDEX_EXPENSES_BY_RULE, 'recurring_rule_id', { unique: false });
-      }
-
-      if (!db.objectStoreNames.contains(STORE_RECURRING_EXPENSE_RULES)) {
-        db.createObjectStore(STORE_RECURRING_EXPENSE_RULES, { keyPath: 'id' });
-      }
+      getOrCreateStore(STORE_RECURRING_EXPENSE_RULES, { keyPath: 'id' });
     };
 
     request.onsuccess = () => {

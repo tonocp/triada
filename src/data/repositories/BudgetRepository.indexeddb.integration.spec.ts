@@ -95,7 +95,12 @@ interface IndexedDbRepositoryModule {
       createdAt: string;
       updatedAt: string;
     }>;
-    updateExpense: (input: { expenseId: string; amount: number; description: string }) => Promise<{
+    updateExpense: (input: {
+      expenseId: string;
+      amount: number;
+      description: string;
+      applyToFuture?: boolean;
+    }) => Promise<{
       id: string;
       budgetMonthId: string;
       bucket: 'needs' | 'wants' | 'savings';
@@ -105,7 +110,7 @@ interface IndexedDbRepositoryModule {
       createdAt: string;
       updatedAt: string;
     }>;
-    deleteExpense: (expenseId: string) => Promise<void>;
+    deleteExpense: (input: { expenseId: string; applyToFuture?: boolean }) => Promise<void>;
     getExpensesByMonthAndBucket: (
       budgetMonthId: string,
       bucket: 'needs' | 'wants' | 'savings',
@@ -575,7 +580,7 @@ describe('data/repositories IndexedDB integration', () => {
       15_000,
     );
 
-    await repositoryModule.indexedDbBudgetRepository.deleteExpense(created.id);
+    await repositoryModule.indexedDbBudgetRepository.deleteExpense({ expenseId: created.id });
 
     month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 6);
     expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(0);
@@ -603,7 +608,7 @@ describe('data/repositories IndexedDB integration', () => {
     const { repositoryModule } = await loadModules();
 
     await expect(
-      repositoryModule.indexedDbBudgetRepository.deleteExpense('missing-expense'),
+      repositoryModule.indexedDbBudgetRepository.deleteExpense({ expenseId: 'missing-expense' }),
     ).rejects.toThrow('Expense not found with id missing-expense');
   });
 
@@ -673,7 +678,7 @@ describe('data/repositories IndexedDB integration', () => {
       month6AfterUpdate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
     ).toBe(12_000);
 
-    await repositoryModule.indexedDbBudgetRepository.deleteExpense(recurring.id);
+    await repositoryModule.indexedDbBudgetRepository.deleteExpense({ expenseId: recurring.id });
 
     const month4AfterDelete = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
       result.budgetYear.id,
@@ -725,6 +730,90 @@ describe('data/repositories IndexedDB integration', () => {
     });
 
     expect(updated.amount).toBe(10_000);
+  });
+
+  it('should update only current month when recurring expense uses applyToFuture false', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month5 = result.months[4];
+
+    const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month5!.id,
+      bucket: 'needs',
+      amount: 10_000,
+      description: 'Renta',
+      isRecurring: true,
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.updateExpense({
+      expenseId: recurring.id,
+      amount: 11_000,
+      description: 'Renta puntual',
+      applyToFuture: false,
+    });
+
+    const month5After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(
+      month5After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(11_000);
+    expect(
+      month6After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(10_000);
+  });
+
+  it('should delete only current month when recurring expense uses applyToFuture false', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month5 = result.months[4];
+
+    const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month5!.id,
+      bucket: 'needs',
+      amount: 10_000,
+      description: 'Renta',
+      isRecurring: true,
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.deleteExpense({
+      expenseId: recurring.id,
+      applyToFuture: false,
+    });
+
+    const month5After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(
+      month5After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(0);
+    expect(
+      month6After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(10_000);
   });
 
   it('should throw when creating recurring expense with missing month', async () => {

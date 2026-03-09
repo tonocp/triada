@@ -8,6 +8,7 @@ import type {
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
   CreateExpenseInput,
+  DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
 } from '@/domain/entities';
@@ -23,7 +24,7 @@ export interface BudgetRepository {
   addExpenseToAllocation(input: AddExpenseToAllocationInput): Promise<BudgetAllocation>;
   addExpense(input: CreateExpenseInput): Promise<Expense>;
   updateExpense(input: UpdateExpenseInput): Promise<Expense>;
-  deleteExpense(expenseId: string): Promise<void>;
+  deleteExpense(input: DeleteExpenseInput): Promise<void>;
   getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]>;
   getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]>;
   createYearWithAllocations(

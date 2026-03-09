@@ -14,6 +14,7 @@ import type {
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
   CreateExpenseInput,
+  DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
 } from '@/domain/entities';
@@ -583,7 +584,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
-    if (existing.recurring_rule_id) {
+    if (existing.recurring_rule_id && input.applyToFuture !== false) {
       const months = await readAllBudgetMonths();
       const targetMonth = months.find((month) => month.id === existing.budget_month_id) ?? {
         id: existing.budget_month_id,
@@ -693,16 +694,16 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     return mapExpenseRow(updatedRow);
   },
 
-  async deleteExpense(expenseId: string): Promise<void> {
+  async deleteExpense(input: DeleteExpenseInput): Promise<void> {
     await initIndexedDb();
 
-    const existing = await findExpenseRowById(expenseId);
+    const existing = await findExpenseRowById(input.expenseId);
 
     if (!existing) {
-      throw new Error(`Expense not found with id ${expenseId}`);
+      throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
-    if (existing.recurring_rule_id) {
+    if (existing.recurring_rule_id && input.applyToFuture !== false) {
       const months = await readAllBudgetMonths();
       const targetMonth = months.find((month) => month.id === existing.budget_month_id) ?? {
         id: existing.budget_month_id,
@@ -766,7 +767,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       amount: -existing.amount,
     });
 
-    await deleteExpenseRow(expenseId);
+    await deleteExpenseRow(input.expenseId);
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

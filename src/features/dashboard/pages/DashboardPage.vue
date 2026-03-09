@@ -190,6 +190,10 @@
             input-class="w-full"
           />
         </div>
+        <div v-if="editingExpenseIsRecurring" class="form-group recurring-toggle">
+          <Checkbox v-model="editApplyToFuture" binary input-id="edit-apply-future" />
+          <label for="edit-apply-future">{{ t('dashboard.applyToFutureMonths') }}</label>
+        </div>
       </div>
       <template #footer>
         <Button :label="t('common.cancel')" severity="secondary" @click="showEditExpense = false" />
@@ -210,6 +214,10 @@
       :style="{ width: '90vw' }"
     >
       <p>{{ t('dashboard.confirmDeleteExpense') }}</p>
+      <div v-if="deletingExpenseIsRecurring" class="form-group recurring-toggle">
+        <Checkbox v-model="deleteApplyToFuture" binary input-id="delete-apply-future" />
+        <label for="delete-apply-future">{{ t('dashboard.applyToFutureMonths') }}</label>
+      </div>
       <template #footer>
         <Button
           :label="t('common.cancel')"
@@ -290,7 +298,11 @@ const selectedBucketExpenses = ref<Expense[]>([]);
 const editingExpenseId = ref<string | null>(null);
 const editExpenseAmount = ref('');
 const editExpenseDescription = ref('');
+const editingExpenseIsRecurring = ref(false);
+const editApplyToFuture = ref(true);
 const expensePendingDelete = ref<Expense | null>(null);
+const deletingExpenseIsRecurring = ref(false);
+const deleteApplyToFuture = ref(true);
 
 const categories = BUCKET_ORDER;
 
@@ -676,6 +688,8 @@ function startExpenseEdit(expense: Expense): void {
   editingExpenseId.value = expense.id;
   editExpenseAmount.value = fromMinorUnits(expense.amount);
   editExpenseDescription.value = expense.description;
+  editingExpenseIsRecurring.value = expense.recurringRuleId !== null;
+  editApplyToFuture.value = true;
   showEditExpense.value = true;
 }
 
@@ -696,12 +710,14 @@ async function saveExpenseEdit(): Promise<void> {
       expenseId: editingExpenseId.value,
       amount,
       description,
+      applyToFuture: editingExpenseIsRecurring.value ? editApplyToFuture.value : false,
     });
 
     await refreshMonthData();
     await refreshExpenseHistory();
 
     showEditExpense.value = false;
+    editingExpenseIsRecurring.value = false;
     toast.add({
       severity: 'success',
       summary: t('dashboard.expenseUpdated'),
@@ -721,6 +737,8 @@ async function saveExpenseEdit(): Promise<void> {
 
 function askExpenseDelete(expense: Expense): void {
   expensePendingDelete.value = expense;
+  deletingExpenseIsRecurring.value = expense.recurringRuleId !== null;
+  deleteApplyToFuture.value = true;
   showDeleteExpenseConfirm.value = true;
 }
 
@@ -732,13 +750,17 @@ async function confirmExpenseDelete(): Promise<void> {
   const targetExpense = expensePendingDelete.value;
 
   try {
-    await deleteExpenseRecord(targetExpense.id);
+    await deleteExpenseRecord({
+      expenseId: targetExpense.id,
+      applyToFuture: deletingExpenseIsRecurring.value ? deleteApplyToFuture.value : false,
+    });
 
     await refreshMonthData();
     await refreshExpenseHistory();
 
     showDeleteExpenseConfirm.value = false;
     expensePendingDelete.value = null;
+    deletingExpenseIsRecurring.value = false;
 
     toast.add({
       severity: 'success',

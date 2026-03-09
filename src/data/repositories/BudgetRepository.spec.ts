@@ -139,7 +139,7 @@ describe('data/repositories BudgetRepository facade', () => {
     await repository.addExpenseToAllocation(expenseInput);
     await repository.addExpense(newExpenseInput);
     await repository.updateExpense(updateExpenseInput);
-    await repository.deleteExpense('expense-1');
+    await repository.deleteExpense({ expenseId: 'expense-1', applyToFuture: true });
     await repository.getExpensesByMonthAndBucket('month-1', 'needs');
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
@@ -152,7 +152,10 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.addExpenseToAllocation).toHaveBeenCalledWith(expenseInput);
     expect(indexedDbRepositoryMock.addExpense).toHaveBeenCalledWith(newExpenseInput);
     expect(indexedDbRepositoryMock.updateExpense).toHaveBeenCalledWith(updateExpenseInput);
-    expect(indexedDbRepositoryMock.deleteExpense).toHaveBeenCalledWith('expense-1');
+    expect(indexedDbRepositoryMock.deleteExpense).toHaveBeenCalledWith({
+      expenseId: 'expense-1',
+      applyToFuture: true,
+    });
     expect(indexedDbRepositoryMock.getExpensesByMonthAndBucket).toHaveBeenCalledWith(
       'month-1',
       'needs',

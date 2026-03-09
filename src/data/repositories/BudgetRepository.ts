@@ -8,6 +8,7 @@ import type {
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
   CreateExpenseInput,
+  DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
 } from '@/domain/entities';
@@ -76,8 +77,8 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
   return getRepository().updateExpense(input);
 }
 
-export async function deleteExpense(expenseId: string): Promise<void> {
-  return getRepository().deleteExpense(expenseId);
+export async function deleteExpense(input: DeleteExpenseInput): Promise<void> {
+  return getRepository().deleteExpense(input);
 }
 
 export async function getExpensesByMonthAndBucket(

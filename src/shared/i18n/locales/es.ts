@@ -39,6 +39,7 @@ export default {
     expenseDeleteError: 'No se pudo eliminar el gasto. Intenta de nuevo.',
     recurringExpense: 'Recurrente (mes actual y futuros)',
     recurring: 'Recurrente',
+    applyToFutureMonths: 'Aplicar desde este mes hacia futuros',
     noBudgetForPeriod: 'No hay presupuesto para el mes y año seleccionados.',
     allocated: 'Asignado',
     spent: 'Gastado',

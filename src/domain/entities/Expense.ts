@@ -23,4 +23,10 @@ export interface UpdateExpenseInput {
   expenseId: string;
   amount: number;
   description: string;
+  applyToFuture?: boolean;
+}
+
+export interface DeleteExpenseInput {
+  expenseId: string;
+  applyToFuture?: boolean;
 }

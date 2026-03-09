@@ -9,6 +9,7 @@ import type {
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
   CreateExpenseInput,
+  DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
 } from '@/domain/entities';
@@ -407,7 +408,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
-    if (existing.recurring_rule_id) {
+    if (existing.recurring_rule_id && input.applyToFuture !== false) {
       const now = getCurrentTimestamp();
       const previousMonth = getPreviousMonth(Number(existing.year), Number(existing.month));
 
@@ -500,6 +501,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
       [input.amount, input.description, now, input.expenseId],
     );
 
+    if (existing.recurring_rule_id && input.applyToFuture === false) {
+      await run(`UPDATE budget_expenses SET recurring_rule_id = NULL WHERE id = ?`, [
+        input.expenseId,
+      ]);
+    }
+
     return {
       id: existing.id,
       budgetMonthId: existing.budget_month_id,
@@ -512,7 +519,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     };
   },
 
-  async deleteExpense(expenseId: string): Promise<void> {
+  async deleteExpense(input: DeleteExpenseInput): Promise<void> {
     // noinspection SqlNoDataSourceInspection
     const existingRows = await query<{
       id: string;
@@ -529,16 +536,16 @@ export const sqliteBudgetRepository: BudgetRepository = {
        JOIN budget_months m ON m.id = e.budget_month_id
        WHERE e.id = ?
        LIMIT 1`,
-      [expenseId],
+      [input.expenseId],
     );
 
     const [existing] = existingRows;
 
     if (!existing) {
-      throw new Error(`Expense not found with id ${expenseId}`);
+      throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
-    if (existing.recurring_rule_id) {
+    if (existing.recurring_rule_id && input.applyToFuture !== false) {
       const now = getCurrentTimestamp();
       const previousMonth = getPreviousMonth(Number(existing.year), Number(existing.month));
 
@@ -589,7 +596,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     );
 
     // noinspection SqlNoDataSourceInspection
-    await run(`DELETE FROM budget_expenses WHERE id = ?`, [expenseId]);
+    await run(`DELETE FROM budget_expenses WHERE id = ?`, [input.expenseId]);
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

@@ -11,6 +11,7 @@ const indexedDbRepositoryMock = {
   addExpense: vi.fn(),
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
+  updateMonthlyIncomeFromMonth: vi.fn(),
   getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -27,6 +28,7 @@ const sqliteRepositoryMock = {
   addExpense: vi.fn(),
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
+  updateMonthlyIncomeFromMonth: vi.fn(),
   getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -140,6 +142,11 @@ describe('data/repositories BudgetRepository facade', () => {
     await repository.addExpense(newExpenseInput);
     await repository.updateExpense(updateExpenseInput);
     await repository.deleteExpense({ expenseId: 'expense-1', applyToFuture: true });
+    await repository.updateMonthlyIncomeFromMonth({
+      budgetYearId: 'year-1',
+      fromMonth: 4,
+      monthlyIncome: 120_000,
+    });
     await repository.getExpensesByMonthAndBucket('month-1', 'needs');
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
@@ -155,6 +162,11 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.deleteExpense).toHaveBeenCalledWith({
       expenseId: 'expense-1',
       applyToFuture: true,
+    });
+    expect(indexedDbRepositoryMock.updateMonthlyIncomeFromMonth).toHaveBeenCalledWith({
+      budgetYearId: 'year-1',
+      fromMonth: 4,
+      monthlyIncome: 120_000,
     });
     expect(indexedDbRepositoryMock.getExpensesByMonthAndBucket).toHaveBeenCalledWith(
       'month-1',

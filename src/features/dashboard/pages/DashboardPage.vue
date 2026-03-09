@@ -19,7 +19,16 @@
     <div class="budget-summary" v-if="budgetMonth && budgetYear">
       <div class="summary-card">
         <span class="summary-label">{{ t('dashboard.monthlyIncome') }}</span>
-        <span class="summary-value">{{ formatCurrencyValue(budgetYear.monthlyIncome) }}</span>
+        <span class="summary-value">{{ formatCurrencyValue(budgetMonth.monthlyIncome) }}</span>
+        <Button
+          id="edit-monthly-income"
+          :label="t('dashboard.editMonthlyIncome')"
+          icon="pi pi-pencil"
+          text
+          severity="contrast"
+          class="summary-action"
+          @click="openEditMonthlyIncome"
+        />
       </div>
     </div>
 
@@ -232,6 +241,40 @@
         />
       </template>
     </Dialog>
+
+    <Dialog
+      v-model:visible="showEditMonthlyIncome"
+      modal
+      :header="t('dashboard.editMonthlyIncome')"
+      :style="{ width: '90vw' }"
+    >
+      <div class="expense-form">
+        <div class="form-group">
+          <label>{{ t('setup.monthlyIncome') }}</label>
+          <Input
+            v-model="editMonthlyIncome"
+            id="monthly-income-edit-input"
+            type="number"
+            inputmode="decimal"
+            :placeholder="t('setup.incomePlaceholder')"
+            input-class="w-full"
+          />
+        </div>
+        <p class="help-text">{{ t('dashboard.editMonthlyIncomeScope') }}</p>
+      </div>
+      <template #footer>
+        <Button
+          :label="t('common.cancel')"
+          severity="secondary"
+          @click="showEditMonthlyIncome = false"
+        />
+        <Button
+          :label="t('common.save')"
+          :disabled="!isMonthlyIncomeValid"
+          @click="saveMonthlyIncome"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -248,6 +291,7 @@ import {
   getExpensesByMonthAndBucket,
   getLatestBudgetYear,
   updateExpense as updateExpenseRecord,
+  updateMonthlyIncomeFromMonth,
 } from '@/data/repositories';
 import {
   BUCKET_ORDER,
@@ -289,6 +333,7 @@ const showAddExpense = ref(false);
 const showExpenseHistory = ref(false);
 const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
+const showEditMonthlyIncome = ref(false);
 const expenseAmount = ref('');
 const expenseCategory = ref<BucketType | ''>('');
 const expenseDescription = ref('');
@@ -303,6 +348,7 @@ const editApplyToFuture = ref(true);
 const expensePendingDelete = ref<Expense | null>(null);
 const deletingExpenseIsRecurring = ref(false);
 const deleteApplyToFuture = ref(true);
+const editMonthlyIncome = ref('');
 
 const categories = BUCKET_ORDER;
 
@@ -324,6 +370,11 @@ const isEditExpenseValid = computed(() => {
   const amount = parseFloat(editExpenseAmount.value);
   const description = editExpenseDescription.value.trim();
   return !Number.isNaN(amount) && amount > 0 && description.length >= 3;
+});
+
+const isMonthlyIncomeValid = computed(() => {
+  const amount = parseFloat(editMonthlyIncome.value);
+  return !Number.isNaN(amount) && amount > 0;
 });
 
 const expenseHistoryTitle = computed(() => {
@@ -468,6 +519,7 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
           budgetYearId: year.id,
           month,
           year: year.year,
+          monthlyIncome: year.monthlyIncome,
         });
 
         existingMonth = {
@@ -513,6 +565,56 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
         });
       }
     }
+  }
+}
+
+function openEditMonthlyIncome(): void {
+  if (!budgetMonth.value) {
+    return;
+  }
+
+  editMonthlyIncome.value = fromMinorUnits(budgetMonth.value.monthlyIncome);
+  showEditMonthlyIncome.value = true;
+}
+
+async function saveMonthlyIncome(): Promise<void> {
+  if (!budgetYear.value || !budgetMonth.value || !isMonthlyIncomeValid.value) {
+    return;
+  }
+
+  const amount = toMinorUnits(parseFloat(editMonthlyIncome.value));
+  if (amount <= 0) {
+    return;
+  }
+
+  try {
+    await updateMonthlyIncomeFromMonth({
+      budgetYearId: budgetYear.value.id,
+      fromMonth: budgetMonth.value.month,
+      monthlyIncome: amount,
+    });
+
+    await refreshMonthData();
+    showEditMonthlyIncome.value = false;
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.monthlyIncomeUpdated'),
+      detail: t('dashboard.monthlyIncomeUpdated'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to update monthly income from month', {
+      error,
+      budgetYearId: budgetYear.value.id,
+      fromMonth: budgetMonth.value.month,
+    });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.monthlyIncomeUpdateError'),
+      life: 3000,
+    });
   }
 }
 
@@ -854,6 +956,10 @@ onMounted(() => {
 .summary-value {
   font-size: 1.5rem;
   font-weight: 700;
+}
+
+.summary-action {
+  margin-top: 0.5rem;
 }
 
 .buckets-section {

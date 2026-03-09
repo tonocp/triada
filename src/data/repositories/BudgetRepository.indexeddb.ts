@@ -17,6 +17,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
+  UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -41,6 +42,7 @@ interface BudgetMonthRow {
   budget_year_id: string;
   month: number;
   year: number;
+  monthly_income: number;
   created_at: string;
   updated_at: string;
 }
@@ -261,6 +263,11 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   return { year: year - 1, month: 12 };
 }
 
+function allocationForBucket(monthlyIncome: number, bucket: BucketType): number {
+  const percentage = BUCKET_PERCENTAGES[bucket];
+  return Math.floor((monthlyIncome * percentage) / 100);
+}
+
 async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetMonths, 'readonly');
@@ -377,12 +384,17 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     const id = generateUUID();
     const now = getCurrentTimestamp();
+    const resolvedMonthlyIncome =
+      input.monthlyIncome ??
+      (await readAllBudgetYears()).find((year) => year.id === input.budgetYearId)?.monthly_income ??
+      0;
 
     await insertBudgetMonth({
       id,
       budget_year_id: input.budgetYearId,
       month: input.month,
       year: input.year,
+      monthly_income: resolvedMonthlyIncome,
       created_at: now,
       updated_at: now,
     });
@@ -392,6 +404,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       budgetYearId: input.budgetYearId,
       month: input.month,
       year: input.year,
+      monthlyIncome: resolvedMonthlyIncome,
       allocations: [],
       createdAt: now,
       updatedAt: now,
@@ -413,6 +426,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       budgetYearId: row.budget_year_id,
       month: row.month,
       year: row.year,
+      monthlyIncome: row.monthly_income ?? 0,
       allocations,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -780,6 +794,35 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       .sort((left, right) => compareBuckets(left.bucket, right.bucket));
   },
 
+  async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {
+    await initIndexedDb();
+
+    const now = getCurrentTimestamp();
+    const allMonths = await readAllBudgetMonths();
+    const targetMonths = allMonths
+      .filter(
+        (month) => month.budget_year_id === input.budgetYearId && month.month >= input.fromMonth,
+      )
+      .sort((left, right) => left.month - right.month);
+
+    for (const month of targetMonths) {
+      await insertBudgetMonth({
+        ...month,
+        monthly_income: input.monthlyIncome,
+        updated_at: now,
+      });
+
+      const allocations = await readAllocationRowsByMonth(month.id);
+      for (const allocation of allocations) {
+        await insertBudgetAllocation({
+          ...allocation,
+          allocated: allocationForBucket(input.monthlyIncome, allocation.bucket),
+          updated_at: now,
+        });
+      }
+    }
+  },
+
   async createYearWithAllocations(
     monthlyIncome: number,
     year: number,
@@ -797,6 +840,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         budgetYearId: budgetYear.id,
         month,
         year,
+        monthlyIncome,
       });
 
       const allocations: BudgetAllocation[] = [];

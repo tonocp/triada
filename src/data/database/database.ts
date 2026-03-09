@@ -85,6 +85,7 @@ export async function initDatabase(): Promise<void> {
           budget_year_id TEXT NOT NULL,
           month INTEGER NOT NULL,
           year INTEGER NOT NULL,
+          monthly_income INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           FOREIGN KEY (budget_year_id) REFERENCES budget_years(id)
@@ -130,6 +131,16 @@ export async function initDatabase(): Promise<void> {
       `,
       false,
     );
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(
+        `ALTER TABLE budget_months ADD COLUMN monthly_income INTEGER NOT NULL DEFAULT 0;`,
+        false,
+      );
+    } catch {
+      // ignore if column already exists
+    }
 
     try {
       // noinspection SqlNoDataSourceInspection

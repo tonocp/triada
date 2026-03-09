@@ -11,6 +11,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
+  UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import { Capacitor } from '@capacitor/core';
@@ -79,6 +80,12 @@ export async function updateExpense(input: UpdateExpenseInput): Promise<Expense>
 
 export async function deleteExpense(input: DeleteExpenseInput): Promise<void> {
   return getRepository().deleteExpense(input);
+}
+
+export async function updateMonthlyIncomeFromMonth(
+  input: UpdateMonthlyIncomeFromMonthInput,
+): Promise<void> {
+  return getRepository().updateMonthlyIncomeFromMonth(input);
 }
 
 export async function getExpensesByMonthAndBucket(

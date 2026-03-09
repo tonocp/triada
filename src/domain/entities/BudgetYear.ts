@@ -14,3 +14,9 @@ export interface CreateBudgetYearInput {
   year: number;
   currency: SupportedCurrency;
 }
+
+export interface UpdateMonthlyIncomeFromMonthInput {
+  budgetYearId: string;
+  fromMonth: number;
+  monthlyIncome: number;
+}

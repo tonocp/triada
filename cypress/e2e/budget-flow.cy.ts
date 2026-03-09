@@ -270,6 +270,26 @@ describe('Budget flow', () => {
       .should('contain', '€50.00');
   });
 
+  it('should update monthly income from selected month to future months only', () => {
+    createBudget('1000');
+
+    cy.get('.month-selector .p-button').last().click({ force: true });
+
+    cy.get('#edit-monthly-income').click({ force: true });
+    cy.get('#monthly-income-edit-input').clear();
+    cy.get('#monthly-income-edit-input').type('1200');
+    cy.contains('.p-dialog:visible button', 'Guardar').click();
+
+    cy.contains('€1200.00').should('be.visible');
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Asignado')
+      .find('.amount-value')
+      .should('contain', '€600.00');
+
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+    cy.contains('€1000.00').should('be.visible');
+  });
+
   it('should render dashboard while offline after service worker activation', () => {
     createBudget('1300');
 

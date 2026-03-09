@@ -32,11 +32,17 @@ interface IndexedDbRepositoryModule {
       createdAt: string;
       updatedAt: string;
     } | null>;
-    createBudgetMonth: (input: { budgetYearId: string; month: number; year: number }) => Promise<{
+    createBudgetMonth: (input: {
+      budgetYearId: string;
+      month: number;
+      year: number;
+      monthlyIncome?: number;
+    }) => Promise<{
       id: string;
       budgetYearId: string;
       month: number;
       year: number;
+      monthlyIncome: number;
       allocations: Array<{
         bucket: 'needs' | 'wants' | 'savings';
         allocated: number;
@@ -51,12 +57,18 @@ interface IndexedDbRepositoryModule {
       budgetYearId: string;
       month: number;
       year: number;
+      monthlyIncome: number;
       allocations: Array<{
         bucket: 'needs' | 'wants' | 'savings';
         allocated: number;
         spent: number;
       }>;
     } | null>;
+    updateMonthlyIncomeFromMonth: (input: {
+      budgetYearId: string;
+      fromMonth: number;
+      monthlyIncome: number;
+    }) => Promise<void>;
     createBudgetAllocation: (input: {
       budgetMonthId: string;
       bucket: 'needs' | 'wants' | 'savings';
@@ -843,5 +855,42 @@ describe('data/repositories IndexedDB integration', () => {
     expect(month?.allocations[0]?.allocated).toBe(50);
     expect(month?.allocations[1]?.allocated).toBe(30);
     expect(month?.allocations[2]?.allocated).toBe(20);
+  });
+
+  it('should update monthly income from selected month for current year only', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    await repositoryModule.indexedDbBudgetRepository.updateMonthlyIncomeFromMonth({
+      budgetYearId: result.budgetYear.id,
+      fromMonth: 6,
+      monthlyIncome: 120_000,
+    });
+
+    const month5 = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6 = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(month5?.monthlyIncome).toBe(100_000);
+    expect(month6?.monthlyIncome).toBe(120_000);
+    expect(month6?.allocations.find((allocation) => allocation.bucket === 'needs')?.allocated).toBe(
+      60_000,
+    );
+    expect(month6?.allocations.find((allocation) => allocation.bucket === 'wants')?.allocated).toBe(
+      36_000,
+    );
+    expect(
+      month6?.allocations.find((allocation) => allocation.bucket === 'savings')?.allocated,
+    ).toBe(24_000);
   });
 });

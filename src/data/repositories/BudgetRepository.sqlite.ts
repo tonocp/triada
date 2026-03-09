@@ -12,6 +12,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
+  UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -28,6 +29,11 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   }
 
   return { year: year - 1, month: 12 };
+}
+
+function allocationForBucket(monthlyIncome: number, bucket: BucketType): number {
+  const percentage = BUCKET_PERCENTAGES[bucket];
+  return Math.floor((monthlyIncome * percentage) / 100);
 }
 
 export const sqliteBudgetRepository: BudgetRepository = {
@@ -126,12 +132,21 @@ export const sqliteBudgetRepository: BudgetRepository = {
   async createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
     const id = generateUUID();
     const now = getCurrentTimestamp();
+    const resolvedMonthlyIncome =
+      input.monthlyIncome ??
+      (
+        await query<{ monthly_income: number }>(
+          `SELECT monthly_income FROM budget_years WHERE id = ? LIMIT 1`,
+          [input.budgetYearId],
+        )
+      )[0]?.monthly_income ??
+      0;
 
     // noinspection SqlNoDataSourceInspection
     await run(
-      `INSERT INTO budget_months (id, budget_year_id, month, year, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.budgetYearId, input.month, input.year, now, now],
+      `INSERT INTO budget_months (id, budget_year_id, month, year, monthly_income, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.budgetYearId, input.month, input.year, resolvedMonthlyIncome, now, now],
     );
 
     return {
@@ -139,6 +154,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       budgetYearId: input.budgetYearId,
       month: input.month,
       year: input.year,
+      monthlyIncome: Number(resolvedMonthlyIncome),
       allocations: [],
       createdAt: now,
       updatedAt: now,
@@ -152,6 +168,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       budget_year_id: string;
       month: number;
       year: number;
+      monthly_income: number;
       created_at: string;
       updated_at: string;
     }>(`SELECT * FROM budget_months WHERE budget_year_id = ? AND month = ?`, [budgetYearId, month]);
@@ -168,6 +185,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       budgetYearId: row.budget_year_id,
       month: Number(row.month),
       year: Number(row.year),
+      monthlyIncome: Number(row.monthly_income ?? 0),
       allocations,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -624,6 +642,34 @@ export const sqliteBudgetRepository: BudgetRepository = {
       .sort((left, right) => compareBuckets(left.bucket, right.bucket));
   },
 
+  async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {
+    const now = getCurrentTimestamp();
+
+    const months = await query<{ id: string }>(
+      `SELECT id FROM budget_months
+       WHERE budget_year_id = ? AND month >= ?
+       ORDER BY month ASC`,
+      [input.budgetYearId, input.fromMonth],
+    );
+
+    for (const month of months) {
+      await run(`UPDATE budget_months SET monthly_income = ?, updated_at = ? WHERE id = ?`, [
+        input.monthlyIncome,
+        now,
+        month.id,
+      ]);
+
+      for (const bucket of BUCKET_ORDER) {
+        await run(
+          `UPDATE budget_allocations
+           SET allocated = ?, updated_at = ?
+           WHERE budget_month_id = ? AND bucket = ?`,
+          [allocationForBucket(input.monthlyIncome, bucket), now, month.id, bucket],
+        );
+      }
+    }
+  },
+
   async createYearWithAllocations(
     monthlyIncome: number,
     year: number,
@@ -641,6 +687,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
         budgetYearId: budgetYear.id,
         month,
         year,
+        monthlyIncome,
       });
 
       const allocations: BudgetAllocation[] = [];

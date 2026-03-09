@@ -11,6 +11,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   UpdateExpenseInput,
+  UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 
@@ -25,6 +26,7 @@ export interface BudgetRepository {
   addExpense(input: CreateExpenseInput): Promise<Expense>;
   updateExpense(input: UpdateExpenseInput): Promise<Expense>;
   deleteExpense(input: DeleteExpenseInput): Promise<void>;
+  updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void>;
   getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]>;
   getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]>;
   createYearWithAllocations(

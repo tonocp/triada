@@ -122,6 +122,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
   });
 
   it('should create budget month with empty allocations', async () => {
+    queryMock.mockResolvedValueOnce([{ monthly_income: 100_000 }]);
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
 
     const result = await sqliteBudgetRepository.createBudgetMonth({
@@ -136,6 +137,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       budgetYearId: 'year-id',
       month: 1,
       year: 2026,
+      monthlyIncome: 100_000,
       allocations: [],
     });
   });
@@ -157,6 +159,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
           budget_year_id: 'year-id',
           month: 3,
           year: 2026,
+          monthly_income: 100_000,
           created_at: '2026-01-01T00:00:00.000Z',
           updated_at: '2026-01-01T00:00:00.000Z',
         },
@@ -185,7 +188,32 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
     const result = await sqliteBudgetRepository.getBudgetMonth('year-id', 3);
 
+    expect(result?.monthlyIncome).toBe(100_000);
     expect(result?.allocations.map((item) => item.bucket)).toEqual(['needs', 'savings']);
+  });
+
+  it('should update monthly income from month and recalculate allocations without changing spent', async () => {
+    queryMock.mockResolvedValueOnce([{ id: 'month-6' }, { id: 'month-7' }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.updateMonthlyIncomeFromMonth({
+      budgetYearId: 'year-id',
+      fromMonth: 6,
+      monthlyIncome: 120_000,
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(8);
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE budget_months SET monthly_income = ?'),
+      [120_000, '2026-01-01T00:00:00.000Z', 'month-6'],
+    );
+    expect(runMock).toHaveBeenCalledWith(expect.stringContaining('SET allocated = ?'), [
+      60_000,
+      '2026-01-01T00:00:00.000Z',
+      'month-6',
+      'needs',
+    ]);
   });
 
   it('should create budget allocation with spent set to zero', async () => {

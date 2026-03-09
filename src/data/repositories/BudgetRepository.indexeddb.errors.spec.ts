@@ -90,6 +90,7 @@ describe('data/repositories IndexedDB transaction failures', () => {
         budgetYearId: 'year-1',
         month: 1,
         year: 2026,
+        monthlyIncome: 100_000,
       }),
     ).rejects.toThrow('tx aborted');
   });

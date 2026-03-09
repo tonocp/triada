@@ -316,6 +316,88 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     });
   });
 
+  it('should update expense amount and description adjusting allocation spent delta', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-id',
+          bucket: 'needs',
+          amount: 6_000,
+          description: 'Vieja descripcion',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-id',
+          bucket: 'needs',
+          amount: 8_500,
+          description: 'Nueva descripcion',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const updated = await sqliteBudgetRepository.updateExpense({
+      expenseId: 'expense-1',
+      amount: 8_500,
+      description: 'Nueva descripcion',
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(2);
+    expect(updated.amount).toBe(8_500);
+    expect(updated.description).toBe('Nueva descripcion');
+  });
+
+  it('should delete expense and decrement allocation spent', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'expense-1',
+        budget_month_id: 'month-id',
+        bucket: 'needs',
+        amount: 6_000,
+        description: 'Supermercado',
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.deleteExpense('expense-1');
+
+    expect(runMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('should throw when updating a missing expense', async () => {
+    queryMock.mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateExpense({
+        expenseId: 'missing-expense',
+        amount: 1_000,
+        description: 'Nada',
+      }),
+    ).rejects.toThrow('Expense not found with id missing-expense');
+  });
+
+  it('should throw when deleting a missing expense', async () => {
+    queryMock.mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(sqliteBudgetRepository.deleteExpense('missing-expense')).rejects.toThrow(
+      'Expense not found with id missing-expense',
+    );
+  });
+
   it('should return allocations sorted by bucket order', async () => {
     queryMock.mockResolvedValueOnce([
       {

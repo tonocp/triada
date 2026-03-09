@@ -122,9 +122,29 @@
           :key="expense.id"
           class="expense-history-item"
         >
-          <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
-          <span class="expense-history-description">{{ expense.description }}</span>
-          <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
+          <div class="expense-history-content">
+            <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
+            <span class="expense-history-description">{{ expense.description }}</span>
+            <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
+          </div>
+          <div class="expense-history-actions">
+            <Button
+              icon="pi pi-pencil"
+              text
+              rounded
+              severity="secondary"
+              :aria-label="t('dashboard.editExpense')"
+              @click="startExpenseEdit(expense)"
+            />
+            <Button
+              icon="pi pi-trash"
+              text
+              rounded
+              severity="danger"
+              :aria-label="t('dashboard.deleteExpense')"
+              @click="askExpenseDelete(expense)"
+            />
+          </div>
         </li>
       </ul>
       <template #footer>
@@ -132,6 +152,68 @@
           :label="t('common.close')"
           severity="secondary"
           @click="showExpenseHistory = false"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showEditExpense"
+      modal
+      :header="t('dashboard.editExpense')"
+      :style="{ width: '90vw' }"
+    >
+      <div class="expense-form">
+        <div class="form-group">
+          <label>{{ t('dashboard.amount') }}</label>
+          <Input
+            v-model="editExpenseAmount"
+            id="edit-expense-amount"
+            type="number"
+            inputmode="decimal"
+            :placeholder="t('setup.incomePlaceholder')"
+            input-class="w-full"
+          />
+        </div>
+        <div class="form-group">
+          <label>{{ t('dashboard.description') }}</label>
+          <Input
+            v-model="editExpenseDescription"
+            id="edit-expense-description"
+            :placeholder="t('dashboard.descriptionPlaceholder')"
+            input-class="w-full"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <Button :label="t('common.cancel')" severity="secondary" @click="showEditExpense = false" />
+        <Button
+          id="save-expense-edit"
+          :label="t('common.save')"
+          icon="pi pi-check"
+          :disabled="!isEditExpenseValid"
+          @click="saveExpenseEdit"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showDeleteExpenseConfirm"
+      modal
+      :header="t('dashboard.deleteExpense')"
+      :style="{ width: '90vw' }"
+    >
+      <p>{{ t('dashboard.confirmDeleteExpense') }}</p>
+      <template #footer>
+        <Button
+          :label="t('common.cancel')"
+          severity="secondary"
+          @click="showDeleteExpenseConfirm = false"
+        />
+        <Button
+          id="confirm-expense-delete"
+          :label="t('dashboard.deleteExpense')"
+          severity="danger"
+          @click="confirmExpenseDelete"
         />
       </template>
     </Dialog>
@@ -145,10 +227,12 @@ import {
   createBudgetMonth,
   addExpense as createExpenseRecord,
   createYearWithAllocations,
+  deleteExpense as deleteExpenseRecord,
   getBudgetMonth,
   getBudgetYearByYear,
   getExpensesByMonthAndBucket,
   getLatestBudgetYear,
+  updateExpense as updateExpenseRecord,
 } from '@/data/repositories';
 import {
   BUCKET_ORDER,
@@ -187,11 +271,17 @@ let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
 const showExpenseHistory = ref(false);
+const showEditExpense = ref(false);
+const showDeleteExpenseConfirm = ref(false);
 const expenseAmount = ref('');
 const expenseCategory = ref<BucketType | ''>('');
 const expenseDescription = ref('');
 const selectedHistoryBucket = ref<BucketType | null>(null);
 const selectedBucketExpenses = ref<Expense[]>([]);
+const editingExpenseId = ref<string | null>(null);
+const editExpenseAmount = ref('');
+const editExpenseDescription = ref('');
+const expensePendingDelete = ref<Expense | null>(null);
 
 const categories = BUCKET_ORDER;
 
@@ -207,6 +297,12 @@ const isExpenseValid = computed(() => {
   return (
     !Number.isNaN(amount) && amount > 0 && expenseCategory.value !== '' && description.length >= 3
   );
+});
+
+const isEditExpenseValid = computed(() => {
+  const amount = parseFloat(editExpenseAmount.value);
+  const description = editExpenseDescription.value.trim();
+  return !Number.isNaN(amount) && amount > 0 && description.length >= 3;
 });
 
 const expenseHistoryTitle = computed(() => {
@@ -455,6 +551,10 @@ function toMinorUnits(amount: number): number {
   return Math.round(amount * 100);
 }
 
+function fromMinorUnits(amount: number): string {
+  return (amount / 100).toFixed(2);
+}
+
 async function addExpense(): Promise<void> {
   if (!isExpenseValid.value || !budgetMonth.value) {
     return;
@@ -478,6 +578,9 @@ async function addExpense(): Promise<void> {
     });
 
     await refreshMonthData();
+    if (showExpenseHistory.value && selectedHistoryBucket.value === selectedCategory) {
+      await refreshExpenseHistory();
+    }
 
     toast.add({
       severity: 'success',
@@ -528,7 +631,7 @@ async function openExpenseHistory(bucket: BucketType): Promise<void> {
   selectedHistoryBucket.value = bucket;
 
   try {
-    selectedBucketExpenses.value = await getExpensesByMonthAndBucket(budgetMonth.value.id, bucket);
+    await refreshExpenseHistory();
     showExpenseHistory.value = true;
   } catch (error) {
     console.error('Failed to load expenses for bucket', {
@@ -541,6 +644,106 @@ async function openExpenseHistory(bucket: BucketType): Promise<void> {
       severity: 'error',
       summary: t('setup.error'),
       detail: t('dashboard.expenseHistoryError'),
+      life: 3000,
+    });
+  }
+}
+
+async function refreshExpenseHistory(): Promise<void> {
+  if (!budgetMonth.value || !selectedHistoryBucket.value) {
+    selectedBucketExpenses.value = [];
+    return;
+  }
+
+  selectedBucketExpenses.value = await getExpensesByMonthAndBucket(
+    budgetMonth.value.id,
+    selectedHistoryBucket.value,
+  );
+}
+
+function startExpenseEdit(expense: Expense): void {
+  editingExpenseId.value = expense.id;
+  editExpenseAmount.value = fromMinorUnits(expense.amount);
+  editExpenseDescription.value = expense.description;
+  showEditExpense.value = true;
+}
+
+async function saveExpenseEdit(): Promise<void> {
+  if (!isEditExpenseValid.value || !editingExpenseId.value) {
+    return;
+  }
+
+  const amount = toMinorUnits(parseFloat(editExpenseAmount.value));
+  const description = editExpenseDescription.value.trim();
+
+  if (amount <= 0 || description.length < 3) {
+    return;
+  }
+
+  try {
+    await updateExpenseRecord({
+      expenseId: editingExpenseId.value,
+      amount,
+      description,
+    });
+
+    await refreshMonthData();
+    await refreshExpenseHistory();
+
+    showEditExpense.value = false;
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.expenseUpdated'),
+      detail: t('dashboard.expenseUpdated'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to update expense', { error, expenseId: editingExpenseId.value });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.expenseUpdateError'),
+      life: 3000,
+    });
+  }
+}
+
+function askExpenseDelete(expense: Expense): void {
+  expensePendingDelete.value = expense;
+  showDeleteExpenseConfirm.value = true;
+}
+
+async function confirmExpenseDelete(): Promise<void> {
+  if (!expensePendingDelete.value) {
+    return;
+  }
+
+  const targetExpense = expensePendingDelete.value;
+
+  try {
+    await deleteExpenseRecord(targetExpense.id);
+
+    await refreshMonthData();
+    await refreshExpenseHistory();
+
+    showDeleteExpenseConfirm.value = false;
+    expensePendingDelete.value = null;
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.expenseDeleted'),
+      detail: t('dashboard.expenseDeleted'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to delete expense', {
+      error,
+      expenseId: targetExpense.id,
+    });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.expenseDeleteError'),
       life: 3000,
     });
   }
@@ -680,11 +883,24 @@ onMounted(() => {
 
 .expense-history-item {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.75rem;
   border: 1px solid var(--p-input-border-color);
   border-radius: 8px;
+}
+
+.expense-history-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.expense-history-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .expense-history-amount {

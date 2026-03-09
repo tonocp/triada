@@ -10,6 +10,7 @@ import type {
   CreateBudgetYearInput,
   CreateExpenseInput,
   Expense,
+  UpdateExpenseInput,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -285,6 +286,83 @@ export const sqliteBudgetRepository: BudgetRepository = {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));
+  },
+
+  async updateExpense(input: UpdateExpenseInput): Promise<Expense> {
+    // noinspection SqlNoDataSourceInspection
+    const existingRows = await query<{
+      id: string;
+      budget_month_id: string;
+      bucket: string;
+      amount: number;
+      description: string;
+      created_at: string;
+      updated_at: string;
+    }>(`SELECT * FROM budget_expenses WHERE id = ? LIMIT 1`, [input.expenseId]);
+
+    const [existing] = existingRows;
+
+    if (!existing) {
+      throw new Error(`Expense not found with id ${input.expenseId}`);
+    }
+
+    const now = getCurrentTimestamp();
+    const delta = input.amount - Number(existing.amount);
+
+    // noinspection SqlNoDataSourceInspection
+    await run(
+      `UPDATE budget_allocations
+       SET spent = spent + ?, updated_at = ?
+       WHERE budget_month_id = ? AND bucket = ?`,
+      [delta, now, existing.budget_month_id, existing.bucket],
+    );
+
+    // noinspection SqlNoDataSourceInspection
+    await run(
+      `UPDATE budget_expenses SET amount = ?, description = ?, updated_at = ? WHERE id = ?`,
+      [input.amount, input.description, now, input.expenseId],
+    );
+
+    return {
+      id: existing.id,
+      budgetMonthId: existing.budget_month_id,
+      bucket: existing.bucket as BucketType,
+      amount: input.amount,
+      description: input.description,
+      createdAt: existing.created_at,
+      updatedAt: now,
+    };
+  },
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    // noinspection SqlNoDataSourceInspection
+    const existingRows = await query<{
+      id: string;
+      budget_month_id: string;
+      bucket: string;
+      amount: number;
+    }>(`SELECT id, budget_month_id, bucket, amount FROM budget_expenses WHERE id = ? LIMIT 1`, [
+      expenseId,
+    ]);
+
+    const [existing] = existingRows;
+
+    if (!existing) {
+      throw new Error(`Expense not found with id ${expenseId}`);
+    }
+
+    const now = getCurrentTimestamp();
+
+    // noinspection SqlNoDataSourceInspection
+    await run(
+      `UPDATE budget_allocations
+       SET spent = spent - ?, updated_at = ?
+       WHERE budget_month_id = ? AND bucket = ?`,
+      [Number(existing.amount), now, existing.budget_month_id, existing.bucket],
+    );
+
+    // noinspection SqlNoDataSourceInspection
+    await run(`DELETE FROM budget_expenses WHERE id = ?`, [expenseId]);
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

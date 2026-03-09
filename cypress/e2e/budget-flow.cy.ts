@@ -207,6 +207,39 @@ describe('Budget flow', () => {
         cy.get('.expense-history-description').should('contain', 'Supermercado semanal');
         cy.get('.expense-history-date').should('not.be.empty');
       });
+
+    cy.get('button[aria-label="Editar gasto"]').first().click();
+    cy.contains('.p-dialog-title', 'Editar gasto').should('be.visible');
+    cy.get('#edit-expense-amount').clear();
+    cy.get('#edit-expense-amount').type('80');
+    cy.get('#edit-expense-description').clear();
+    cy.get('#edit-expense-description').type('Supermercado editado');
+    cy.get('#save-expense-edit').should('not.be.disabled');
+    cy.get('#save-expense-edit').click({ force: true });
+    cy.contains('Gasto actualizado').should('be.visible');
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€80.00');
+
+    cy.contains('.p-dialog:visible button', 'Cerrar').click();
+    cy.contains('.bucket-display', 'Necesidades').click();
+    cy.get('.p-dialog:visible .expense-history-item')
+      .first()
+      .within(() => {
+        cy.get('.expense-history-amount').should('contain', '€80.00');
+        cy.get('.expense-history-description').should('contain', 'Supermercado editado');
+      });
+
+    cy.get('button[aria-label="Eliminar gasto"]').first().click();
+    cy.contains('.p-dialog-title', 'Eliminar gasto').should('be.visible');
+    cy.get('#confirm-expense-delete').click();
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€0.00');
   });
 
   it('should render dashboard while offline after service worker activation', () => {

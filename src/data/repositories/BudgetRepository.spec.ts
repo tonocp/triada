@@ -9,6 +9,8 @@ const indexedDbRepositoryMock = {
   createBudgetAllocation: vi.fn(),
   addExpenseToAllocation: vi.fn(),
   addExpense: vi.fn(),
+  updateExpense: vi.fn(),
+  deleteExpense: vi.fn(),
   getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -23,6 +25,8 @@ const sqliteRepositoryMock = {
   createBudgetAllocation: vi.fn(),
   addExpenseToAllocation: vi.fn(),
   addExpense: vi.fn(),
+  updateExpense: vi.fn(),
+  deleteExpense: vi.fn(),
   getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -121,6 +125,11 @@ describe('data/repositories BudgetRepository facade', () => {
       amount: 12_345,
       description: 'Supermercado',
     };
+    const updateExpenseInput = {
+      expenseId: 'expense-1',
+      amount: 10_000,
+      description: 'Compra semanal',
+    };
 
     await repository.createBudgetYear(yearInput);
     await repository.getBudgetYearByYear(2026);
@@ -129,6 +138,8 @@ describe('data/repositories BudgetRepository facade', () => {
     await repository.createBudgetAllocation(allocationInput);
     await repository.addExpenseToAllocation(expenseInput);
     await repository.addExpense(newExpenseInput);
+    await repository.updateExpense(updateExpenseInput);
+    await repository.deleteExpense('expense-1');
     await repository.getExpensesByMonthAndBucket('month-1', 'needs');
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
@@ -140,6 +151,8 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.createBudgetAllocation).toHaveBeenCalledWith(allocationInput);
     expect(indexedDbRepositoryMock.addExpenseToAllocation).toHaveBeenCalledWith(expenseInput);
     expect(indexedDbRepositoryMock.addExpense).toHaveBeenCalledWith(newExpenseInput);
+    expect(indexedDbRepositoryMock.updateExpense).toHaveBeenCalledWith(updateExpenseInput);
+    expect(indexedDbRepositoryMock.deleteExpense).toHaveBeenCalledWith('expense-1');
     expect(indexedDbRepositoryMock.getExpensesByMonthAndBucket).toHaveBeenCalledWith(
       'month-1',
       'needs',

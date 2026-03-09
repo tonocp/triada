@@ -9,6 +9,7 @@ import type {
   CreateBudgetYearInput,
   CreateExpenseInput,
   Expense,
+  UpdateExpenseInput,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import { Capacitor } from '@capacitor/core';
@@ -69,6 +70,14 @@ export async function addExpenseToAllocation(
 
 export async function addExpense(input: CreateExpenseInput): Promise<Expense> {
   return getRepository().addExpense(input);
+}
+
+export async function updateExpense(input: UpdateExpenseInput): Promise<Expense> {
+  return getRepository().updateExpense(input);
+}
+
+export async function deleteExpense(expenseId: string): Promise<void> {
+  return getRepository().deleteExpense(expenseId);
 }
 
 export async function getExpensesByMonthAndBucket(

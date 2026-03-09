@@ -16,3 +16,9 @@ export interface CreateExpenseInput {
   amount: number;
   description: string;
 }
+
+export interface UpdateExpenseInput {
+  expenseId: string;
+  amount: number;
+  description: string;
+}

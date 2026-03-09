@@ -15,6 +15,7 @@ import type {
   CreateBudgetYearInput,
   CreateExpenseInput,
   Expense,
+  UpdateExpenseInput,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -163,6 +164,23 @@ async function readExpenseRowsByMonthAndBucket(
   )) as ExpenseRow[];
   await transactionDone(tx);
   return rows;
+}
+
+async function findExpenseRowById(expenseId: string): Promise<ExpenseRow | null> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
+  const row = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetExpenses).get(expenseId),
+  )) as ExpenseRow | undefined;
+  await transactionDone(tx);
+  return row ?? null;
+}
+
+async function deleteExpenseRow(expenseId: string): Promise<void> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readwrite');
+  tx.objectStore(indexedDbStores.budgetExpenses).delete(expenseId);
+  await transactionDone(tx);
 }
 
 function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
@@ -431,6 +449,54 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     return rows
       .map(mapExpenseRow)
       .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt));
+  },
+
+  async updateExpense(input: UpdateExpenseInput): Promise<Expense> {
+    await initIndexedDb();
+
+    const existing = await findExpenseRowById(input.expenseId);
+
+    if (!existing) {
+      throw new Error(`Expense not found with id ${input.expenseId}`);
+    }
+
+    const delta = input.amount - existing.amount;
+
+    await indexedDbBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: existing.budget_month_id,
+      bucket: existing.bucket,
+      amount: delta,
+    });
+
+    const now = getCurrentTimestamp();
+    const updatedRow: ExpenseRow = {
+      ...existing,
+      amount: input.amount,
+      description: input.description,
+      updated_at: now,
+    };
+
+    await insertExpense(updatedRow);
+
+    return mapExpenseRow(updatedRow);
+  },
+
+  async deleteExpense(expenseId: string): Promise<void> {
+    await initIndexedDb();
+
+    const existing = await findExpenseRowById(expenseId);
+
+    if (!existing) {
+      throw new Error(`Expense not found with id ${expenseId}`);
+    }
+
+    await indexedDbBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: existing.budget_month_id,
+      bucket: existing.bucket,
+      amount: -existing.amount,
+    });
+
+    await deleteExpenseRow(expenseId);
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

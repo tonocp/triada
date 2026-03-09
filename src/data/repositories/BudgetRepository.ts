@@ -1,11 +1,14 @@
 import type {
   AddExpenseToAllocationInput,
+  BucketType,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
+  CreateExpenseInput,
+  Expense,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import { Capacitor } from '@capacitor/core';
@@ -62,6 +65,17 @@ export async function addExpenseToAllocation(
   input: AddExpenseToAllocationInput,
 ): Promise<BudgetAllocation> {
   return getRepository().addExpenseToAllocation(input);
+}
+
+export async function addExpense(input: CreateExpenseInput): Promise<Expense> {
+  return getRepository().addExpense(input);
+}
+
+export async function getExpensesByMonthAndBucket(
+  budgetMonthId: string,
+  bucket: BucketType,
+): Promise<Expense[]> {
+  return getRepository().getExpensesByMonthAndBucket(budgetMonthId, bucket);
 }
 
 export async function getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

@@ -100,6 +100,17 @@ export async function initDatabase(): Promise<void> {
           updated_at TEXT NOT NULL,
           FOREIGN KEY (budget_month_id) REFERENCES budget_months(id)
         );
+
+        CREATE TABLE IF NOT EXISTS budget_expenses (
+          id TEXT PRIMARY KEY,
+          budget_month_id TEXT NOT NULL,
+          bucket TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (budget_month_id) REFERENCES budget_months(id)
+        );
       `,
       false,
     );

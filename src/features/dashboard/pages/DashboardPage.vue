@@ -30,6 +30,8 @@
         :bucket="allocation.bucket"
         :allocated="allocation.allocated"
         :spent="allocation.spent"
+        :interactive="true"
+        @select="openExpenseHistory"
       />
     </div>
 
@@ -84,6 +86,15 @@
             input-class="w-full"
           />
         </div>
+        <div class="form-group">
+          <label>{{ t('dashboard.description') }}</label>
+          <Input
+            v-model="expenseDescription"
+            :placeholder="t('dashboard.descriptionPlaceholder')"
+            :disabled="expenseCategory === ''"
+            input-class="w-full"
+          />
+        </div>
       </div>
       <template #footer>
         <Button :label="t('common.cancel')" severity="secondary" @click="showAddExpense = false" />
@@ -95,18 +106,48 @@
         />
       </template>
     </Dialog>
+
+    <Dialog
+      v-model:visible="showExpenseHistory"
+      modal
+      :header="expenseHistoryTitle"
+      :style="{ width: '90vw' }"
+    >
+      <div v-if="selectedBucketExpenses.length === 0" class="empty-state">
+        <p>{{ t('dashboard.noExpensesForCategory') }}</p>
+      </div>
+      <ul v-else class="expense-history-list">
+        <li
+          v-for="expense in selectedBucketExpenses"
+          :key="expense.id"
+          class="expense-history-item"
+        >
+          <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
+          <span class="expense-history-description">{{ expense.description }}</span>
+          <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
+        </li>
+      </ul>
+      <template #footer>
+        <Button
+          :label="t('common.close')"
+          severity="secondary"
+          @click="showExpenseHistory = false"
+        />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
 import {
-  addExpenseToAllocation,
   createBudgetAllocation,
   createBudgetMonth,
+  addExpense as createExpenseRecord,
   createYearWithAllocations,
   getBudgetMonth,
   getBudgetYearByYear,
+  getExpensesByMonthAndBucket,
   getLatestBudgetYear,
 } from '@/data/repositories';
 import {
@@ -117,6 +158,7 @@ import {
   type BudgetAllocation,
   type BudgetMonth,
   type BudgetYear,
+  type Expense,
 } from '@/domain/entities';
 import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
@@ -132,7 +174,7 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const toast = useToast();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const budgetYear = ref<BudgetYear | null>(null);
@@ -144,8 +186,12 @@ let isRepairingYear = false;
 let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
+const showExpenseHistory = ref(false);
 const expenseAmount = ref('');
 const expenseCategory = ref<BucketType | ''>('');
+const expenseDescription = ref('');
+const selectedHistoryBucket = ref<BucketType | null>(null);
+const selectedBucketExpenses = ref<Expense[]>([]);
 
 const categories = BUCKET_ORDER;
 
@@ -157,7 +203,20 @@ const allocations = computed<BudgetAllocation[]>(() => {
 
 const isExpenseValid = computed(() => {
   const amount = parseFloat(expenseAmount.value);
-  return !Number.isNaN(amount) && amount > 0 && expenseCategory.value !== '';
+  const description = expenseDescription.value.trim();
+  return (
+    !Number.isNaN(amount) && amount > 0 && expenseCategory.value !== '' && description.length >= 3
+  );
+});
+
+const expenseHistoryTitle = computed(() => {
+  if (!selectedHistoryBucket.value) {
+    return t('dashboard.expenseHistoryTitle', { category: '' });
+  }
+
+  return t('dashboard.expenseHistoryTitle', {
+    category: t(`buckets.${selectedHistoryBucket.value}`),
+  });
 });
 
 function setActivePeriod(year: number, month: number): void {
@@ -404,16 +463,18 @@ async function addExpense(): Promise<void> {
   const normalizedAmount = parseFloat(expenseAmount.value);
   const amount = toMinorUnits(normalizedAmount);
   const selectedCategory = expenseCategory.value;
+  const description = expenseDescription.value.trim();
 
-  if (amount <= 0 || selectedCategory === '') {
+  if (amount <= 0 || selectedCategory === '' || description.length < 3) {
     return;
   }
 
   try {
-    await addExpenseToAllocation({
+    await createExpenseRecord({
       budgetMonthId: budgetMonth.value.id,
       bucket: selectedCategory,
       amount,
+      description,
     });
 
     await refreshMonthData();
@@ -428,18 +489,58 @@ async function addExpense(): Promise<void> {
     showAddExpense.value = false;
     expenseAmount.value = '';
     expenseCategory.value = '';
+    expenseDescription.value = '';
   } catch (error) {
     console.error('Failed to add expense to allocation', {
       error,
       budgetMonthId: budgetMonth.value.id,
       bucket: expenseCategory.value,
       amount,
+      description,
     });
 
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
       detail: t('dashboard.expenseAddError'),
+      life: 3000,
+    });
+  }
+}
+
+function formatExpenseDate(value: string): string {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(locale.value === 'es' ? 'es-ES' : 'en-US', {
+    dateStyle: 'medium',
+  }).format(parsed);
+}
+
+async function openExpenseHistory(bucket: BucketType): Promise<void> {
+  if (!budgetMonth.value) {
+    return;
+  }
+
+  selectedHistoryBucket.value = bucket;
+
+  try {
+    selectedBucketExpenses.value = await getExpensesByMonthAndBucket(budgetMonth.value.id, bucket);
+    showExpenseHistory.value = true;
+  } catch (error) {
+    console.error('Failed to load expenses for bucket', {
+      error,
+      budgetMonthId: budgetMonth.value.id,
+      bucket,
+    });
+
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.expenseHistoryError'),
       life: 3000,
     });
   }
@@ -566,5 +667,36 @@ onMounted(() => {
 .category-option--selected {
   border-color: var(--p-primary-color);
   background: color-mix(in srgb, var(--p-primary-color) 10%, var(--p-content-background));
+}
+
+.expense-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.expense-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border: 1px solid var(--p-input-border-color);
+  border-radius: 8px;
+}
+
+.expense-history-amount {
+  font-weight: 700;
+}
+
+.expense-history-description {
+  font-weight: 500;
+}
+
+.expense-history-date {
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
 }
 </style>

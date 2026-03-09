@@ -15,7 +15,8 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     generateUUIDMock
       .mockReturnValueOnce('year-id')
       .mockReturnValueOnce('month-id')
-      .mockReturnValueOnce('allocation-id');
+      .mockReturnValueOnce('allocation-id')
+      .mockReturnValueOnce('expense-id');
     getCurrentTimestampMock.mockReturnValue('2026-01-01T00:00:00.000Z');
 
     vi.doMock('@/data/database/database', () => ({
@@ -239,6 +240,80 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         amount: 500,
       }),
     ).rejects.toThrow('Allocation not found for month month-id and bucket needs');
+  });
+
+  it('should add expense with description and update allocation spent', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'alloc-2',
+        budget_month_id: 'month-id',
+        bucket: 'needs',
+        allocated: 50_000,
+        spent: 12_345,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.addExpense({
+      budgetMonthId: 'month-id',
+      bucket: 'needs',
+      amount: 12_345,
+      description: 'Supermercado semanal',
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(2);
+    expect(queryMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      id: 'expense-id',
+      budgetMonthId: 'month-id',
+      bucket: 'needs',
+      amount: 12_345,
+      description: 'Supermercado semanal',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('should return month expenses by bucket with mapped fields', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'expense-2',
+        budget_month_id: 'month-id',
+        bucket: 'needs',
+        amount: 4_000,
+        description: 'Transporte',
+        created_at: '2026-01-03T10:00:00.000Z',
+        updated_at: '2026-01-03T10:00:00.000Z',
+      },
+      {
+        id: 'expense-1',
+        budget_month_id: 'month-id',
+        bucket: 'needs',
+        amount: 8_500,
+        description: 'Supermercado',
+        created_at: '2026-01-02T10:00:00.000Z',
+        updated_at: '2026-01-02T10:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.getExpensesByMonthAndBucket('month-id', 'needs');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({
+      id: 'expense-2',
+      amount: 4_000,
+      description: 'Transporte',
+    });
+    expect(result[1]).toMatchObject({
+      id: 'expense-1',
+      amount: 8_500,
+      description: 'Supermercado',
+    });
   });
 
   it('should return allocations sorted by bucket order', async () => {

@@ -13,6 +13,8 @@ import type {
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
+  CreateExpenseInput,
+  Expense,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -47,6 +49,16 @@ interface BudgetAllocationRow {
   bucket: BucketType;
   allocated: number;
   spent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ExpenseRow {
+  id: string;
+  budget_month_id: string;
+  bucket: BucketType;
+  amount: number;
+  description: string;
   created_at: string;
   updated_at: string;
 }
@@ -94,6 +106,13 @@ async function insertBudgetAllocation(row: BudgetAllocationRow): Promise<void> {
   await transactionDone(tx);
 }
 
+async function insertExpense(row: ExpenseRow): Promise<void> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readwrite');
+  tx.objectStore(indexedDbStores.budgetExpenses).put(row);
+  await transactionDone(tx);
+}
+
 async function readAllBudgetYears(): Promise<BudgetYearRow[]> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetYears, 'readonly');
@@ -131,6 +150,21 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   return rows;
 }
 
+async function readExpenseRowsByMonthAndBucket(
+  budgetMonthId: string,
+  bucket: BucketType,
+): Promise<ExpenseRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
+  const store = tx.objectStore(indexedDbStores.budgetExpenses);
+  const index = store.index(indexedDbIndexes.expensesByMonthBucket);
+  const rows = (await requestToPromise(
+    index.getAll(IDBKeyRange.only([budgetMonthId, bucket])),
+  )) as ExpenseRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
 function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
   return {
     id: row.id,
@@ -138,6 +172,18 @@ function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
     bucket: row.bucket,
     allocated: row.allocated,
     spent: row.spent,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapExpenseRow(row: ExpenseRow): Expense {
+  return {
+    id: row.id,
+    budgetMonthId: row.budget_month_id,
+    bucket: row.bucket,
+    amount: row.amount,
+    description: row.description,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -350,6 +396,41 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await insertBudgetAllocation(updatedRow);
 
     return mapAllocationRow(updatedRow);
+  },
+
+  async addExpense(input: CreateExpenseInput): Promise<Expense> {
+    await initIndexedDb();
+
+    await indexedDbBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: input.budgetMonthId,
+      bucket: input.bucket,
+      amount: input.amount,
+    });
+
+    const now = getCurrentTimestamp();
+    const row: ExpenseRow = {
+      id: generateUUID(),
+      budget_month_id: input.budgetMonthId,
+      bucket: input.bucket,
+      amount: input.amount,
+      description: input.description,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await insertExpense(row);
+
+    return mapExpenseRow(row);
+  },
+
+  async getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]> {
+    await initIndexedDb();
+
+    const rows = await readExpenseRowsByMonthAndBucket(budgetMonthId, bucket);
+
+    return rows
+      .map(mapExpenseRow)
+      .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt));
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

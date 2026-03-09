@@ -182,6 +182,7 @@ describe('Budget flow', () => {
       cy.get('#expense-category-needs').check({ force: true });
       cy.get('input[placeholder="0.00"]').last().clear();
       cy.get('input[placeholder="0.00"]').last().type('100.50');
+      cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
       cy.contains('button', /^Agregar$/).click();
     });
 
@@ -196,6 +197,16 @@ describe('Budget flow', () => {
       .contains('.amount-row', 'Gastado')
       .find('.amount-value')
       .should('contain', '€100.50');
+
+    cy.contains('.bucket-display', 'Necesidades').click();
+    cy.contains('.p-dialog-title', 'Gastos de Necesidades').should('be.visible');
+    cy.get('.p-dialog:visible .expense-history-item')
+      .first()
+      .within(() => {
+        cy.get('.expense-history-amount').should('contain', '€100.50');
+        cy.get('.expense-history-description').should('contain', 'Supermercado semanal');
+        cy.get('.expense-history-date').should('not.be.empty');
+      });
   });
 
   it('should render dashboard while offline after service worker activation', () => {

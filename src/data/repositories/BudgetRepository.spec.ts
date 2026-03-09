@@ -8,6 +8,8 @@ const indexedDbRepositoryMock = {
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
   addExpenseToAllocation: vi.fn(),
+  addExpense: vi.fn(),
+  getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -20,6 +22,8 @@ const sqliteRepositoryMock = {
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
   addExpenseToAllocation: vi.fn(),
+  addExpense: vi.fn(),
+  getExpensesByMonthAndBucket: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -111,6 +115,12 @@ describe('data/repositories BudgetRepository facade', () => {
       bucket: 'needs' as const,
       amount: 12_345,
     };
+    const newExpenseInput = {
+      budgetMonthId: 'month-1',
+      bucket: 'needs' as const,
+      amount: 12_345,
+      description: 'Supermercado',
+    };
 
     await repository.createBudgetYear(yearInput);
     await repository.getBudgetYearByYear(2026);
@@ -118,6 +128,8 @@ describe('data/repositories BudgetRepository facade', () => {
     await repository.getBudgetMonth('year-1', 4);
     await repository.createBudgetAllocation(allocationInput);
     await repository.addExpenseToAllocation(expenseInput);
+    await repository.addExpense(newExpenseInput);
+    await repository.getExpensesByMonthAndBucket('month-1', 'needs');
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
 
@@ -127,6 +139,11 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.getBudgetMonth).toHaveBeenCalledWith('year-1', 4);
     expect(indexedDbRepositoryMock.createBudgetAllocation).toHaveBeenCalledWith(allocationInput);
     expect(indexedDbRepositoryMock.addExpenseToAllocation).toHaveBeenCalledWith(expenseInput);
+    expect(indexedDbRepositoryMock.addExpense).toHaveBeenCalledWith(newExpenseInput);
+    expect(indexedDbRepositoryMock.getExpensesByMonthAndBucket).toHaveBeenCalledWith(
+      'month-1',
+      'needs',
+    );
     expect(indexedDbRepositoryMock.getAllocationsByMonth).toHaveBeenCalledWith('month-1');
     expect(indexedDbRepositoryMock.createYearWithAllocations).toHaveBeenCalledWith(
       100_000,

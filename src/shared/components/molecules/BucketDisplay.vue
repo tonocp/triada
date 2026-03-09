@@ -1,5 +1,12 @@
 <template>
-  <div class="bucket-display">
+  <div
+    class="bucket-display"
+    :class="{ 'bucket-display--interactive': interactive }"
+    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive ? 0 : undefined"
+    @click="onSelect"
+    @keydown.enter.prevent="onSelect"
+  >
     <div class="bucket-header">
       <i :class="bucketIcon" class="bucket-icon"></i>
       <span class="bucket-label">{{ bucketLabel }}</span>
@@ -44,7 +51,20 @@ const props = defineProps<{
   bucket: BucketType;
   allocated: number;
   spent: number;
+  interactive?: boolean;
 }>();
+
+const emit = defineEmits<{
+  select: [bucket: BucketType];
+}>();
+
+function onSelect(): void {
+  if (!props.interactive) {
+    return;
+  }
+
+  emit('select', props.bucket);
+}
 
 const bucketLabel = computed(() => t(`buckets.${props.bucket}`));
 const bucketIcon = computed(() => BUCKET_ICONS[props.bucket]);
@@ -69,6 +89,10 @@ const progressPercent = computed(() => {
   border-radius: 8px;
   background: var(--p-content-background);
   margin-bottom: 0.75rem;
+}
+
+.bucket-display--interactive {
+  cursor: pointer;
 }
 
 .bucket-header {

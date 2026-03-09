@@ -8,6 +8,8 @@ import type {
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
+  CreateExpenseInput,
+  Expense,
 } from '@/domain/entities';
 import {
   BUCKET_ORDER,
@@ -226,6 +228,63 @@ export const sqliteBudgetRepository: BudgetRepository = {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  },
+
+  async addExpense(input: CreateExpenseInput): Promise<Expense> {
+    const now = getCurrentTimestamp();
+    const id = generateUUID();
+
+    await sqliteBudgetRepository.addExpenseToAllocation({
+      budgetMonthId: input.budgetMonthId,
+      bucket: input.bucket,
+      amount: input.amount,
+    });
+
+    // noinspection SqlNoDataSourceInspection
+    await run(
+      `INSERT INTO budget_expenses
+      (id, budget_month_id, bucket, amount, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.budgetMonthId, input.bucket, input.amount, input.description, now, now],
+    );
+
+    return {
+      id,
+      budgetMonthId: input.budgetMonthId,
+      bucket: input.bucket,
+      amount: input.amount,
+      description: input.description,
+      createdAt: now,
+      updatedAt: now,
+    };
+  },
+
+  async getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]> {
+    // noinspection SqlNoDataSourceInspection
+    const result = await query<{
+      id: string;
+      budget_month_id: string;
+      bucket: string;
+      amount: number;
+      description: string;
+      created_at: string;
+      updated_at: string;
+    }>(
+      `SELECT * FROM budget_expenses
+       WHERE budget_month_id = ? AND bucket = ?
+       ORDER BY created_at DESC`,
+      [budgetMonthId, bucket],
+    );
+
+    return result.map((row) => ({
+      id: row.id,
+      budgetMonthId: row.budget_month_id,
+      bucket: row.bucket as BucketType,
+      amount: Number(row.amount),
+      description: row.description,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
   },
 
   async getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

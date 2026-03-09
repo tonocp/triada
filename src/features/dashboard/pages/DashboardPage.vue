@@ -95,6 +95,10 @@
             input-class="w-full"
           />
         </div>
+        <div class="form-group recurring-toggle">
+          <Checkbox v-model="isRecurringExpense" binary input-id="expense-recurring" />
+          <label for="expense-recurring">{{ t('dashboard.recurringExpense') }}</label>
+        </div>
       </div>
       <template #footer>
         <Button :label="t('common.cancel')" severity="secondary" @click="showAddExpense = false" />
@@ -125,6 +129,9 @@
           <div class="expense-history-content">
             <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
             <span class="expense-history-description">{{ expense.description }}</span>
+            <span v-if="expense.recurringRuleId" class="expense-history-recurring">
+              {{ t('dashboard.recurring') }}
+            </span>
             <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
           </div>
           <div class="expense-history-actions">
@@ -248,6 +255,7 @@ import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import RadioButton from 'primevue/radiobutton';
@@ -276,6 +284,7 @@ const showDeleteExpenseConfirm = ref(false);
 const expenseAmount = ref('');
 const expenseCategory = ref<BucketType | ''>('');
 const expenseDescription = ref('');
+const isRecurringExpense = ref(false);
 const selectedHistoryBucket = ref<BucketType | null>(null);
 const selectedBucketExpenses = ref<Expense[]>([]);
 const editingExpenseId = ref<string | null>(null);
@@ -575,6 +584,7 @@ async function addExpense(): Promise<void> {
       bucket: selectedCategory,
       amount,
       description,
+      isRecurring: isRecurringExpense.value,
     });
 
     await refreshMonthData();
@@ -593,6 +603,7 @@ async function addExpense(): Promise<void> {
     expenseAmount.value = '';
     expenseCategory.value = '';
     expenseDescription.value = '';
+    isRecurringExpense.value = false;
   } catch (error) {
     console.error('Failed to add expense to allocation', {
       error,
@@ -843,6 +854,11 @@ onMounted(() => {
   gap: 0.5rem;
 }
 
+.recurring-toggle {
+  flex-direction: row;
+  align-items: center;
+}
+
 .form-group label {
   font-weight: 600;
 }
@@ -914,5 +930,12 @@ onMounted(() => {
 .expense-history-date {
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
+}
+
+.expense-history-recurring {
+  width: fit-content;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--p-primary-color);
 }
 </style>

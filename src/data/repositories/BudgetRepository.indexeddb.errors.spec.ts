@@ -51,10 +51,14 @@ describe('data/repositories IndexedDB transaction failures', () => {
         budgetYears: 'budget_years',
         budgetMonths: 'budget_months',
         budgetAllocations: 'budget_allocations',
+        budgetExpenses: 'budget_expenses',
+        recurringExpenseRules: 'recurring_expense_rules',
       },
       indexedDbIndexes: {
         budgetMonthByYearMonth: 'by_budget_year_month',
         allocationsByMonth: 'by_budget_month',
+        expensesByMonthBucket: 'by_budget_month_bucket',
+        expensesByRule: 'by_recurring_rule_id',
       },
     }));
 

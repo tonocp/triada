@@ -60,6 +60,21 @@ interface ExpenseRow {
   bucket: BucketType;
   amount: number;
   description: string;
+  recurring_rule_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RecurringExpenseRuleRow {
+  id: string;
+  budget_year_id: string;
+  bucket: BucketType;
+  amount: number;
+  description: string;
+  start_year: number;
+  start_month: number;
+  end_year: number | null;
+  end_month: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +126,13 @@ async function insertExpense(row: ExpenseRow): Promise<void> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetExpenses, 'readwrite');
   tx.objectStore(indexedDbStores.budgetExpenses).put(row);
+  await transactionDone(tx);
+}
+
+async function insertRecurringExpenseRule(row: RecurringExpenseRuleRow): Promise<void> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.recurringExpenseRules, 'readwrite');
+  tx.objectStore(indexedDbStores.recurringExpenseRules).put(row);
   await transactionDone(tx);
 }
 
@@ -183,6 +205,28 @@ async function deleteExpenseRow(expenseId: string): Promise<void> {
   await transactionDone(tx);
 }
 
+async function findRecurringExpenseRuleById(
+  ruleId: string,
+): Promise<RecurringExpenseRuleRow | null> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.recurringExpenseRules, 'readonly');
+  const row = (await requestToPromise(
+    tx.objectStore(indexedDbStores.recurringExpenseRules).get(ruleId),
+  )) as RecurringExpenseRuleRow | undefined;
+  await transactionDone(tx);
+  return row ?? null;
+}
+
+async function readExpenseRowsByRuleId(ruleId: string): Promise<ExpenseRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
+  const store = tx.objectStore(indexedDbStores.budgetExpenses);
+  const index = store.index(indexedDbIndexes.expensesByRule);
+  const rows = (await requestToPromise(index.getAll(IDBKeyRange.only(ruleId)))) as ExpenseRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
 function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
   return {
     id: row.id,
@@ -202,9 +246,18 @@ function mapExpenseRow(row: ExpenseRow): Expense {
     bucket: row.bucket,
     amount: row.amount,
     description: row.description,
+    recurringRuleId: row.recurring_rule_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function getPreviousMonth(year: number, month: number): { year: number; month: number } {
+  if (month > 1) {
+    return { year, month: month - 1 };
+  }
+
+  return { year: year - 1, month: 12 };
 }
 
 async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
@@ -419,26 +472,96 @@ export const indexedDbBudgetRepository: BudgetRepository = {
   async addExpense(input: CreateExpenseInput): Promise<Expense> {
     await initIndexedDb();
 
-    await indexedDbBudgetRepository.addExpenseToAllocation({
-      budgetMonthId: input.budgetMonthId,
-      bucket: input.bucket,
-      amount: input.amount,
-    });
-
     const now = getCurrentTimestamp();
-    const row: ExpenseRow = {
-      id: generateUUID(),
-      budget_month_id: input.budgetMonthId,
+
+    if (!input.isRecurring) {
+      await indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: input.budgetMonthId,
+        bucket: input.bucket,
+        amount: input.amount,
+      });
+
+      const row: ExpenseRow = {
+        id: generateUUID(),
+        budget_month_id: input.budgetMonthId,
+        bucket: input.bucket,
+        amount: input.amount,
+        description: input.description,
+        recurring_rule_id: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      await insertExpense(row);
+      return mapExpenseRow(row);
+    }
+
+    const allMonths = await readAllBudgetMonths();
+    const targetMonth = allMonths.find((month) => month.id === input.budgetMonthId);
+    if (!targetMonth) {
+      throw new Error(`Budget month not found with id ${input.budgetMonthId}`);
+    }
+
+    const recurringRuleId = generateUUID();
+    await insertRecurringExpenseRule({
+      id: recurringRuleId,
+      budget_year_id: targetMonth.budget_year_id,
       bucket: input.bucket,
       amount: input.amount,
       description: input.description,
+      start_year: targetMonth.year,
+      start_month: targetMonth.month,
+      end_year: null,
+      end_month: null,
       created_at: now,
       updated_at: now,
-    };
+    });
 
-    await insertExpense(row);
+    const futureMonths = allMonths
+      .filter(
+        (month) =>
+          month.budget_year_id === targetMonth.budget_year_id && month.month >= targetMonth.month,
+      )
+      .sort((left, right) => left.month - right.month);
 
-    return mapExpenseRow(row);
+    let created: Expense | null = null;
+    for (const month of futureMonths) {
+      await indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: month.id,
+        bucket: input.bucket,
+        amount: input.amount,
+      });
+
+      const row: ExpenseRow = {
+        id: generateUUID(),
+        budget_month_id: month.id,
+        bucket: input.bucket,
+        amount: input.amount,
+        description: input.description,
+        recurring_rule_id: recurringRuleId,
+        created_at: now,
+        updated_at: now,
+      };
+
+      await insertExpense(row);
+      if (month.id === targetMonth.id) {
+        created = mapExpenseRow(row);
+      }
+    }
+
+    return (
+      created ??
+      mapExpenseRow({
+        id: generateUUID(),
+        budget_month_id: input.budgetMonthId,
+        bucket: input.bucket,
+        amount: input.amount,
+        description: input.description,
+        recurring_rule_id: recurringRuleId,
+        created_at: now,
+        updated_at: now,
+      })
+    );
   },
 
   async getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]> {
@@ -460,6 +583,94 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
+    if (existing.recurring_rule_id) {
+      const months = await readAllBudgetMonths();
+      const targetMonth = months.find((month) => month.id === existing.budget_month_id) ?? {
+        id: existing.budget_month_id,
+        budget_year_id: '',
+        month: 1,
+        year: new Date().getFullYear(),
+        created_at: getCurrentTimestamp(),
+        updated_at: getCurrentTimestamp(),
+      };
+
+      const previousMonth = getPreviousMonth(targetMonth.year, targetMonth.month);
+      const now = getCurrentTimestamp();
+
+      const existingRule = (await findRecurringExpenseRuleById(existing.recurring_rule_id)) ?? {
+        id: existing.recurring_rule_id,
+        budget_year_id: targetMonth.budget_year_id,
+        bucket: existing.bucket,
+        amount: existing.amount,
+        description: existing.description,
+        start_year: targetMonth.year,
+        start_month: targetMonth.month,
+        end_year: null,
+        end_month: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      await insertRecurringExpenseRule({
+        ...existingRule,
+        end_year: previousMonth.year,
+        end_month: previousMonth.month,
+        updated_at: now,
+      });
+
+      const newRuleId = generateUUID();
+      await insertRecurringExpenseRule({
+        id: newRuleId,
+        budget_year_id: targetMonth.budget_year_id,
+        bucket: existing.bucket,
+        amount: input.amount,
+        description: input.description,
+        start_year: targetMonth.year,
+        start_month: targetMonth.month,
+        end_year: null,
+        end_month: null,
+        created_at: now,
+        updated_at: now,
+      });
+
+      const ruleExpenses = await readExpenseRowsByRuleId(existing.recurring_rule_id);
+      const futureExpenses = ruleExpenses.filter((expense) => {
+        const month = months.find((candidate) => candidate.id === expense.budget_month_id);
+        return (
+          month &&
+          month.budget_year_id === targetMonth.budget_year_id &&
+          month.month >= targetMonth.month
+        );
+      });
+
+      for (const expense of futureExpenses) {
+        const delta = input.amount - expense.amount;
+        await indexedDbBudgetRepository.addExpenseToAllocation({
+          budgetMonthId: expense.budget_month_id,
+          bucket: expense.bucket,
+          amount: delta,
+        });
+
+        await insertExpense({
+          ...expense,
+          amount: input.amount,
+          description: input.description,
+          recurring_rule_id: newRuleId,
+          updated_at: now,
+        });
+      }
+
+      const updatedTarget = (await findExpenseRowById(input.expenseId)) ?? {
+        ...existing,
+        amount: input.amount,
+        description: input.description,
+        recurring_rule_id: newRuleId,
+        updated_at: now,
+      };
+
+      return mapExpenseRow(updatedTarget);
+    }
+
     const delta = input.amount - existing.amount;
 
     await indexedDbBudgetRepository.addExpenseToAllocation({
@@ -473,6 +684,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       ...existing,
       amount: input.amount,
       description: input.description,
+      recurring_rule_id: null,
       updated_at: now,
     };
 
@@ -488,6 +700,64 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     if (!existing) {
       throw new Error(`Expense not found with id ${expenseId}`);
+    }
+
+    if (existing.recurring_rule_id) {
+      const months = await readAllBudgetMonths();
+      const targetMonth = months.find((month) => month.id === existing.budget_month_id) ?? {
+        id: existing.budget_month_id,
+        budget_year_id: '',
+        month: 1,
+        year: new Date().getFullYear(),
+        created_at: getCurrentTimestamp(),
+        updated_at: getCurrentTimestamp(),
+      };
+
+      const previousMonth = getPreviousMonth(targetMonth.year, targetMonth.month);
+      const now = getCurrentTimestamp();
+
+      const existingRule = (await findRecurringExpenseRuleById(existing.recurring_rule_id)) ?? {
+        id: existing.recurring_rule_id,
+        budget_year_id: targetMonth.budget_year_id,
+        bucket: existing.bucket,
+        amount: existing.amount,
+        description: existing.description,
+        start_year: targetMonth.year,
+        start_month: targetMonth.month,
+        end_year: null,
+        end_month: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      await insertRecurringExpenseRule({
+        ...existingRule,
+        end_year: previousMonth.year,
+        end_month: previousMonth.month,
+        updated_at: now,
+      });
+
+      const ruleExpenses = await readExpenseRowsByRuleId(existing.recurring_rule_id);
+      const futureExpenses = ruleExpenses.filter((expense) => {
+        const month = months.find((candidate) => candidate.id === expense.budget_month_id);
+        return (
+          month &&
+          month.budget_year_id === targetMonth.budget_year_id &&
+          month.month >= targetMonth.month
+        );
+      });
+
+      for (const expense of futureExpenses) {
+        await indexedDbBudgetRepository.addExpenseToAllocation({
+          budgetMonthId: expense.budget_month_id,
+          bucket: expense.bucket,
+          amount: -expense.amount,
+        });
+
+        await deleteExpenseRow(expense.id);
+      }
+
+      return;
     }
 
     await indexedDbBudgetRepository.addExpenseToAllocation({

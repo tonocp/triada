@@ -107,13 +107,36 @@ export async function initDatabase(): Promise<void> {
           bucket TEXT NOT NULL,
           amount INTEGER NOT NULL,
           description TEXT NOT NULL,
+          recurring_rule_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           FOREIGN KEY (budget_month_id) REFERENCES budget_months(id)
         );
+
+        CREATE TABLE IF NOT EXISTS recurring_expense_rules (
+          id TEXT PRIMARY KEY,
+          budget_year_id TEXT NOT NULL,
+          bucket TEXT NOT NULL,
+          amount INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          start_year INTEGER NOT NULL,
+          start_month INTEGER NOT NULL,
+          end_year INTEGER,
+          end_month INTEGER,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (budget_year_id) REFERENCES budget_years(id)
+        );
       `,
       false,
     );
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(`ALTER TABLE budget_expenses ADD COLUMN recurring_rule_id TEXT;`, false);
+    } catch {
+      // ignore if column already exists
+    }
 
     isDbReady = true;
   } finally {

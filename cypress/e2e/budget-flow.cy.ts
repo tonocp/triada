@@ -242,6 +242,34 @@ describe('Budget flow', () => {
       .should('contain', '€0.00');
   });
 
+  it('should apply recurring expense from current month to future months', () => {
+    createBudget('1000');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+
+    cy.get('.p-dialog:visible').within(() => {
+      cy.get('#expense-category-needs').check({ force: true });
+      cy.get('input[placeholder="0.00"]').last().clear();
+      cy.get('input[placeholder="0.00"]').last().type('50');
+      cy.get('input[placeholder="Describe este gasto"]').type('Renta fija');
+      cy.get('#expense-recurring').check({ force: true });
+      cy.contains('button', /^Agregar$/).click();
+    });
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€50.00');
+
+    cy.get('.month-selector .p-button').last().click({ force: true });
+
+    cy.contains('.bucket-display', 'Necesidades')
+      .contains('.amount-row', 'Gastado')
+      .find('.amount-value')
+      .should('contain', '€50.00');
+  });
+
   it('should render dashboard while offline after service worker activation', () => {
     createBudget('1300');
 

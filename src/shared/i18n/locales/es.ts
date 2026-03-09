@@ -37,6 +37,8 @@ export default {
     expenseDeleted: 'Gasto eliminado',
     expenseUpdateError: 'No se pudo actualizar el gasto. Intenta de nuevo.',
     expenseDeleteError: 'No se pudo eliminar el gasto. Intenta de nuevo.',
+    recurringExpense: 'Recurrente (mes actual y futuros)',
+    recurring: 'Recurrente',
     noBudgetForPeriod: 'No hay presupuesto para el mes y año seleccionados.',
     allocated: 'Asignado',
     spent: 'Gastado',

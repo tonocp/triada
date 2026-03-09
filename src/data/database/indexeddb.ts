@@ -1,14 +1,16 @@
 const DB_NAME = 'triada-web';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORE_BUDGET_YEARS = 'budget_years';
 const STORE_BUDGET_MONTHS = 'budget_months';
 const STORE_BUDGET_ALLOCATIONS = 'budget_allocations';
 const STORE_BUDGET_EXPENSES = 'budget_expenses';
+const STORE_RECURRING_EXPENSE_RULES = 'recurring_expense_rules';
 
 const INDEX_BUDGET_MONTH_BY_YEAR_MONTH = 'by_budget_year_month';
 const INDEX_ALLOCATIONS_BY_MONTH = 'by_budget_month';
 const INDEX_EXPENSES_BY_MONTH_BUCKET = 'by_budget_month_bucket';
+const INDEX_EXPENSES_BY_RULE = 'by_recurring_rule_id';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let isDbReady = false;
@@ -43,6 +45,11 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_BUDGET_EXPENSES)) {
         const expenses = db.createObjectStore(STORE_BUDGET_EXPENSES, { keyPath: 'id' });
         expenses.createIndex(INDEX_EXPENSES_BY_MONTH_BUCKET, ['budget_month_id', 'bucket']);
+        expenses.createIndex(INDEX_EXPENSES_BY_RULE, 'recurring_rule_id', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORE_RECURRING_EXPENSE_RULES)) {
+        db.createObjectStore(STORE_RECURRING_EXPENSE_RULES, { keyPath: 'id' });
       }
     };
 
@@ -95,10 +102,12 @@ export const indexedDbStores = {
   budgetMonths: STORE_BUDGET_MONTHS,
   budgetAllocations: STORE_BUDGET_ALLOCATIONS,
   budgetExpenses: STORE_BUDGET_EXPENSES,
+  recurringExpenseRules: STORE_RECURRING_EXPENSE_RULES,
 } as const;
 
 export const indexedDbIndexes = {
   budgetMonthByYearMonth: INDEX_BUDGET_MONTH_BY_YEAR_MONTH,
   allocationsByMonth: INDEX_ALLOCATIONS_BY_MONTH,
   expensesByMonthBucket: INDEX_EXPENSES_BY_MONTH_BUCKET,
+  expensesByRule: INDEX_EXPENSES_BY_RULE,
 } as const;

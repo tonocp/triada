@@ -272,6 +272,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       bucket: 'needs',
       amount: 12_345,
       description: 'Supermercado semanal',
+      recurringRuleId: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
@@ -395,6 +396,182 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     await expect(sqliteBudgetRepository.deleteExpense('missing-expense')).rejects.toThrow(
       'Expense not found with id missing-expense',
+    );
+  });
+
+  it('should add recurring expense from current month to future months', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'month-5',
+          budget_year_id: 'year-id',
+          month: 5,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'month-5' }, { id: 'month-6' }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const allocationSpy = vi
+      .spyOn(sqliteBudgetRepository, 'addExpenseToAllocation')
+      .mockResolvedValue({
+        id: 'alloc-id',
+        budgetMonthId: 'month-5',
+        bucket: 'needs',
+        allocated: 50_000,
+        spent: 10_000,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      });
+
+    const result = await sqliteBudgetRepository.addExpense({
+      budgetMonthId: 'month-5',
+      bucket: 'needs',
+      amount: 10_000,
+      description: 'Renta fija',
+      isRecurring: true,
+    });
+
+    expect(allocationSpy).toHaveBeenCalledTimes(2);
+    expect(runMock).toHaveBeenCalledTimes(3);
+    expect(result.recurringRuleId).not.toBeNull();
+  });
+
+  it('should throw when adding recurring expense to missing month', async () => {
+    queryMock.mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.addExpense({
+        budgetMonthId: 'missing-month',
+        bucket: 'needs',
+        amount: 1_000,
+        description: 'Renta',
+        isRecurring: true,
+      }),
+    ).rejects.toThrow('Budget month not found with id missing-month');
+  });
+
+  it('should update recurring expense for current and future months', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          bucket: 'needs',
+          amount: 10_000,
+          description: 'Renta',
+          recurring_rule_id: 'rule-1',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+          budget_year_id: 'year-id',
+          month: 5,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          bucket: 'needs',
+          amount: 10_000,
+        },
+        {
+          id: 'expense-2',
+          budget_month_id: 'month-6',
+          bucket: 'needs',
+          amount: 10_000,
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const updated = await sqliteBudgetRepository.updateExpense({
+      expenseId: 'expense-1',
+      amount: 12_000,
+      description: 'Renta actualizada',
+    });
+
+    expect(runMock).toHaveBeenCalledTimes(6);
+    expect(updated.recurringRuleId).not.toBeNull();
+    expect(updated.amount).toBe(12_000);
+  });
+
+  it('should delete recurring expense for current and future months', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          bucket: 'needs',
+          amount: 10_000,
+          recurring_rule_id: 'rule-1',
+          budget_year_id: 'year-id',
+          month: 5,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          bucket: 'needs',
+          amount: 10_000,
+        },
+        {
+          id: 'expense-2',
+          budget_month_id: 'month-6',
+          bucket: 'needs',
+          amount: 10_000,
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.deleteExpense('expense-1');
+
+    expect(runMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('should update recurring expense in January and close previous rule in December', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-1',
+          bucket: 'needs',
+          amount: 10_000,
+          description: 'Renta',
+          recurring_rule_id: 'rule-1',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+          budget_year_id: 'year-id',
+          month: 1,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-1',
+          bucket: 'needs',
+          amount: 10_000,
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.updateExpense({
+      expenseId: 'expense-1',
+      amount: 12_000,
+      description: 'Renta enero',
+    });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE recurring_expense_rules'),
+      expect.arrayContaining([2025, 12]),
     );
   });
 

@@ -10,7 +10,11 @@ function setupIndexedDbMock(options?: {
   failOpen?: boolean;
   failOpenWithoutError?: boolean;
   existingStores?: Array<
-    'budget_years' | 'budget_months' | 'budget_allocations' | 'budget_expenses'
+    | 'budget_years'
+    | 'budget_months'
+    | 'budget_allocations'
+    | 'budget_expenses'
+    | 'recurring_expense_rules'
   >;
 }): IndexedDbMockResult {
   const storeCreateIndexMap: Record<string, ReturnType<typeof vi.fn>> = {};
@@ -84,13 +88,14 @@ describe('data/database indexeddb', () => {
 
     await indexedDbModule.initDatabase();
 
-    expect(indexedDbMock.open).toHaveBeenCalledWith('triada-web', 2);
+    expect(indexedDbMock.open).toHaveBeenCalledWith('triada-web', 3);
     expect(indexedDbModule.isDatabaseReady()).toBe(true);
 
     expect(indexedDbModule.indexedDbStores.budgetYears).toBe('budget_years');
     expect(indexedDbModule.indexedDbStores.budgetMonths).toBe('budget_months');
     expect(indexedDbModule.indexedDbStores.budgetAllocations).toBe('budget_allocations');
     expect(indexedDbModule.indexedDbStores.budgetExpenses).toBe('budget_expenses');
+    expect(indexedDbModule.indexedDbStores.recurringExpenseRules).toBe('recurring_expense_rules');
 
     expect(
       indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetMonths],
@@ -117,6 +122,11 @@ describe('data/database indexeddb', () => {
       'budget_month_id',
       'bucket',
     ]);
+    expect(
+      indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetExpenses],
+    ).toHaveBeenCalledWith(indexedDbModule.indexedDbIndexes.expensesByRule, 'recurring_rule_id', {
+      unique: false,
+    });
   });
 
   it('should auto-initialize when getting database before explicit init', async () => {
@@ -155,7 +165,13 @@ describe('data/database indexeddb', () => {
 
   it('should not create stores that already exist', async () => {
     const indexedDbMock = setupIndexedDbMock({
-      existingStores: ['budget_years', 'budget_months', 'budget_allocations', 'budget_expenses'],
+      existingStores: [
+        'budget_years',
+        'budget_months',
+        'budget_allocations',
+        'budget_expenses',
+        'recurring_expense_rules',
+      ],
     });
     const indexedDbModule = await import('./indexeddb');
 

@@ -6,6 +6,7 @@ export interface Expense {
   bucket: BucketType;
   amount: number;
   description: string;
+  recurringRuleId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,6 +16,7 @@ export interface CreateExpenseInput {
   bucket: BucketType;
   amount: number;
   description: string;
+  isRecurring?: boolean;
 }
 
 export interface UpdateExpenseInput {

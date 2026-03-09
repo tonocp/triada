@@ -37,6 +37,8 @@ export default {
     expenseDeleted: 'Expense deleted',
     expenseUpdateError: 'Could not update expense. Please try again.',
     expenseDeleteError: 'Could not delete expense. Please try again.',
+    recurringExpense: 'Recurring (current and future months)',
+    recurring: 'Recurring',
     noBudgetForPeriod: 'No budget found for the selected month and year.',
     allocated: 'Allocated',
     spent: 'Spent',

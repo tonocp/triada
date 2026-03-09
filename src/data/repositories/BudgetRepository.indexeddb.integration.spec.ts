@@ -84,12 +84,14 @@ interface IndexedDbRepositoryModule {
       bucket: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
+      isRecurring?: boolean;
     }) => Promise<{
       id: string;
       budgetMonthId: string;
       bucket: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
+      recurringRuleId: string | null;
       createdAt: string;
       updatedAt: string;
     }>;
@@ -99,6 +101,7 @@ interface IndexedDbRepositoryModule {
       bucket: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
+      recurringRuleId: string | null;
       createdAt: string;
       updatedAt: string;
     }>;
@@ -113,6 +116,7 @@ interface IndexedDbRepositoryModule {
         bucket: 'needs' | 'wants' | 'savings';
         amount: number;
         description: string;
+        recurringRuleId: string | null;
         createdAt: string;
         updatedAt: string;
       }>
@@ -136,6 +140,7 @@ interface IndexedDbRepositoryModule {
         currency: 'USD' | 'EUR';
       };
       months: Array<{
+        id: string;
         month: number;
         allocations: Array<{
           bucket: 'needs' | 'wants' | 'savings';
@@ -600,6 +605,140 @@ describe('data/repositories IndexedDB integration', () => {
     await expect(
       repositoryModule.indexedDbBudgetRepository.deleteExpense('missing-expense'),
     ).rejects.toThrow('Expense not found with id missing-expense');
+  });
+
+  it('should create recurring expense from selected month and apply updates/deletes only to future months', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month5 = result.months[4];
+
+    const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month5!.id,
+      bucket: 'needs',
+      amount: 10_000,
+      description: 'Renta',
+      isRecurring: true,
+    });
+
+    expect(recurring.recurringRuleId).not.toBeNull();
+
+    const month4Before = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      4,
+    );
+    const month5AfterCreate = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6AfterCreate = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(
+      month4Before?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(0);
+    expect(
+      month5AfterCreate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(10_000);
+    expect(
+      month6AfterCreate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(10_000);
+
+    await repositoryModule.indexedDbBudgetRepository.updateExpense({
+      expenseId: recurring.id,
+      amount: 12_000,
+      description: 'Renta actualizada',
+    });
+
+    const month5AfterUpdate = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6AfterUpdate = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(
+      month5AfterUpdate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(12_000);
+    expect(
+      month6AfterUpdate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(12_000);
+
+    await repositoryModule.indexedDbBudgetRepository.deleteExpense(recurring.id);
+
+    const month4AfterDelete = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      4,
+    );
+    const month5AfterDelete = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+
+    expect(
+      month4AfterDelete?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(0);
+    expect(
+      month5AfterDelete?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+    ).toBe(0);
+
+    const month5Expenses =
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndBucket(
+        month5!.id,
+        'needs',
+      );
+    expect(month5Expenses).toHaveLength(0);
+  });
+
+  it('should update recurring expense in January and keep operation valid', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const january = result.months[0];
+
+    const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: january!.id,
+      bucket: 'needs',
+      amount: 9_000,
+      description: 'Suscripcion',
+      isRecurring: true,
+    });
+
+    const updated = await repositoryModule.indexedDbBudgetRepository.updateExpense({
+      expenseId: recurring.id,
+      amount: 10_000,
+      description: 'Suscripcion actualizada',
+    });
+
+    expect(updated.amount).toBe(10_000);
+  });
+
+  it('should throw when creating recurring expense with missing month', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.addExpense({
+        budgetMonthId: 'missing-month',
+        bucket: 'needs',
+        amount: 1_000,
+        description: 'Invalido',
+        isRecurring: true,
+      }),
+    ).rejects.toThrow('Budget month not found with id missing-month');
   });
 
   it('should floor allocation values for non-divisible incomes', async () => {

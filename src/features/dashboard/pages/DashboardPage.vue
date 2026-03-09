@@ -54,17 +54,37 @@
     >
       <div class="expense-form">
         <div class="form-group">
-          <label>{{ t('setup.monthlyIncome') }}</label>
-          <Input v-model="expenseAmount" :placeholder="t('setup.incomePlaceholder')" />
+          <label>{{ t('dashboard.category') }}</label>
+          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.category')">
+            <label
+              v-for="cat in categories"
+              :key="cat"
+              class="category-option"
+              :class="{ 'category-option--selected': expenseCategory === cat }"
+            >
+              <RadioButton
+                v-model="expenseCategory"
+                name="expense-category"
+                :input-id="`expense-category-${cat}`"
+                :value="cat"
+              />
+              <span>{{ t(`buckets.${cat}`) }}</span>
+            </label>
+          </div>
         </div>
         <div class="form-group">
-          <label>{{ t('settings.currency') }}</label>
-          <select v-model="expenseCategory" class="category-select">
-            <option value="">{{ t('dashboard.selectCategory') }}</option>
-            <option v-for="cat in categories" :key="cat" :value="cat">
-              {{ t(`buckets.${cat}`) }}
-            </option>
-          </select>
+          <label>{{ t('dashboard.amount') }}</label>
+          <InputNumber
+            v-model="expenseAmount"
+            mode="decimal"
+            :min="0"
+            :min-fraction-digits="2"
+            :max-fraction-digits="2"
+            :placeholder="t('setup.incomePlaceholder')"
+            :disabled="expenseCategory === ''"
+            :input-props="{ inputmode: 'decimal' }"
+            class="w-full"
+          />
         </div>
       </div>
       <template #footer>
@@ -94,16 +114,18 @@ import {
   BUCKET_ORDER,
   BUCKET_PERCENTAGES,
   compareBuckets,
+  type BucketType,
   type BudgetAllocation,
   type BudgetMonth,
   type BudgetYear,
 } from '@/domain/entities';
-import { Input } from '@/shared/components/atoms';
 import { BucketDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
+import InputNumber from 'primevue/inputnumber';
+import RadioButton from 'primevue/radiobutton';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -123,8 +145,8 @@ let isRepairingYear = false;
 let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
-const expenseAmount = ref<string>('');
-const expenseCategory = ref('');
+const expenseAmount = ref<number | null>(null);
+const expenseCategory = ref<BucketType | ''>('');
 
 const categories = BUCKET_ORDER;
 
@@ -135,8 +157,7 @@ const allocations = computed<BudgetAllocation[]>(() => {
 });
 
 const isExpenseValid = computed(() => {
-  const amount = parseFloat(expenseAmount.value);
-  return !isNaN(amount) && amount > 0 && expenseCategory.value !== '';
+  return expenseAmount.value !== null && expenseAmount.value > 0 && expenseCategory.value !== '';
 });
 
 function setActivePeriod(year: number, month: number): void {
@@ -382,7 +403,7 @@ async function addExpense(): Promise<void> {
   });
 
   showAddExpense.value = false;
-  expenseAmount.value = '';
+  expenseAmount.value = null;
   expenseCategory.value = '';
 }
 
@@ -484,11 +505,28 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.category-select {
-  padding: 0.5rem;
-  border-radius: 4px;
+.category-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.category-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 8px;
   border: 1px solid var(--p-input-border-color);
-  background: var(--p-input-background);
-  color: var(--p-input-color);
+  background: var(--p-content-background);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.category-option--selected {
+  border-color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-color) 10%, var(--p-content-background));
 }
 </style>

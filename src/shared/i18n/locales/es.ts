@@ -20,6 +20,8 @@ export default {
   dashboard: {
     monthlyIncome: 'Ingreso Mensual',
     addExpense: 'Agregar Gasto',
+    amount: 'Cantidad',
+    category: 'Categoría',
     selectCategory: 'Selecciona una categoría',
     noBudgetForPeriod: 'No hay presupuesto para el mes y año seleccionados.',
     allocated: 'Asignado',

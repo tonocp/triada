@@ -5,6 +5,8 @@ import type {
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
+  Category,
+  CategoryId,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
@@ -14,7 +16,15 @@ import type {
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
-import { GROUP_ORDER, GROUP_PERCENTAGES, compareGroups, type GroupType } from '@/domain/entities';
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_CATEGORIES_BY_GROUP,
+  GROUP_ORDER,
+  GROUP_PERCENTAGES,
+  compareGroups,
+  isValidCategoryForGroup,
+  type GroupType,
+} from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -29,6 +39,19 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
 function allocationForGroup(monthlyIncome: number, group: GroupType): number {
   const percentage = GROUP_PERCENTAGES[group];
   return Math.floor((monthlyIncome * percentage) / 100);
+}
+
+async function ensureDefaultCategories(): Promise<void> {
+  const now = getCurrentTimestamp();
+
+  for (const category of DEFAULT_CATEGORIES) {
+    await run(
+      `INSERT OR IGNORE INTO expense_categories
+      (id, group_name, order_index, is_default, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)`,
+      [category.id, category.group, category.order, category.isDefault ? 1 : 0, now, now],
+    );
+  }
 }
 
 export const sqliteBudgetRepository: BudgetRepository = {
@@ -255,6 +278,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
   async addExpense(input: CreateExpenseInput): Promise<Expense> {
     const now = getCurrentTimestamp();
+    const categoryId: CategoryId =
+      input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
+
+    if (!isValidCategoryForGroup(input.group, categoryId)) {
+      throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+    }
 
     if (!input.isRecurring) {
       const id = generateUUID();
@@ -268,15 +297,25 @@ export const sqliteBudgetRepository: BudgetRepository = {
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO budget_expenses
-        (id, budget_month_id, group, amount, description, recurring_rule_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
-        [id, input.budgetMonthId, input.group, input.amount, input.description, now, now],
+        (id, budget_month_id, group, category_id, amount, description, recurring_rule_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        [
+          id,
+          input.budgetMonthId,
+          input.group,
+          categoryId,
+          input.amount,
+          input.description,
+          now,
+          now,
+        ],
       );
 
       return {
         id,
         budgetMonthId: input.budgetMonthId,
         group: input.group,
+        categoryId,
         amount: input.amount,
         description: input.description,
         recurringRuleId: null,
@@ -305,12 +344,13 @@ export const sqliteBudgetRepository: BudgetRepository = {
     // noinspection SqlNoDataSourceInspection
     await run(
       `INSERT INTO recurring_expense_rules
-      (id, budget_year_id, group, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
+      (id, budget_year_id, group, category_id, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
       [
         recurringRuleId,
         targetMonth.budget_year_id,
         input.group,
+        categoryId,
         input.amount,
         input.description,
         Number(targetMonth.year),
@@ -344,9 +384,19 @@ export const sqliteBudgetRepository: BudgetRepository = {
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO budget_expenses
-        (id, budget_month_id, group, amount, description, recurring_rule_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, month.id, input.group, input.amount, input.description, recurringRuleId, now, now],
+        (id, budget_month_id, group, category_id, amount, description, recurring_rule_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          month.id,
+          input.group,
+          categoryId,
+          input.amount,
+          input.description,
+          recurringRuleId,
+          now,
+          now,
+        ],
       );
     }
 
@@ -354,6 +404,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: createdExpenseId,
       budgetMonthId: input.budgetMonthId,
       group: input.group,
+      categoryId,
       amount: input.amount,
       description: input.description,
       recurringRuleId,
@@ -368,6 +419,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: string;
       budget_month_id: string;
       group: string;
+      category_id: string;
       amount: number;
       description: string;
       recurring_rule_id: string | null;
@@ -384,6 +436,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: row.id,
       budgetMonthId: row.budget_month_id,
       group: row.group as GroupType,
+      categoryId: row.category_id as CategoryId,
       amount: Number(row.amount),
       description: row.description,
       recurringRuleId: row.recurring_rule_id ?? null,
@@ -398,6 +451,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: string;
       budget_month_id: string;
       group: string;
+      category_id: string;
       amount: number;
       description: string;
       recurring_rule_id: string | null;
@@ -437,12 +491,13 @@ export const sqliteBudgetRepository: BudgetRepository = {
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO recurring_expense_rules
-        (id, budget_year_id, group, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
+        (id, budget_year_id, group, category_id, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
         [
           newRecurringRuleId,
           existing.budget_year_id,
           existing.group,
+          existing.category_id,
           input.amount,
           input.description,
           Number(existing.year),
@@ -457,9 +512,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
         id: string;
         budget_month_id: string;
         group: string;
+        category_id: string;
         amount: number;
       }>(
-        `SELECT e.id, e.budget_month_id, e.group, e.amount
+        `SELECT e.id, e.budget_month_id, e.group, e.category_id, e.amount
          FROM budget_expenses e
          JOIN budget_months m ON m.id = e.budget_month_id
          WHERE e.recurring_rule_id = ?
@@ -480,7 +536,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
         await run(
           `UPDATE budget_expenses
            SET amount = ?, description = ?, recurring_rule_id = ?, updated_at = ?
-           WHERE id = ?`,
+            WHERE id = ?`,
           [input.amount, input.description, newRecurringRuleId, now, expense.id],
         );
       }
@@ -489,6 +545,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
         id: existing.id,
         budgetMonthId: existing.budget_month_id,
         group: existing.group as GroupType,
+        categoryId: existing.category_id as CategoryId,
         amount: input.amount,
         description: input.description,
         recurringRuleId: newRecurringRuleId,
@@ -524,6 +581,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: existing.id,
       budgetMonthId: existing.budget_month_id,
       group: existing.group as GroupType,
+      categoryId: existing.category_id as CategoryId,
       amount: input.amount,
       description: input.description,
       recurringRuleId: null,
@@ -538,13 +596,14 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: string;
       budget_month_id: string;
       group: string;
+      category_id: string;
       amount: number;
       recurring_rule_id: string | null;
       budget_year_id: string;
       month: number;
       year: number;
     }>(
-      `SELECT e.id, e.budget_month_id, e.group, e.amount, e.recurring_rule_id, m.budget_year_id, m.month, m.year
+      `SELECT e.id, e.budget_month_id, e.group, e.category_id, e.amount, e.recurring_rule_id, m.budget_year_id, m.month, m.year
        FROM budget_expenses e
        JOIN budget_months m ON m.id = e.budget_month_id
        WHERE e.id = ?
@@ -573,9 +632,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
         id: string;
         budget_month_id: string;
         group: string;
+        category_id: string;
         amount: number;
       }>(
-        `SELECT e.id, e.budget_month_id, e.group, e.amount
+        `SELECT e.id, e.budget_month_id, e.group, e.category_id, e.amount
          FROM budget_expenses e
          JOIN budget_months m ON m.id = e.budget_month_id
          WHERE e.recurring_rule_id = ?
@@ -635,6 +695,30 @@ export const sqliteBudgetRepository: BudgetRepository = {
         updatedAt: row.updated_at,
       }))
       .sort((left, right) => compareGroups(left.group, right.group));
+  },
+
+  async getCategoriesByGroup(group: GroupType): Promise<Category[]> {
+    await ensureDefaultCategories();
+
+    const rows = await query<{
+      id: string;
+      group_name: string;
+      order_index: number;
+      is_default: number;
+    }>(
+      `SELECT id, group_name, order_index, is_default
+       FROM expense_categories
+       WHERE group_name = ?
+       ORDER BY order_index ASC`,
+      [group],
+    );
+
+    return rows.map((row) => ({
+      id: row.id as CategoryId,
+      group: row.group_name as GroupType,
+      order: Number(row.order_index),
+      isDefault: Number(row.is_default) === 1,
+    }));
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {

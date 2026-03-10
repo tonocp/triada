@@ -10,6 +10,8 @@ import type {
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
+  Category,
+  CategoryId,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
@@ -19,7 +21,15 @@ import type {
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
-import { GROUP_ORDER, GROUP_PERCENTAGES, compareGroups, type GroupType } from '@/domain/entities';
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_CATEGORIES_BY_GROUP,
+  GROUP_ORDER,
+  GROUP_PERCENTAGES,
+  compareGroups,
+  isValidCategoryForGroup,
+  type GroupType,
+} from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -56,6 +66,7 @@ interface ExpenseRow {
   id: string;
   budget_month_id: string;
   group: GroupType;
+  category_id: CategoryId;
   amount: number;
   description: string;
   recurring_rule_id: string | null;
@@ -67,12 +78,22 @@ interface RecurringExpenseRuleRow {
   id: string;
   budget_year_id: string;
   group: GroupType;
+  category_id: CategoryId;
   amount: number;
   description: string;
   start_year: number;
   start_month: number;
   end_year: number | null;
   end_month: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CategoryRow {
+  id: CategoryId;
+  group: GroupType;
+  order: number;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -134,12 +155,29 @@ async function insertRecurringExpenseRule(row: RecurringExpenseRuleRow): Promise
   await transactionDone(tx);
 }
 
+async function insertCategory(row: CategoryRow): Promise<void> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.expenseCategories, 'readwrite');
+  tx.objectStore(indexedDbStores.expenseCategories).put(row);
+  await transactionDone(tx);
+}
+
 async function readAllBudgetYears(): Promise<BudgetYearRow[]> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetYears, 'readonly');
   const result = (await requestToPromise(
     tx.objectStore(indexedDbStores.budgetYears).getAll(),
   )) as BudgetYearRow[];
+  await transactionDone(tx);
+  return result;
+}
+
+async function readAllCategoryRows(): Promise<CategoryRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.expenseCategories, 'readonly');
+  const result = (await requestToPromise(
+    tx.objectStore(indexedDbStores.expenseCategories).getAll(),
+  )) as CategoryRow[];
   await transactionDone(tx);
   return result;
 }
@@ -242,12 +280,43 @@ function mapExpenseRow(row: ExpenseRow): Expense {
     id: row.id,
     budgetMonthId: row.budget_month_id,
     group: row.group,
+    categoryId: row.category_id,
     amount: row.amount,
     description: row.description,
     recurringRuleId: row.recurring_rule_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function mapCategoryRow(row: CategoryRow): Category {
+  return {
+    id: row.id,
+    group: row.group,
+    order: row.order,
+    isDefault: row.is_default,
+  };
+}
+
+async function ensureDefaultCategories(): Promise<void> {
+  const rows = await readAllCategoryRows();
+  const rowIds = new Set(rows.map((row) => row.id));
+  const now = getCurrentTimestamp();
+
+  for (const category of DEFAULT_CATEGORIES) {
+    if (rowIds.has(category.id)) {
+      continue;
+    }
+
+    await insertCategory({
+      id: category.id,
+      group: category.group,
+      order: category.order,
+      is_default: category.isDefault,
+      created_at: now,
+      updated_at: now,
+    });
+  }
 }
 
 function getPreviousMonth(year: number, month: number): { year: number; month: number } {
@@ -483,6 +552,12 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await initIndexedDb();
 
     const now = getCurrentTimestamp();
+    const categoryId: CategoryId =
+      input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
+
+    if (!isValidCategoryForGroup(input.group, categoryId)) {
+      throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+    }
 
     if (!input.isRecurring) {
       await indexedDbBudgetRepository.addExpenseToAllocation({
@@ -495,6 +570,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: generateUUID(),
         budget_month_id: input.budgetMonthId,
         group: input.group,
+        category_id: categoryId,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: null,
@@ -517,6 +593,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       id: recurringRuleId,
       budget_year_id: targetMonth.budget_year_id,
       group: input.group,
+      category_id: categoryId,
       amount: input.amount,
       description: input.description,
       start_year: targetMonth.year,
@@ -546,6 +623,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: generateUUID(),
         budget_month_id: month.id,
         group: input.group,
+        category_id: categoryId,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: recurringRuleId,
@@ -565,6 +643,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: generateUUID(),
         budget_month_id: input.budgetMonthId,
         group: input.group,
+        category_id: categoryId,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: recurringRuleId,
@@ -611,6 +690,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: existing.recurring_rule_id,
         budget_year_id: targetMonth.budget_year_id,
         group: existing.group,
+        category_id: existing.category_id,
         amount: existing.amount,
         description: existing.description,
         start_year: targetMonth.year,
@@ -633,6 +713,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: newRuleId,
         budget_year_id: targetMonth.budget_year_id,
         group: existing.group,
+        category_id: existing.category_id,
         amount: input.amount,
         description: input.description,
         start_year: targetMonth.year,
@@ -730,6 +811,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         id: existing.recurring_rule_id,
         budget_year_id: targetMonth.budget_year_id,
         group: existing.group,
+        category_id: existing.category_id,
         amount: existing.amount,
         description: existing.description,
         start_year: targetMonth.year,
@@ -785,6 +867,17 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     const rows = await readAllocationRowsByMonth(budgetMonthId);
 
     return rows.map(mapAllocationRow).sort((left, right) => compareGroups(left.group, right.group));
+  },
+
+  async getCategoriesByGroup(group: GroupType): Promise<Category[]> {
+    await initIndexedDb();
+    await ensureDefaultCategories();
+
+    const rows = await readAllCategoryRows();
+    return rows
+      .filter((row) => row.group === group)
+      .sort((left, right) => left.order - right.order)
+      .map(mapCategoryRow);
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {

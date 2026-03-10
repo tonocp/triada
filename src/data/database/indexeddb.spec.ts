@@ -15,6 +15,7 @@ function setupIndexedDbMock(options?: {
     | 'budget_allocations'
     | 'budget_expenses'
     | 'recurring_expense_rules'
+    | 'expense_categories'
   >;
   existingIndexes?: Record<string, string[]>;
 }): IndexedDbMockResult {
@@ -108,7 +109,7 @@ describe('data/database indexeddb', () => {
 
     await indexedDbModule.initDatabase();
 
-    expect(indexedDbMock.open).toHaveBeenCalledWith('triada-web', 4);
+    expect(indexedDbMock.open).toHaveBeenCalledWith('triada-web', 5);
     expect(indexedDbModule.isDatabaseReady()).toBe(true);
 
     expect(indexedDbModule.indexedDbStores.budgetYears).toBe('budget_years');
@@ -116,6 +117,7 @@ describe('data/database indexeddb', () => {
     expect(indexedDbModule.indexedDbStores.budgetAllocations).toBe('budget_allocations');
     expect(indexedDbModule.indexedDbStores.budgetExpenses).toBe('budget_expenses');
     expect(indexedDbModule.indexedDbStores.recurringExpenseRules).toBe('recurring_expense_rules');
+    expect(indexedDbModule.indexedDbStores.expenseCategories).toBe('expense_categories');
 
     expect(
       indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetMonths],
@@ -145,6 +147,12 @@ describe('data/database indexeddb', () => {
     expect(
       indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetExpenses],
     ).toHaveBeenCalledWith(indexedDbModule.indexedDbIndexes.expensesByRule, 'recurring_rule_id', {
+      unique: false,
+    });
+
+    expect(
+      indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.expenseCategories],
+    ).toHaveBeenCalledWith(indexedDbModule.indexedDbIndexes.categoriesByGroup, 'group', {
       unique: false,
     });
   });
@@ -191,11 +199,13 @@ describe('data/database indexeddb', () => {
         'budget_allocations',
         'budget_expenses',
         'recurring_expense_rules',
+        'expense_categories',
       ],
       existingIndexes: {
         budget_months: ['by_budget_year_month'],
         budget_allocations: ['by_budget_month'],
         budget_expenses: ['by_budget_month_group', 'by_recurring_rule_id'],
+        expense_categories: ['by_group'],
       },
     });
     const indexedDbModule = await import('./indexeddb');

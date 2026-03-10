@@ -298,6 +298,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       id: 'expense-id',
       budgetMonthId: 'month-id',
       group: 'needs',
+      categoryId: 'housing',
       amount: 12_345,
       description: 'Supermercado semanal',
       recurringRuleId: null,
@@ -710,5 +711,44 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(result.months[0]?.allocations[0]?.allocated).toBe(50_000);
     expect(result.months[0]?.allocations[1]?.allocated).toBe(30_000);
     expect(result.months[0]?.allocations[2]?.allocated).toBe(20_000);
+  });
+
+  it('should return default categories by group', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'housing',
+        group_name: 'needs',
+        order_index: 0,
+        is_default: 1,
+      },
+      {
+        id: 'food',
+        group_name: 'needs',
+        order_index: 1,
+        is_default: 1,
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+    const categories = await sqliteBudgetRepository.getCategoriesByGroup('needs');
+
+    expect(categories).toEqual([
+      { id: 'housing', group: 'needs', order: 0, isDefault: true },
+      { id: 'food', group: 'needs', order: 1, isDefault: true },
+    ]);
+  });
+
+  it('should reject expense when category does not belong to group', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.addExpense({
+        budgetMonthId: 'month-id',
+        group: 'needs',
+        categoryId: 'shopping',
+        amount: 10_000,
+        description: 'Compra invalida',
+      }),
+    ).rejects.toThrow('Category shopping does not belong to group needs');
   });
 });

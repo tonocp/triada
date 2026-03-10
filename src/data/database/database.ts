@@ -106,6 +106,7 @@ export async function initDatabase(): Promise<void> {
           id TEXT PRIMARY KEY,
           budget_month_id TEXT NOT NULL,
           group TEXT NOT NULL,
+          category_id TEXT NOT NULL,
           amount INTEGER NOT NULL,
           description TEXT NOT NULL,
           recurring_rule_id TEXT,
@@ -118,6 +119,7 @@ export async function initDatabase(): Promise<void> {
           id TEXT PRIMARY KEY,
           budget_year_id TEXT NOT NULL,
           group TEXT NOT NULL,
+          category_id TEXT NOT NULL,
           amount INTEGER NOT NULL,
           description TEXT NOT NULL,
           start_year INTEGER NOT NULL,
@@ -127,6 +129,15 @@ export async function initDatabase(): Promise<void> {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           FOREIGN KEY (budget_year_id) REFERENCES budget_years(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS expense_categories (
+          id TEXT PRIMARY KEY,
+          group_name TEXT NOT NULL,
+          order_index INTEGER NOT NULL,
+          is_default INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
         );
       `,
       false,
@@ -145,6 +156,26 @@ export async function initDatabase(): Promise<void> {
     try {
       // noinspection SqlNoDataSourceInspection
       await db.execute(`ALTER TABLE budget_expenses ADD COLUMN recurring_rule_id TEXT;`, false);
+    } catch {
+      // ignore if column already exists
+    }
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(
+        `ALTER TABLE budget_expenses ADD COLUMN category_id TEXT NOT NULL DEFAULT 'housing';`,
+        false,
+      );
+    } catch {
+      // ignore if column already exists
+    }
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(
+        `ALTER TABLE recurring_expense_rules ADD COLUMN category_id TEXT NOT NULL DEFAULT 'housing';`,
+        false,
+      );
     } catch {
       // ignore if column already exists
     }

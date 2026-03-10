@@ -75,11 +75,31 @@
             >
               <RadioButton
                 v-model="expenseGroup"
-                name="expense-category"
-                :input-id="`expense-category-${cat}`"
+                name="expense-group"
+                :input-id="`expense-group-${cat}`"
                 :value="cat"
               />
               <span>{{ t(`groups.${cat}`) }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ t('dashboard.category') }}</label>
+          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.category')">
+            <label
+              v-for="category in expenseCategories"
+              :key="category.id"
+              class="category-option"
+              :class="{ 'category-option--selected': expenseCategoryId === category.id }"
+            >
+              <RadioButton
+                v-model="expenseCategoryId"
+                name="expense-category"
+                :input-id="`expense-category-${category.id}`"
+                :value="category.id"
+                :disabled="expenseGroup === ''"
+              />
+              <span>{{ t(`categories.${category.id}`) }}</span>
             </label>
           </div>
         </div>
@@ -91,7 +111,7 @@
             type="number"
             inputmode="decimal"
             :placeholder="t('setup.incomePlaceholder')"
-            :disabled="expenseGroup === ''"
+            :disabled="expenseCategoryId === ''"
             input-class="w-full"
           />
         </div>
@@ -100,7 +120,7 @@
           <Input
             v-model="expenseDescription"
             :placeholder="t('dashboard.descriptionPlaceholder')"
-            :disabled="expenseGroup === ''"
+            :disabled="expenseCategoryId === ''"
             input-class="w-full"
           />
         </div>
@@ -284,6 +304,7 @@ import {
   deleteExpense as deleteExpenseRecord,
   getBudgetMonth,
   getBudgetYearByYear,
+  getCategoriesByGroup,
   getExpensesByMonthAndGroup,
   getLatestBudgetYear,
   updateExpense as updateExpenseRecord,
@@ -296,6 +317,8 @@ import {
   type BudgetAllocation,
   type BudgetMonth,
   type BudgetYear,
+  type Category,
+  type CategoryId,
   type Expense,
   type GroupType,
 } from '@/domain/entities';
@@ -308,7 +331,7 @@ import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import RadioButton from 'primevue/radiobutton';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -332,6 +355,7 @@ const showDeleteExpenseConfirm = ref(false);
 const showEditMonthlyIncome = ref(false);
 const expenseAmount = ref('');
 const expenseGroup = ref<GroupType | ''>('');
+const expenseCategoryId = ref<CategoryId | ''>('');
 const expenseDescription = ref('');
 const isRecurringExpense = ref(false);
 const selectedHistoryGroup = ref<GroupType | null>(null);
@@ -345,6 +369,11 @@ const expensePendingDelete = ref<Expense | null>(null);
 const deletingExpenseIsRecurring = ref(false);
 const deleteApplyToFuture = ref(true);
 const editMonthlyIncome = ref('');
+const categoriesByGroup = ref<Record<GroupType, Category[]>>({
+  needs: [],
+  wants: [],
+  savings: [],
+});
 
 const groups = GROUP_ORDER;
 
@@ -354,11 +383,23 @@ const allocations = computed<BudgetAllocation[]>(() => {
   );
 });
 
+const expenseCategories = computed<Category[]>(() => {
+  if (expenseGroup.value === '') {
+    return [];
+  }
+
+  return categoriesByGroup.value[expenseGroup.value];
+});
+
 const isExpenseValid = computed(() => {
   const amount = parseFloat(expenseAmount.value);
   const description = expenseDescription.value.trim();
   return (
-    !Number.isNaN(amount) && amount > 0 && expenseGroup.value !== '' && description.length >= 3
+    !Number.isNaN(amount) &&
+    amount > 0 &&
+    expenseGroup.value !== '' &&
+    description.length >= 3 &&
+    expenseCategoryId.value !== ''
   );
 });
 
@@ -682,9 +723,10 @@ async function addExpense(): Promise<void> {
   const normalizedAmount = parseFloat(expenseAmount.value);
   const amount = toMinorUnits(normalizedAmount);
   const selectedGroup = expenseGroup.value;
+  const selectedCategoryId = expenseCategoryId.value;
   const description = expenseDescription.value.trim();
 
-  if (amount <= 0 || selectedGroup === '' || description.length < 3) {
+  if (amount <= 0 || selectedGroup === '' || selectedCategoryId === '' || description.length < 3) {
     return;
   }
 
@@ -692,6 +734,7 @@ async function addExpense(): Promise<void> {
     await createExpenseRecord({
       budgetMonthId: budgetMonth.value.id,
       group: selectedGroup,
+      categoryId: selectedCategoryId,
       amount,
       description,
       isRecurring: isRecurringExpense.value,
@@ -712,6 +755,7 @@ async function addExpense(): Promise<void> {
     showAddExpense.value = false;
     expenseAmount.value = '';
     expenseGroup.value = '';
+    expenseCategoryId.value = '';
     expenseDescription.value = '';
     isRecurringExpense.value = false;
   } catch (error) {
@@ -719,6 +763,7 @@ async function addExpense(): Promise<void> {
       error,
       budgetMonthId: budgetMonth.value.id,
       group: expenseGroup.value,
+      categoryId: expenseCategoryId.value,
       amount,
       description,
     });
@@ -891,6 +936,7 @@ async function loadData(): Promise<void> {
     }
 
     setActivePeriod(year.year, new Date().getMonth() + 1);
+    await loadCategories();
     await refreshMonthData();
   } catch (error) {
     console.error('Failed to load data:', error);
@@ -902,6 +948,30 @@ async function loadData(): Promise<void> {
     });
   }
 }
+
+async function loadCategories(): Promise<void> {
+  const [needs, wants, savings] = await Promise.all([
+    getCategoriesByGroup('needs'),
+    getCategoriesByGroup('wants'),
+    getCategoriesByGroup('savings'),
+  ]);
+
+  categoriesByGroup.value = {
+    needs,
+    wants,
+    savings,
+  };
+}
+
+watch(expenseGroup, (nextGroup) => {
+  if (!nextGroup) {
+    expenseCategoryId.value = '';
+    return;
+  }
+
+  const firstCategory = categoriesByGroup.value[nextGroup][0];
+  expenseCategoryId.value = firstCategory ? firstCategory.id : '';
+});
 
 onMounted(() => {
   loadData();

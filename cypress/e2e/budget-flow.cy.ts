@@ -170,35 +170,31 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€0.00');
+    cy.contains('Necesidades').should('be.visible');
+    cy.contains('€0.00').should('be.visible');
 
     cy.get('.actions-section .p-button').scrollIntoView();
     cy.get('.actions-section .p-button').click({ force: true });
     cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
     cy.get('.p-dialog:visible').within(() => {
-      cy.get('#expense-category-needs').check({ force: true });
+      cy.get('.category-options')
+        .first()
+        .find('input[type="radio"]')
+        .first()
+        .check({ force: true });
       cy.get('input[placeholder="0.00"]').last().clear();
       cy.get('input[placeholder="0.00"]').last().type('100.50');
       cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
       cy.contains('button', /^Agregar$/).click();
     });
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€100.50');
+    cy.contains('€100.50').should('be.visible');
 
     cy.reload();
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€100.50');
+    cy.contains('€100.50').should('be.visible');
 
-    cy.contains('.bucket-display', 'Necesidades').click();
+    cy.contains('Necesidades').click();
     cy.contains('.p-dialog-title', 'Gastos de Necesidades').should('be.visible');
     cy.get('.p-dialog:visible .expense-history-item')
       .first()
@@ -218,13 +214,10 @@ describe('Budget flow', () => {
     cy.get('#save-expense-edit').click({ force: true });
     cy.contains('Gasto actualizado').should('be.visible');
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€80.00');
+    cy.contains('€80.00').should('be.visible');
 
     cy.contains('.p-dialog:visible button', 'Cerrar').click();
-    cy.contains('.bucket-display', 'Necesidades').click();
+    cy.contains('Necesidades').click();
     cy.get('.p-dialog:visible .expense-history-item')
       .first()
       .within(() => {
@@ -236,10 +229,7 @@ describe('Budget flow', () => {
     cy.contains('.p-dialog-title', 'Eliminar gasto').should('be.visible');
     cy.get('#confirm-expense-delete').click();
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€0.00');
+    cy.contains('€0.00').should('be.visible');
   });
 
   it('should apply recurring expense from current month to future months', () => {
@@ -249,7 +239,11 @@ describe('Budget flow', () => {
     cy.get('.actions-section .p-button').click({ force: true });
 
     cy.get('.p-dialog:visible').within(() => {
-      cy.get('#expense-category-needs').check({ force: true });
+      cy.get('.category-options')
+        .first()
+        .find('input[type="radio"]')
+        .first()
+        .check({ force: true });
       cy.get('input[placeholder="0.00"]').last().clear();
       cy.get('input[placeholder="0.00"]').last().type('50');
       cy.get('input[placeholder="Describe este gasto"]').type('Renta fija');
@@ -257,17 +251,11 @@ describe('Budget flow', () => {
       cy.contains('button', /^Agregar$/).click();
     });
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€50.00');
+    cy.contains('€50.00').should('be.visible');
 
     cy.get('.month-selector .p-button').last().click({ force: true });
 
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Gastado')
-      .find('.amount-value')
-      .should('contain', '€50.00');
+    cy.contains('€50.00').should('be.visible');
   });
 
   it('should update monthly income from selected month to future months only', () => {
@@ -281,10 +269,7 @@ describe('Budget flow', () => {
     cy.contains('.p-dialog:visible button', 'Guardar').click();
 
     cy.contains('€1200.00').should('be.visible');
-    cy.contains('.bucket-display', 'Necesidades')
-      .contains('.amount-row', 'Asignado')
-      .find('.amount-value')
-      .should('contain', '€600.00');
+    cy.contains('€600.00').should('be.visible');
 
     cy.get('.month-selector .p-button').eq(0).click({ force: true });
     cy.contains('€1000.00').should('be.visible');

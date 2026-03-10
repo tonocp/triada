@@ -94,6 +94,7 @@ interface IndexedDbRepositoryModule {
     addExpense: (input: {
       budgetMonthId: string;
       group: 'needs' | 'wants' | 'savings';
+      categoryId?: string;
       amount: number;
       description: string;
       isRecurring?: boolean;
@@ -101,6 +102,7 @@ interface IndexedDbRepositoryModule {
       id: string;
       budgetMonthId: string;
       group: 'needs' | 'wants' | 'savings';
+      categoryId: string;
       amount: number;
       description: string;
       recurringRuleId: string | null;
@@ -131,12 +133,18 @@ interface IndexedDbRepositoryModule {
         id: string;
         budgetMonthId: string;
         group: 'needs' | 'wants' | 'savings';
+        categoryId: string;
         amount: number;
         description: string;
         recurringRuleId: string | null;
         createdAt: string;
         updatedAt: string;
       }>
+    >;
+    getCategoriesByGroup: (
+      group: 'needs' | 'wants' | 'savings',
+    ) => Promise<
+      Array<{ id: string; group: 'needs' | 'wants' | 'savings'; order: number; isDefault: boolean }>
     >;
     getAllocationsByMonth: (budgetMonthId: string) => Promise<
       Array<{
@@ -892,5 +900,42 @@ describe('data/repositories IndexedDB integration', () => {
     expect(
       month6?.allocations.find((allocation) => allocation.group === 'savings')?.allocated,
     ).toBe(24_000);
+  });
+
+  it('should expose default categories by group', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const categories =
+      await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup('needs');
+    const categoriesSecondRead =
+      await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup('needs');
+
+    expect(categories).toHaveLength(3);
+    expect(categories.map((category) => category.id)).toEqual(['housing', 'food', 'transport']);
+    expect(categoriesSecondRead.map((category) => category.id)).toEqual([
+      'housing',
+      'food',
+      'transport',
+    ]);
+  });
+
+  it('should reject expense when category does not belong to group', async () => {
+    const { repositoryModule } = await loadModules();
+    const budget = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    const month = budget.months[0];
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.addExpense({
+        budgetMonthId: month!.id,
+        group: 'needs',
+        categoryId: 'shopping',
+        amount: 5_000,
+        description: 'Invalido',
+      }),
+    ).rejects.toThrow('Category shopping does not belong to group needs');
   });
 });

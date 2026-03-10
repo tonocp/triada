@@ -3,6 +3,7 @@ import type {
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
+  Category,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
@@ -28,6 +29,7 @@ export interface BudgetRepository {
   deleteExpense(input: DeleteExpenseInput): Promise<void>;
   updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void>;
   getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]>;
+  getCategoriesByGroup(group: GroupType): Promise<Category[]>;
   getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]>;
   createYearWithAllocations(
     monthlyIncome: number,

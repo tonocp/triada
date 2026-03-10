@@ -1,16 +1,18 @@
 const DB_NAME = 'triada-web';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 const STORE_BUDGET_YEARS = 'budget_years';
 const STORE_BUDGET_MONTHS = 'budget_months';
 const STORE_BUDGET_ALLOCATIONS = 'budget_allocations';
 const STORE_BUDGET_EXPENSES = 'budget_expenses';
 const STORE_RECURRING_EXPENSE_RULES = 'recurring_expense_rules';
+const STORE_EXPENSE_CATEGORIES = 'expense_categories';
 
 const INDEX_BUDGET_MONTH_BY_YEAR_MONTH = 'by_budget_year_month';
 const INDEX_ALLOCATIONS_BY_MONTH = 'by_budget_month';
 const INDEX_EXPENSES_BY_MONTH_GROUP = 'by_budget_month_group';
 const INDEX_EXPENSES_BY_RULE = 'by_recurring_rule_id';
+const INDEX_CATEGORIES_BY_GROUP = 'by_group';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 let isDbReady = false;
@@ -67,6 +69,13 @@ function openDatabase(): Promise<IDBDatabase> {
       }
 
       getOrCreateStore(STORE_RECURRING_EXPENSE_RULES, { keyPath: 'id' });
+
+      {
+        const categories = getOrCreateStore(STORE_EXPENSE_CATEGORIES, { keyPath: 'id' });
+        if (!categories.indexNames.contains(INDEX_CATEGORIES_BY_GROUP)) {
+          categories.createIndex(INDEX_CATEGORIES_BY_GROUP, 'group', { unique: false });
+        }
+      }
     };
 
     request.onsuccess = () => {
@@ -119,6 +128,7 @@ export const indexedDbStores = {
   budgetAllocations: STORE_BUDGET_ALLOCATIONS,
   budgetExpenses: STORE_BUDGET_EXPENSES,
   recurringExpenseRules: STORE_RECURRING_EXPENSE_RULES,
+  expenseCategories: STORE_EXPENSE_CATEGORIES,
 } as const;
 
 export const indexedDbIndexes = {
@@ -126,4 +136,5 @@ export const indexedDbIndexes = {
   allocationsByMonth: INDEX_ALLOCATIONS_BY_MONTH,
   expensesByMonthGroup: INDEX_EXPENSES_BY_MONTH_GROUP,
   expensesByRule: INDEX_EXPENSES_BY_RULE,
+  categoriesByGroup: INDEX_CATEGORIES_BY_GROUP,
 } as const;

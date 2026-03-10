@@ -3,6 +3,7 @@ import type {
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
+  Category,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
@@ -93,6 +94,10 @@ export async function getExpensesByMonthAndGroup(
   group: GroupType,
 ): Promise<Expense[]> {
   return getRepository().getExpensesByMonthAndGroup(budgetMonthId, group);
+}
+
+export async function getCategoriesByGroup(group: GroupType): Promise<Category[]> {
+  return getRepository().getCategoriesByGroup(group);
 }
 
 export async function getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

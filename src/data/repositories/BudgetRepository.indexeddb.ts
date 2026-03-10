@@ -27,6 +27,7 @@ import {
   GROUP_ORDER,
   GROUP_PERCENTAGES,
   compareGroups,
+  isDefaultCategoryId,
   isValidCategoryForGroup,
   type GroupType,
 } from '@/domain/entities';
@@ -93,6 +94,7 @@ interface CategoryRow {
   id: CategoryId;
   group: GroupType;
   order: number;
+  name?: string;
   is_default: boolean;
   is_active: boolean;
   deleted_at: string | null;
@@ -306,10 +308,15 @@ function mapCategoryRow(row: CategoryRow): Category {
     id: row.id,
     group: row.group,
     order: row.order,
+    ...(row.name ? { name: row.name } : {}),
     isDefault: row.is_default,
     isActive: row.is_active,
     deletedAt: row.deleted_at,
   };
+}
+
+function normalizeCategoryName(name: string): string {
+  return name.trim();
 }
 
 async function ensureDefaultCategories(): Promise<void> {
@@ -326,6 +333,7 @@ async function ensureDefaultCategories(): Promise<void> {
       id: category.id,
       group: category.group,
       order: category.order,
+      name: undefined,
       is_default: category.isDefault,
       is_active: category.isActive,
       deleted_at: category.deletedAt,
@@ -584,7 +592,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
 
     if (input.categoryId) {
-      if (!isValidCategoryForGroup(input.group, categoryId)) {
+      if (isDefaultCategoryId(categoryId) && !isValidCategoryForGroup(input.group, categoryId)) {
         throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
       }
 
@@ -913,6 +921,94 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       .filter((row) => row.group === group && (options?.includeInactive === true || row.is_active))
       .sort((left, right) => left.order - right.order)
       .map(mapCategoryRow);
+  },
+
+  async createCategory(input: { group: GroupType; name: string }): Promise<Category> {
+    await initIndexedDb();
+    await ensureDefaultCategories();
+
+    const name = normalizeCategoryName(input.name);
+    if (name.length === 0) {
+      throw new Error('Category name cannot be empty');
+    }
+
+    const rows = await readAllCategoryRows();
+    const duplicated = rows.some(
+      (row) =>
+        row.group === input.group &&
+        row.is_active &&
+        row.name &&
+        row.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+
+    if (duplicated) {
+      throw new Error(`Category name ${name} already exists in group ${input.group}`);
+    }
+
+    const order =
+      rows
+        .filter((row) => row.group === input.group)
+        .reduce((maxOrder, row) => Math.max(maxOrder, row.order), -1) + 1;
+
+    const now = getCurrentTimestamp();
+    const category: CategoryRow = {
+      id: `custom-${generateUUID()}`,
+      group: input.group,
+      order,
+      name,
+      is_default: false,
+      is_active: true,
+      deleted_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await insertCategory(category);
+    return mapCategoryRow(category);
+  },
+
+  async updateCategoryName(input: {
+    group: GroupType;
+    categoryId: CategoryId;
+    name: string;
+  }): Promise<void> {
+    await initIndexedDb();
+    await ensureDefaultCategories();
+
+    const name = normalizeCategoryName(input.name);
+    if (name.length === 0) {
+      throw new Error('Category name cannot be empty');
+    }
+
+    const rows = await readAllCategoryRows();
+    const target = rows.find((row) => row.id === input.categoryId);
+
+    if (!target || target.group !== input.group || !target.is_active) {
+      throw new Error(`Category ${input.categoryId} does not belong to group ${input.group}`);
+    }
+
+    if (target.is_default) {
+      throw new Error(`Default category ${input.categoryId} cannot be renamed`);
+    }
+
+    const duplicated = rows.some(
+      (row) =>
+        row.id !== input.categoryId &&
+        row.group === input.group &&
+        row.is_active &&
+        row.name &&
+        row.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+
+    if (duplicated) {
+      throw new Error(`Category name ${name} already exists in group ${input.group}`);
+    }
+
+    await insertCategory({
+      ...target,
+      name,
+      updated_at: getCurrentTimestamp(),
+    });
   },
 
   async softDeleteCategoryAndReassign(input: {

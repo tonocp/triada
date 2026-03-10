@@ -12,15 +12,30 @@ export const CategoryId = {
   FINANCIAL_GOALS: 'financial_goals',
 } as const;
 
-export type CategoryId = (typeof CategoryId)[keyof typeof CategoryId];
+export type DefaultCategoryId = (typeof CategoryId)[keyof typeof CategoryId];
+export type CategoryId = DefaultCategoryId | string;
+
+const DEFAULT_CATEGORY_IDS = new Set<string>(Object.values(CategoryId));
 
 export interface Category {
   id: CategoryId;
   group: GroupType;
   order: number;
+  name?: string;
   isDefault: boolean;
   isActive: boolean;
   deletedAt: string | null;
+}
+
+export interface CreateCategoryInput {
+  group: GroupType;
+  name: string;
+}
+
+export interface UpdateCategoryNameInput {
+  group: GroupType;
+  categoryId: CategoryId;
+  name: string;
 }
 
 export const DEFAULT_CATEGORIES_BY_GROUP: Record<GroupType, readonly CategoryId[]> = {
@@ -104,6 +119,10 @@ export const DEFAULT_CATEGORIES: readonly Category[] = [
   },
 ];
 
+export function isDefaultCategoryId(categoryId: string): categoryId is DefaultCategoryId {
+  return DEFAULT_CATEGORY_IDS.has(categoryId);
+}
+
 export function isValidCategoryForGroup(group: GroupType, categoryId: CategoryId): boolean {
-  return DEFAULT_CATEGORIES_BY_GROUP[group].includes(categoryId);
+  return isDefaultCategoryId(categoryId) && DEFAULT_CATEGORIES_BY_GROUP[group].includes(categoryId);
 }

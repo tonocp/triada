@@ -149,11 +149,26 @@ interface IndexedDbRepositoryModule {
         id: string;
         group: 'needs' | 'wants' | 'savings';
         order: number;
+        name?: string;
         isDefault: boolean;
         isActive: boolean;
         deletedAt: string | null;
       }>
     >;
+    createCategory: (input: { group: 'needs' | 'wants' | 'savings'; name: string }) => Promise<{
+      id: string;
+      group: 'needs' | 'wants' | 'savings';
+      order: number;
+      name?: string;
+      isDefault: boolean;
+      isActive: boolean;
+      deletedAt: string | null;
+    }>;
+    updateCategoryName: (input: {
+      group: 'needs' | 'wants' | 'savings';
+      categoryId: string;
+      name: string;
+    }) => Promise<void>;
     softDeleteCategoryAndReassign: (input: {
       group: 'needs' | 'wants' | 'savings';
       categoryId: string;
@@ -930,6 +945,144 @@ describe('data/repositories IndexedDB integration', () => {
       'food',
       'transport',
     ]);
+  });
+
+  it('should create custom category and keep it active in selected group', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    const categories =
+      await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup('needs');
+
+    expect(created.group).toBe('needs');
+    expect(created.isDefault).toBe(false);
+    expect(created.isActive).toBe(true);
+    expect(created.name).toBe('Mascotas');
+    expect(categories.some((category) => category.name === 'Mascotas')).toBe(true);
+  });
+
+  it('should reject creating duplicate custom category name in same group', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.createCategory({
+        group: 'needs',
+        name: 'Mascotas',
+      }),
+    ).rejects.toThrow('Category name Mascotas already exists in group needs');
+  });
+
+  it('should reject creating custom category with empty name', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.createCategory({
+        group: 'needs',
+        name: '   ',
+      }),
+    ).rejects.toThrow('Category name cannot be empty');
+  });
+
+  it('should update custom category name', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.updateCategoryName({
+      group: 'needs',
+      categoryId: created.id,
+      name: 'Mascotas y veterinaria',
+    });
+
+    const categories =
+      await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup('needs');
+    expect(categories.find((category) => category.id === created.id)?.name).toBe(
+      'Mascotas y veterinaria',
+    );
+  });
+
+  it('should reject updating inactive category name', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: created.id,
+      replacementCategoryId: 'housing',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: created.id,
+        name: 'Mascotas y veterinaria',
+      }),
+    ).rejects.toThrow(`Category ${created.id} does not belong to group needs`);
+  });
+
+  it('should reject updating category name when new name is empty', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: created.id,
+        name: '   ',
+      }),
+    ).rejects.toThrow('Category name cannot be empty');
+  });
+
+  it('should reject renaming default category', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: 'housing',
+        name: 'Casa principal',
+      }),
+    ).rejects.toThrow('Default category housing cannot be renamed');
+  });
+
+  it('should reject renaming custom category to duplicate name', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const first = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    const second = await repositoryModule.indexedDbBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Deportes',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: second.id,
+        name: first.name ?? 'Mascotas',
+      }),
+    ).rejects.toThrow('Category name Mascotas already exists in group needs');
   });
 
   it('should reject expense when category does not belong to group', async () => {

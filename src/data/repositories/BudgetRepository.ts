@@ -8,10 +8,12 @@ import type {
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
+  CreateCategoryInput,
   CreateExpenseInput,
   DeleteExpenseInput,
   Expense,
   GroupType,
+  UpdateCategoryNameInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
@@ -102,6 +104,14 @@ export async function getCategoriesByGroup(
   options?: { includeInactive?: boolean },
 ): Promise<Category[]> {
   return getRepository().getCategoriesByGroup(group, options);
+}
+
+export async function createCategory(input: CreateCategoryInput): Promise<Category> {
+  return getRepository().createCategory(input);
+}
+
+export async function updateCategoryName(input: UpdateCategoryNameInput): Promise<void> {
+  return getRepository().updateCategoryName(input);
 }
 
 export async function softDeleteCategoryAndReassign(input: {

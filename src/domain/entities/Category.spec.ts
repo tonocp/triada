@@ -3,6 +3,7 @@ import {
   CategoryId,
   DEFAULT_CATEGORIES,
   DEFAULT_CATEGORIES_BY_GROUP,
+  isDefaultCategoryId,
   isValidCategoryForGroup,
 } from './Category';
 
@@ -27,5 +28,11 @@ describe('domain/entities - Category', () => {
   it('should validate category ownership by group', () => {
     expect(isValidCategoryForGroup('needs', CategoryId.FOOD)).toBe(true);
     expect(isValidCategoryForGroup('needs', CategoryId.SHOPPING)).toBe(false);
+    expect(isValidCategoryForGroup('needs', 'custom-grocery')).toBe(false);
+  });
+
+  it('should detect default category ids', () => {
+    expect(isDefaultCategoryId(CategoryId.HOUSING)).toBe(true);
+    expect(isDefaultCategoryId('custom-grocery')).toBe(false);
   });
 });

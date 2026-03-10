@@ -756,6 +756,174 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     ]);
   });
 
+  it('should create custom category in selected group', async () => {
+    queryMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ next_order: 1 }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+    const created = await sqliteBudgetRepository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+
+    expect(created.group).toBe('needs');
+    expect(created.isDefault).toBe(false);
+    expect(created.isActive).toBe(true);
+    expect(created.name).toBe('Mascotas');
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO expense_categories'),
+      expect.any(Array),
+    );
+  });
+
+  it('should reject creating duplicated custom category name in same group', async () => {
+    queryMock.mockResolvedValueOnce([{ id: 'custom-pets' }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.createCategory({
+        group: 'needs',
+        name: 'Mascotas',
+      }),
+    ).rejects.toThrow('Category name Mascotas already exists in group needs');
+  });
+
+  it('should reject creating custom category with empty name', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.createCategory({
+        group: 'needs',
+        name: '   ',
+      }),
+    ).rejects.toThrow('Category name cannot be empty');
+  });
+
+  it('should update custom category name when category is active', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'housing',
+          group_name: 'needs',
+          order_index: 0,
+          is_default: 1,
+          is_active: 1,
+          deleted_at: null,
+        },
+        {
+          id: 'custom-pets',
+          group_name: 'needs',
+          order_index: 3,
+          is_default: 0,
+          is_active: 1,
+          deleted_at: null,
+          name: 'Mascotas',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.updateCategoryName({
+      group: 'needs',
+      categoryId: 'custom-pets',
+      name: 'Mascotas y veterinaria',
+    });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE expense_categories'),
+      expect.any(Array),
+    );
+  });
+
+  it('should reject updating inactive custom category', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'custom-pets',
+        group_name: 'needs',
+        order_index: 3,
+        is_default: 0,
+        is_active: 0,
+        deleted_at: '2026-01-10T00:00:00.000Z',
+        name: 'Mascotas',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: 'custom-pets',
+        name: 'Mascotas y veterinaria',
+      }),
+    ).rejects.toThrow('Category custom-pets does not belong to group needs');
+  });
+
+  it('should reject updating category name when new name is empty', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: 'custom-pets',
+        name: '   ',
+      }),
+    ).rejects.toThrow('Category name cannot be empty');
+  });
+
+  it('should reject renaming default category', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'housing',
+        group_name: 'needs',
+        order_index: 0,
+        is_default: 1,
+        is_active: 1,
+        deleted_at: null,
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: 'housing',
+        name: 'Casa principal',
+      }),
+    ).rejects.toThrow('Default category housing cannot be renamed');
+  });
+
+  it('should reject renaming custom category to duplicated name', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'custom-pets',
+          group_name: 'needs',
+          order_index: 3,
+          is_default: 0,
+          is_active: 1,
+          deleted_at: null,
+          name: 'Mascotas',
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'custom-other' }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateCategoryName({
+        group: 'needs',
+        categoryId: 'custom-pets',
+        name: 'Duplicada',
+      }),
+    ).rejects.toThrow('Category name Duplicada already exists in group needs');
+  });
+
   it('should soft delete category and reassign expenses', async () => {
     queryMock.mockResolvedValueOnce([
       {

@@ -8,10 +8,12 @@ import type {
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
+  CreateCategoryInput,
   CreateExpenseInput,
   DeleteExpenseInput,
   Expense,
   GroupType,
+  UpdateCategoryNameInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
@@ -34,6 +36,8 @@ export interface BudgetRepository {
     group: GroupType,
     options?: { includeInactive?: boolean },
   ): Promise<Category[]>;
+  createCategory(input: CreateCategoryInput): Promise<Category>;
+  updateCategoryName(input: UpdateCategoryNameInput): Promise<void>;
   softDeleteCategoryAndReassign(input: {
     group: GroupType;
     categoryId: CategoryId;

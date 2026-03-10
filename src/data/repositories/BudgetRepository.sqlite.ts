@@ -22,6 +22,7 @@ import {
   GROUP_ORDER,
   GROUP_PERCENTAGES,
   compareGroups,
+  isDefaultCategoryId,
   isValidCategoryForGroup,
   type GroupType,
 } from '@/domain/entities';
@@ -41,18 +42,23 @@ function allocationForGroup(monthlyIncome: number, group: GroupType): number {
   return Math.floor((monthlyIncome * percentage) / 100);
 }
 
+function normalizeCategoryName(name: string): string {
+  return name.trim();
+}
+
 async function ensureDefaultCategories(): Promise<void> {
   const now = getCurrentTimestamp();
 
   for (const category of DEFAULT_CATEGORIES) {
     await run(
       `INSERT OR IGNORE INTO expense_categories
-      (id, group_name, order_index, is_default, is_active, deleted_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (id, group_name, order_index, name, is_default, is_active, deleted_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         category.id,
         category.group,
         category.order,
+        null,
         category.isDefault ? 1 : 0,
         category.isActive ? 1 : 0,
         category.deletedAt,
@@ -309,7 +315,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
 
     if (input.categoryId) {
-      if (!isValidCategoryForGroup(input.group, categoryId)) {
+      if (isDefaultCategoryId(categoryId) && !isValidCategoryForGroup(input.group, categoryId)) {
         throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
       }
 
@@ -738,11 +744,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: string;
       group_name: string;
       order_index: number;
+      name: string | null;
       is_default: number;
       is_active: number;
       deleted_at: string | null;
     }>(
-      `SELECT id, group_name, order_index, is_default, is_active, deleted_at
+      `SELECT id, group_name, order_index, name, is_default, is_active, deleted_at
        FROM expense_categories
        WHERE group_name = ? ${options?.includeInactive ? '' : 'AND is_active = 1'}
        ORDER BY order_index ASC`,
@@ -753,10 +760,104 @@ export const sqliteBudgetRepository: BudgetRepository = {
       id: row.id as CategoryId,
       group: row.group_name as GroupType,
       order: Number(row.order_index),
+      ...(row.name ? { name: row.name } : {}),
       isDefault: Number(row.is_default) === 1,
       isActive: Number(row.is_active) === 1,
       deletedAt: row.deleted_at,
     }));
+  },
+
+  async createCategory(input: { group: GroupType; name: string }): Promise<Category> {
+    await ensureDefaultCategories();
+
+    const name = normalizeCategoryName(input.name);
+    if (name.length === 0) {
+      throw new Error('Category name cannot be empty');
+    }
+
+    const duplicatedRows = await query<{ id: string }>(
+      `SELECT id FROM expense_categories
+       WHERE group_name = ? AND is_active = 1 AND lower(name) = lower(?)
+       LIMIT 1`,
+      [input.group, name],
+    );
+
+    if (duplicatedRows.length > 0) {
+      throw new Error(`Category name ${name} already exists in group ${input.group}`);
+    }
+
+    const orderRows = await query<{ next_order: number }>(
+      `SELECT COALESCE(MAX(order_index), -1) + 1 AS next_order
+       FROM expense_categories
+       WHERE group_name = ?`,
+      [input.group],
+    );
+
+    const id = `custom-${generateUUID()}`;
+    const now = getCurrentTimestamp();
+    const order = Number(orderRows[0]?.next_order ?? 0);
+
+    await run(
+      `INSERT INTO expense_categories
+       (id, group_name, order_index, name, is_default, is_active, deleted_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.group, order, name, 0, 1, null, now, now],
+    );
+
+    return {
+      id,
+      group: input.group,
+      order,
+      name,
+      isDefault: false,
+      isActive: true,
+      deletedAt: null,
+    };
+  },
+
+  async updateCategoryName(input: {
+    group: GroupType;
+    categoryId: CategoryId;
+    name: string;
+  }): Promise<void> {
+    await ensureDefaultCategories();
+
+    const name = normalizeCategoryName(input.name);
+    if (name.length === 0) {
+      throw new Error('Category name cannot be empty');
+    }
+
+    const categories = await sqliteBudgetRepository.getCategoriesByGroup(input.group, {
+      includeInactive: true,
+    });
+    const target = categories.find((category) => category.id === input.categoryId);
+
+    if (!target || !target.isActive) {
+      throw new Error(`Category ${input.categoryId} does not belong to group ${input.group}`);
+    }
+
+    if (target.isDefault) {
+      throw new Error(`Default category ${input.categoryId} cannot be renamed`);
+    }
+
+    const duplicateRows = await query<{ id: string }>(
+      `SELECT id FROM expense_categories
+       WHERE group_name = ? AND is_active = 1 AND id <> ? AND lower(name) = lower(?)
+       LIMIT 1`,
+      [input.group, input.categoryId, name],
+    );
+
+    if (duplicateRows.length > 0) {
+      throw new Error(`Category name ${name} already exists in group ${input.group}`);
+    }
+
+    const now = getCurrentTimestamp();
+    await run(
+      `UPDATE expense_categories
+       SET name = ?, updated_at = ?
+       WHERE id = ? AND group_name = ?`,
+      [name, now, input.categoryId, input.group],
+    );
   },
 
   async softDeleteCategoryAndReassign(input: {
@@ -805,8 +906,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
     await run(
       `UPDATE expense_categories
        SET is_active = 0, deleted_at = ?, updated_at = ?
-       WHERE id = ?`,
-      [now, now, input.categoryId],
+       WHERE id = ? AND group_name = ?`,
+      [now, now, input.categoryId, input.group],
     );
   },
 

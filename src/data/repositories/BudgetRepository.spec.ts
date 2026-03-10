@@ -14,6 +14,8 @@ const indexedDbRepositoryMock = {
   updateMonthlyIncomeFromMonth: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
   getCategoriesByGroup: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategoryName: vi.fn(),
   softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -33,6 +35,8 @@ const sqliteRepositoryMock = {
   updateMonthlyIncomeFromMonth: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
   getCategoriesByGroup: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategoryName: vi.fn(),
   softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
@@ -154,6 +158,15 @@ describe('data/repositories BudgetRepository facade', () => {
     });
     await repository.getExpensesByMonthAndGroup('month-1', 'needs');
     await repository.getCategoriesByGroup('needs');
+    await repository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    await repository.updateCategoryName({
+      group: 'needs',
+      categoryId: 'pets',
+      name: 'Mascotas y veterinaria',
+    });
     await repository.softDeleteCategoryAndReassign({
       group: 'needs',
       categoryId: 'food',
@@ -184,6 +197,15 @@ describe('data/repositories BudgetRepository facade', () => {
       'needs',
     );
     expect(indexedDbRepositoryMock.getCategoriesByGroup).toHaveBeenCalledWith('needs', undefined);
+    expect(indexedDbRepositoryMock.createCategory).toHaveBeenCalledWith({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    expect(indexedDbRepositoryMock.updateCategoryName).toHaveBeenCalledWith({
+      group: 'needs',
+      categoryId: 'pets',
+      name: 'Mascotas y veterinaria',
+    });
     expect(indexedDbRepositoryMock.softDeleteCategoryAndReassign).toHaveBeenCalledWith({
       group: 'needs',
       categoryId: 'food',

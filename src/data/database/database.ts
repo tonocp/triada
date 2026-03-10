@@ -135,6 +135,7 @@ export async function initDatabase(): Promise<void> {
           id TEXT PRIMARY KEY,
           group_name TEXT NOT NULL,
           order_index INTEGER NOT NULL,
+          name TEXT,
           is_default INTEGER NOT NULL,
           is_active INTEGER NOT NULL DEFAULT 1,
           deleted_at TEXT,
@@ -178,6 +179,13 @@ export async function initDatabase(): Promise<void> {
         `ALTER TABLE recurring_expense_rules ADD COLUMN category_id TEXT NOT NULL DEFAULT 'housing';`,
         false,
       );
+    } catch {
+      // ignore if column already exists
+    }
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(`ALTER TABLE expense_categories ADD COLUMN name TEXT;`, false);
     } catch {
       // ignore if column already exists
     }

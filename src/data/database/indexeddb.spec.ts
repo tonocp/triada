@@ -138,9 +138,9 @@ describe('data/database indexeddb', () => {
 
     expect(
       indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetExpenses],
-    ).toHaveBeenCalledWith(indexedDbModule.indexedDbIndexes.expensesByMonthBucket, [
+    ).toHaveBeenCalledWith(indexedDbModule.indexedDbIndexes.expensesByMonthGroup, [
       'budget_month_id',
-      'bucket',
+      'group',
     ]);
     expect(
       indexedDbMock.storeCreateIndexMap[indexedDbModule.indexedDbStores.budgetExpenses],
@@ -195,7 +195,7 @@ describe('data/database indexeddb', () => {
       existingIndexes: {
         budget_months: ['by_budget_year_month'],
         budget_allocations: ['by_budget_month'],
-        budget_expenses: ['by_budget_month_bucket', 'by_recurring_rule_id'],
+        budget_expenses: ['by_budget_month_group', 'by_recurring_rule_id'],
       },
     });
     const indexedDbModule = await import('./indexeddb');
@@ -209,7 +209,7 @@ describe('data/database indexeddb', () => {
     const indexedDbMock = setupIndexedDbMock({
       existingStores: ['budget_expenses'],
       existingIndexes: {
-        budget_expenses: ['by_budget_month_bucket'],
+        budget_expenses: ['by_budget_month_group'],
       },
     });
     const indexedDbModule = await import('./indexeddb');

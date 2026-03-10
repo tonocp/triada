@@ -9,7 +9,7 @@ const STORE_RECURRING_EXPENSE_RULES = 'recurring_expense_rules';
 
 const INDEX_BUDGET_MONTH_BY_YEAR_MONTH = 'by_budget_year_month';
 const INDEX_ALLOCATIONS_BY_MONTH = 'by_budget_month';
-const INDEX_EXPENSES_BY_MONTH_BUCKET = 'by_budget_month_bucket';
+const INDEX_EXPENSES_BY_MONTH_GROUP = 'by_budget_month_group';
 const INDEX_EXPENSES_BY_RULE = 'by_recurring_rule_id';
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -58,8 +58,8 @@ function openDatabase(): Promise<IDBDatabase> {
 
       {
         const expenses = getOrCreateStore(STORE_BUDGET_EXPENSES, { keyPath: 'id' });
-        if (!expenses.indexNames.contains(INDEX_EXPENSES_BY_MONTH_BUCKET)) {
-          expenses.createIndex(INDEX_EXPENSES_BY_MONTH_BUCKET, ['budget_month_id', 'bucket']);
+        if (!expenses.indexNames.contains(INDEX_EXPENSES_BY_MONTH_GROUP)) {
+          expenses.createIndex(INDEX_EXPENSES_BY_MONTH_GROUP, ['budget_month_id', 'group']);
         }
         if (!expenses.indexNames.contains(INDEX_EXPENSES_BY_RULE)) {
           expenses.createIndex(INDEX_EXPENSES_BY_RULE, 'recurring_rule_id', { unique: false });
@@ -124,6 +124,6 @@ export const indexedDbStores = {
 export const indexedDbIndexes = {
   budgetMonthByYearMonth: INDEX_BUDGET_MONTH_BY_YEAR_MONTH,
   allocationsByMonth: INDEX_ALLOCATIONS_BY_MONTH,
-  expensesByMonthBucket: INDEX_EXPENSES_BY_MONTH_BUCKET,
+  expensesByMonthGroup: INDEX_EXPENSES_BY_MONTH_GROUP,
   expensesByRule: INDEX_EXPENSES_BY_RULE,
 } as const;

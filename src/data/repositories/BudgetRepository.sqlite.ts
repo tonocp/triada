@@ -14,12 +14,7 @@ import type {
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
-import {
-  BUCKET_ORDER,
-  BUCKET_PERCENTAGES,
-  compareBuckets,
-  type BucketType,
-} from '@/domain/entities';
+import { GROUP_ORDER, GROUP_PERCENTAGES, compareGroups, type GroupType } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -31,8 +26,8 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   return { year: year - 1, month: 12 };
 }
 
-function allocationForBucket(monthlyIncome: number, bucket: BucketType): number {
-  const percentage = BUCKET_PERCENTAGES[bucket];
+function allocationForGroup(monthlyIncome: number, group: GroupType): number {
+  const percentage = GROUP_PERCENTAGES[group];
   return Math.floor((monthlyIncome * percentage) / 100);
 }
 
@@ -198,15 +193,15 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
     // noinspection SqlNoDataSourceInspection
     await run(
-      `INSERT INTO budget_allocations (id, budget_month_id, bucket, allocated, spent, created_at, updated_at)
+      `INSERT INTO budget_allocations (id, budget_month_id, group, allocated, spent, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [id, input.budgetMonthId, input.bucket, input.allocated, 0, now, now],
+      [id, input.budgetMonthId, input.group, input.allocated, 0, now, now],
     );
 
     return {
       id,
       budgetMonthId: input.budgetMonthId,
-      bucket: input.bucket,
+      group: input.group,
       allocated: input.allocated,
       spent: 0,
       createdAt: now,
@@ -221,36 +216,36 @@ export const sqliteBudgetRepository: BudgetRepository = {
     await run(
       `UPDATE budget_allocations
        SET spent = spent + ?, updated_at = ?
-       WHERE budget_month_id = ? AND bucket = ?`,
-      [input.amount, now, input.budgetMonthId, input.bucket],
+       WHERE budget_month_id = ? AND group = ?`,
+      [input.amount, now, input.budgetMonthId, input.group],
     );
 
     // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       budget_month_id: string;
-      bucket: string;
+      group: string;
       allocated: number;
       spent: number;
       created_at: string;
       updated_at: string;
-    }>(`SELECT * FROM budget_allocations WHERE budget_month_id = ? AND bucket = ? LIMIT 1`, [
+    }>(`SELECT * FROM budget_allocations WHERE budget_month_id = ? AND group = ? LIMIT 1`, [
       input.budgetMonthId,
-      input.bucket,
+      input.group,
     ]);
 
     const [row] = result;
 
     if (!row) {
       throw new Error(
-        `Allocation not found for month ${input.budgetMonthId} and bucket ${input.bucket}`,
+        `Allocation not found for month ${input.budgetMonthId} and group ${input.group}`,
       );
     }
 
     return {
       id: row.id,
       budgetMonthId: row.budget_month_id,
-      bucket: row.bucket as BucketType,
+      group: row.group as GroupType,
       allocated: Number(row.allocated),
       spent: Number(row.spent),
       createdAt: row.created_at,
@@ -266,22 +261,22 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
       await sqliteBudgetRepository.addExpenseToAllocation({
         budgetMonthId: input.budgetMonthId,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
       });
 
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO budget_expenses
-        (id, budget_month_id, bucket, amount, description, recurring_rule_id, created_at, updated_at)
+        (id, budget_month_id, group, amount, description, recurring_rule_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
-        [id, input.budgetMonthId, input.bucket, input.amount, input.description, now, now],
+        [id, input.budgetMonthId, input.group, input.amount, input.description, now, now],
       );
 
       return {
         id,
         budgetMonthId: input.budgetMonthId,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
         description: input.description,
         recurringRuleId: null,
@@ -310,12 +305,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
     // noinspection SqlNoDataSourceInspection
     await run(
       `INSERT INTO recurring_expense_rules
-      (id, budget_year_id, bucket, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
+      (id, budget_year_id, group, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
       [
         recurringRuleId,
         targetMonth.budget_year_id,
-        input.bucket,
+        input.group,
         input.amount,
         input.description,
         Number(targetMonth.year),
@@ -342,23 +337,23 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
       await sqliteBudgetRepository.addExpenseToAllocation({
         budgetMonthId: month.id,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
       });
 
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO budget_expenses
-        (id, budget_month_id, bucket, amount, description, recurring_rule_id, created_at, updated_at)
+        (id, budget_month_id, group, amount, description, recurring_rule_id, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, month.id, input.bucket, input.amount, input.description, recurringRuleId, now, now],
+        [id, month.id, input.group, input.amount, input.description, recurringRuleId, now, now],
       );
     }
 
     return {
       id: createdExpenseId,
       budgetMonthId: input.budgetMonthId,
-      bucket: input.bucket,
+      group: input.group,
       amount: input.amount,
       description: input.description,
       recurringRuleId,
@@ -367,12 +362,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
     };
   },
 
-  async getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]> {
+  async getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]> {
     // noinspection SqlNoDataSourceInspection
     const result = await query<{
       id: string;
       budget_month_id: string;
-      bucket: string;
+      group: string;
       amount: number;
       description: string;
       recurring_rule_id: string | null;
@@ -380,15 +375,15 @@ export const sqliteBudgetRepository: BudgetRepository = {
       updated_at: string;
     }>(
       `SELECT * FROM budget_expenses
-       WHERE budget_month_id = ? AND bucket = ?
+       WHERE budget_month_id = ? AND group = ?
        ORDER BY created_at DESC`,
-      [budgetMonthId, bucket],
+      [budgetMonthId, group],
     );
 
     return result.map((row) => ({
       id: row.id,
       budgetMonthId: row.budget_month_id,
-      bucket: row.bucket as BucketType,
+      group: row.group as GroupType,
       amount: Number(row.amount),
       description: row.description,
       recurringRuleId: row.recurring_rule_id ?? null,
@@ -402,7 +397,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const existingRows = await query<{
       id: string;
       budget_month_id: string;
-      bucket: string;
+      group: string;
       amount: number;
       description: string;
       recurring_rule_id: string | null;
@@ -442,12 +437,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
       // noinspection SqlNoDataSourceInspection
       await run(
         `INSERT INTO recurring_expense_rules
-        (id, budget_year_id, bucket, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
+        (id, budget_year_id, group, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?)`,
         [
           newRecurringRuleId,
           existing.budget_year_id,
-          existing.bucket,
+          existing.group,
           input.amount,
           input.description,
           Number(existing.year),
@@ -461,10 +456,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
       const futureExpenses = await query<{
         id: string;
         budget_month_id: string;
-        bucket: string;
+        group: string;
         amount: number;
       }>(
-        `SELECT e.id, e.budget_month_id, e.bucket, e.amount
+        `SELECT e.id, e.budget_month_id, e.group, e.amount
          FROM budget_expenses e
          JOIN budget_months m ON m.id = e.budget_month_id
          WHERE e.recurring_rule_id = ?
@@ -478,8 +473,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
         await run(
           `UPDATE budget_allocations
            SET spent = spent + ?, updated_at = ?
-           WHERE budget_month_id = ? AND bucket = ?`,
-          [delta, now, expense.budget_month_id, expense.bucket],
+           WHERE budget_month_id = ? AND group = ?`,
+          [delta, now, expense.budget_month_id, expense.group],
         );
 
         await run(
@@ -493,7 +488,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       return {
         id: existing.id,
         budgetMonthId: existing.budget_month_id,
-        bucket: existing.bucket as BucketType,
+        group: existing.group as GroupType,
         amount: input.amount,
         description: input.description,
         recurringRuleId: newRecurringRuleId,
@@ -509,8 +504,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
     await run(
       `UPDATE budget_allocations
        SET spent = spent + ?, updated_at = ?
-       WHERE budget_month_id = ? AND bucket = ?`,
-      [delta, now, existing.budget_month_id, existing.bucket],
+       WHERE budget_month_id = ? AND group = ?`,
+      [delta, now, existing.budget_month_id, existing.group],
     );
 
     // noinspection SqlNoDataSourceInspection
@@ -528,7 +523,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     return {
       id: existing.id,
       budgetMonthId: existing.budget_month_id,
-      bucket: existing.bucket as BucketType,
+      group: existing.group as GroupType,
       amount: input.amount,
       description: input.description,
       recurringRuleId: null,
@@ -542,14 +537,14 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const existingRows = await query<{
       id: string;
       budget_month_id: string;
-      bucket: string;
+      group: string;
       amount: number;
       recurring_rule_id: string | null;
       budget_year_id: string;
       month: number;
       year: number;
     }>(
-      `SELECT e.id, e.budget_month_id, e.bucket, e.amount, e.recurring_rule_id, m.budget_year_id, m.month, m.year
+      `SELECT e.id, e.budget_month_id, e.group, e.amount, e.recurring_rule_id, m.budget_year_id, m.month, m.year
        FROM budget_expenses e
        JOIN budget_months m ON m.id = e.budget_month_id
        WHERE e.id = ?
@@ -577,10 +572,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
       const futureExpenses = await query<{
         id: string;
         budget_month_id: string;
-        bucket: string;
+        group: string;
         amount: number;
       }>(
-        `SELECT e.id, e.budget_month_id, e.bucket, e.amount
+        `SELECT e.id, e.budget_month_id, e.group, e.amount
          FROM budget_expenses e
          JOIN budget_months m ON m.id = e.budget_month_id
          WHERE e.recurring_rule_id = ?
@@ -593,8 +588,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
         await run(
           `UPDATE budget_allocations
            SET spent = spent - ?, updated_at = ?
-           WHERE budget_month_id = ? AND bucket = ?`,
-          [Number(expense.amount), now, expense.budget_month_id, expense.bucket],
+           WHERE budget_month_id = ? AND group = ?`,
+          [Number(expense.amount), now, expense.budget_month_id, expense.group],
         );
 
         await run(`DELETE FROM budget_expenses WHERE id = ?`, [expense.id]);
@@ -609,8 +604,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
     await run(
       `UPDATE budget_allocations
        SET spent = spent - ?, updated_at = ?
-       WHERE budget_month_id = ? AND bucket = ?`,
-      [Number(existing.amount), now, existing.budget_month_id, existing.bucket],
+       WHERE budget_month_id = ? AND group = ?`,
+      [Number(existing.amount), now, existing.budget_month_id, existing.group],
     );
 
     // noinspection SqlNoDataSourceInspection
@@ -622,7 +617,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const result = await query<{
       id: string;
       budget_month_id: string;
-      bucket: string;
+      group: string;
       allocated: number;
       spent: number;
       created_at: string;
@@ -633,13 +628,13 @@ export const sqliteBudgetRepository: BudgetRepository = {
       .map((row) => ({
         id: row.id,
         budgetMonthId: row.budget_month_id,
-        bucket: row.bucket as BucketType,
+        group: row.group as GroupType,
         allocated: Number(row.allocated),
         spent: Number(row.spent),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }))
-      .sort((left, right) => compareBuckets(left.bucket, right.bucket));
+      .sort((left, right) => compareGroups(left.group, right.group));
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {
@@ -659,12 +654,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
         month.id,
       ]);
 
-      for (const bucket of BUCKET_ORDER) {
+      for (const group of GROUP_ORDER) {
         await run(
           `UPDATE budget_allocations
            SET allocated = ?, updated_at = ?
-           WHERE budget_month_id = ? AND bucket = ?`,
-          [allocationForBucket(input.monthlyIncome, bucket), now, month.id, bucket],
+           WHERE budget_month_id = ? AND group = ?`,
+          [allocationForGroup(input.monthlyIncome, group), now, month.id, group],
         );
       }
     }
@@ -692,12 +687,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
       const allocations: BudgetAllocation[] = [];
 
-      for (const bucket of BUCKET_ORDER) {
-        const percentage = BUCKET_PERCENTAGES[bucket];
+      for (const group of GROUP_ORDER) {
+        const percentage = GROUP_PERCENTAGES[group];
         const allocated = Math.floor((monthlyIncome * percentage) / 100);
         const allocation = await sqliteBudgetRepository.createBudgetAllocation({
           budgetMonthId: budgetMonth.id,
-          bucket,
+          group,
           allocated,
         });
         allocations.push(allocation);

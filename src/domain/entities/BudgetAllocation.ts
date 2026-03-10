@@ -1,9 +1,9 @@
-import type { BucketType } from './Bucket';
+import type { GroupType } from './Group';
 
 export interface BudgetAllocation {
   id: string;
   budgetMonthId: string;
-  bucket: BucketType;
+  group: GroupType;
   allocated: number;
   spent: number;
   createdAt: string;
@@ -12,12 +12,12 @@ export interface BudgetAllocation {
 
 export interface CreateBudgetAllocationInput {
   budgetMonthId: string;
-  bucket: BucketType;
+  group: GroupType;
   allocated: number;
 }
 
 export interface AddExpenseToAllocationInput {
   budgetMonthId: string;
-  bucket: BucketType;
+  group: GroupType;
   amount: number;
 }

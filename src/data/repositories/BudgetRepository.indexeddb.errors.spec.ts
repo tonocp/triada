@@ -57,7 +57,7 @@ describe('data/repositories IndexedDB transaction failures', () => {
       indexedDbIndexes: {
         budgetMonthByYearMonth: 'by_budget_year_month',
         allocationsByMonth: 'by_budget_month',
-        expensesByMonthBucket: 'by_budget_month_bucket',
+        expensesByMonthGroup: 'by_budget_month_group',
         expensesByRule: 'by_recurring_rule_id',
       },
     }));

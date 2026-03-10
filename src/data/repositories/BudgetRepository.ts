@@ -1,6 +1,5 @@
 import type {
   AddExpenseToAllocationInput,
-  BucketType,
   BudgetAllocation,
   BudgetMonth,
   BudgetYear,
@@ -10,6 +9,7 @@ import type {
   CreateExpenseInput,
   DeleteExpenseInput,
   Expense,
+  GroupType,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
@@ -88,11 +88,11 @@ export async function updateMonthlyIncomeFromMonth(
   return getRepository().updateMonthlyIncomeFromMonth(input);
 }
 
-export async function getExpensesByMonthAndBucket(
+export async function getExpensesByMonthAndGroup(
   budgetMonthId: string,
-  bucket: BucketType,
+  group: GroupType,
 ): Promise<Expense[]> {
-  return getRepository().getExpensesByMonthAndBucket(budgetMonthId, bucket);
+  return getRepository().getExpensesByMonthAndGroup(budgetMonthId, group);
 }
 
 export async function getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

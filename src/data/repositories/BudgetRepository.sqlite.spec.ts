@@ -168,7 +168,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'alloc-1',
           budget_month_id: 'month-id',
-          bucket: 'savings',
+          group: 'savings',
           allocated: 20_000,
           spent: 0,
           created_at: '2026-01-01T00:00:00.000Z',
@@ -177,7 +177,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'alloc-2',
           budget_month_id: 'month-id',
-          bucket: 'needs',
+          group: 'needs',
           allocated: 50_000,
           spent: 0,
           created_at: '2026-01-01T00:00:00.000Z',
@@ -189,7 +189,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     const result = await sqliteBudgetRepository.getBudgetMonth('year-id', 3);
 
     expect(result?.monthlyIncome).toBe(100_000);
-    expect(result?.allocations.map((item) => item.bucket)).toEqual(['needs', 'savings']);
+    expect(result?.allocations.map((item) => item.group)).toEqual(['needs', 'savings']);
   });
 
   it('should update monthly income from month and recalculate allocations without changing spent', async () => {
@@ -221,7 +221,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     const result = await sqliteBudgetRepository.createBudgetAllocation({
       budgetMonthId: 'month-id',
-      bucket: 'wants',
+      group: 'wants',
       allocated: 30_000,
     });
 
@@ -234,7 +234,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'alloc-2',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         allocated: 50_000,
         spent: 12_345,
         created_at: '2026-01-01T00:00:00.000Z',
@@ -246,14 +246,14 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     const result = await sqliteBudgetRepository.addExpenseToAllocation({
       budgetMonthId: 'month-id',
-      bucket: 'needs',
+      group: 'needs',
       amount: 12_345,
     });
 
     expect(runMock).toHaveBeenCalledTimes(1);
     expect(queryMock).toHaveBeenCalledTimes(1);
     expect(result.spent).toBe(12_345);
-    expect(result.bucket).toBe('needs');
+    expect(result.group).toBe('needs');
   });
 
   it('should throw when adding expense to missing allocation', async () => {
@@ -264,10 +264,10 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     await expect(
       sqliteBudgetRepository.addExpenseToAllocation({
         budgetMonthId: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         amount: 500,
       }),
-    ).rejects.toThrow('Allocation not found for month month-id and bucket needs');
+    ).rejects.toThrow('Allocation not found for month month-id and group needs');
   });
 
   it('should add expense with description and update allocation spent', async () => {
@@ -275,7 +275,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'alloc-2',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         allocated: 50_000,
         spent: 12_345,
         created_at: '2026-01-01T00:00:00.000Z',
@@ -287,7 +287,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     const result = await sqliteBudgetRepository.addExpense({
       budgetMonthId: 'month-id',
-      bucket: 'needs',
+      group: 'needs',
       amount: 12_345,
       description: 'Supermercado semanal',
     });
@@ -297,7 +297,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(result).toEqual({
       id: 'expense-id',
       budgetMonthId: 'month-id',
-      bucket: 'needs',
+      group: 'needs',
       amount: 12_345,
       description: 'Supermercado semanal',
       recurringRuleId: null,
@@ -306,12 +306,12 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     });
   });
 
-  it('should return month expenses by bucket with mapped fields', async () => {
+  it('should return month expenses by group with mapped fields', async () => {
     queryMock.mockResolvedValueOnce([
       {
         id: 'expense-2',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         amount: 4_000,
         description: 'Transporte',
         created_at: '2026-01-03T10:00:00.000Z',
@@ -320,7 +320,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'expense-1',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         amount: 8_500,
         description: 'Supermercado',
         created_at: '2026-01-02T10:00:00.000Z',
@@ -330,7 +330,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
 
-    const result = await sqliteBudgetRepository.getExpensesByMonthAndBucket('month-id', 'needs');
+    const result = await sqliteBudgetRepository.getExpensesByMonthAndGroup('month-id', 'needs');
 
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({
@@ -351,7 +351,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-id',
-          bucket: 'needs',
+          group: 'needs',
           amount: 6_000,
           description: 'Vieja descripcion',
           created_at: '2026-01-01T00:00:00.000Z',
@@ -362,7 +362,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-id',
-          bucket: 'needs',
+          group: 'needs',
           amount: 8_500,
           description: 'Nueva descripcion',
           created_at: '2026-01-01T00:00:00.000Z',
@@ -388,7 +388,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'expense-1',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         amount: 6_000,
         description: 'Supermercado',
         created_at: '2026-01-01T00:00:00.000Z',
@@ -446,7 +446,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       .mockResolvedValue({
         id: 'alloc-id',
         budgetMonthId: 'month-5',
-        bucket: 'needs',
+        group: 'needs',
         allocated: 50_000,
         spent: 10_000,
         createdAt: '2026-01-01T00:00:00.000Z',
@@ -455,7 +455,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     const result = await sqliteBudgetRepository.addExpense({
       budgetMonthId: 'month-5',
-      bucket: 'needs',
+      group: 'needs',
       amount: 10_000,
       description: 'Renta fija',
       isRecurring: true,
@@ -474,7 +474,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     await expect(
       sqliteBudgetRepository.addExpense({
         budgetMonthId: 'missing-month',
-        bucket: 'needs',
+        group: 'needs',
         amount: 1_000,
         description: 'Renta',
         isRecurring: true,
@@ -488,7 +488,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-5',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
           description: 'Renta',
           recurring_rule_id: 'rule-1',
@@ -503,13 +503,13 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-5',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
         },
         {
           id: 'expense-2',
           budget_month_id: 'month-6',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
         },
       ]);
@@ -533,7 +533,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-5',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
           recurring_rule_id: 'rule-1',
           budget_year_id: 'year-id',
@@ -545,13 +545,13 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-5',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
         },
         {
           id: 'expense-2',
           budget_month_id: 'month-6',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
         },
       ]);
@@ -569,7 +569,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-1',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
           description: 'Renta',
           recurring_rule_id: 'rule-1',
@@ -584,7 +584,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         {
           id: 'expense-1',
           budget_month_id: 'month-1',
-          bucket: 'needs',
+          group: 'needs',
           amount: 10_000,
         },
       ]);
@@ -608,7 +608,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'expense-1',
         budget_month_id: 'month-5',
-        bucket: 'needs',
+        group: 'needs',
         amount: 10_000,
         description: 'Renta',
         recurring_rule_id: 'rule-1',
@@ -641,7 +641,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'expense-1',
         budget_month_id: 'month-5',
-        bucket: 'needs',
+        group: 'needs',
         amount: 10_000,
         recurring_rule_id: 'rule-1',
         budget_year_id: 'year-id',
@@ -659,12 +659,12 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     ]);
   });
 
-  it('should return allocations sorted by bucket order', async () => {
+  it('should return allocations sorted by group order', async () => {
     queryMock.mockResolvedValueOnce([
       {
         id: 'alloc-1',
         budget_month_id: 'month-id',
-        bucket: 'savings',
+        group: 'savings',
         allocated: 20_000,
         spent: 0,
         created_at: '2026-01-01T00:00:00.000Z',
@@ -673,7 +673,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'alloc-2',
         budget_month_id: 'month-id',
-        bucket: 'needs',
+        group: 'needs',
         allocated: 50_000,
         spent: 0,
         created_at: '2026-01-01T00:00:00.000Z',
@@ -682,7 +682,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       {
         id: 'alloc-3',
         budget_month_id: 'month-id',
-        bucket: 'wants',
+        group: 'wants',
         allocated: 30_000,
         spent: 0,
         created_at: '2026-01-01T00:00:00.000Z',
@@ -693,7 +693,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
     const result = await sqliteBudgetRepository.getAllocationsByMonth('month-id');
 
-    expect(result.map((item) => item.bucket)).toEqual(['needs', 'wants', 'savings']);
+    expect(result.map((item) => item.group)).toEqual(['needs', 'wants', 'savings']);
   });
 
   it('should create full year with 12 months and allocations', async () => {

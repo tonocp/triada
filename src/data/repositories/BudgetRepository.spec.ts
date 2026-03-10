@@ -12,7 +12,7 @@ const indexedDbRepositoryMock = {
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   updateMonthlyIncomeFromMonth: vi.fn(),
-  getExpensesByMonthAndBucket: vi.fn(),
+  getExpensesByMonthAndGroup: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -29,7 +29,7 @@ const sqliteRepositoryMock = {
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   updateMonthlyIncomeFromMonth: vi.fn(),
-  getExpensesByMonthAndBucket: vi.fn(),
+  getExpensesByMonthAndGroup: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -113,17 +113,17 @@ describe('data/repositories BudgetRepository facade', () => {
     const monthInput = { budgetYearId: 'year-1', month: 4, year: 2026 };
     const allocationInput = {
       budgetMonthId: 'month-1',
-      bucket: 'needs' as const,
+      group: 'needs' as const,
       allocated: 50_000,
     };
     const expenseInput = {
       budgetMonthId: 'month-1',
-      bucket: 'needs' as const,
+      group: 'needs' as const,
       amount: 12_345,
     };
     const newExpenseInput = {
       budgetMonthId: 'month-1',
-      bucket: 'needs' as const,
+      group: 'needs' as const,
       amount: 12_345,
       description: 'Supermercado',
     };
@@ -147,7 +147,7 @@ describe('data/repositories BudgetRepository facade', () => {
       fromMonth: 4,
       monthlyIncome: 120_000,
     });
-    await repository.getExpensesByMonthAndBucket('month-1', 'needs');
+    await repository.getExpensesByMonthAndGroup('month-1', 'needs');
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
 
@@ -168,7 +168,7 @@ describe('data/repositories BudgetRepository facade', () => {
       fromMonth: 4,
       monthlyIncome: 120_000,
     });
-    expect(indexedDbRepositoryMock.getExpensesByMonthAndBucket).toHaveBeenCalledWith(
+    expect(indexedDbRepositoryMock.getExpensesByMonthAndGroup).toHaveBeenCalledWith(
       'month-1',
       'needs',
     );

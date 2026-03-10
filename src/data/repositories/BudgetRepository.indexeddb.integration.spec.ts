@@ -1,4 +1,4 @@
-import { BUCKET_ORDER } from '@/domain/entities';
+import { GROUP_ORDER } from '@/domain/entities';
 import { IDBKeyRange, indexedDB } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -44,7 +44,7 @@ interface IndexedDbRepositoryModule {
       year: number;
       monthlyIncome: number;
       allocations: Array<{
-        bucket: 'needs' | 'wants' | 'savings';
+        group: 'needs' | 'wants' | 'savings';
         allocated: number;
         spent: number;
       }>;
@@ -59,7 +59,7 @@ interface IndexedDbRepositoryModule {
       year: number;
       monthlyIncome: number;
       allocations: Array<{
-        bucket: 'needs' | 'wants' | 'savings';
+        group: 'needs' | 'wants' | 'savings';
         allocated: number;
         spent: number;
       }>;
@@ -71,36 +71,36 @@ interface IndexedDbRepositoryModule {
     }) => Promise<void>;
     createBudgetAllocation: (input: {
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       allocated: number;
     }) => Promise<{
       id: string;
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       allocated: number;
       spent: number;
     }>;
     addExpenseToAllocation: (input: {
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       amount: number;
     }) => Promise<{
       id: string;
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       allocated: number;
       spent: number;
     }>;
     addExpense: (input: {
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
       isRecurring?: boolean;
     }) => Promise<{
       id: string;
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
       recurringRuleId: string | null;
@@ -115,7 +115,7 @@ interface IndexedDbRepositoryModule {
     }) => Promise<{
       id: string;
       budgetMonthId: string;
-      bucket: 'needs' | 'wants' | 'savings';
+      group: 'needs' | 'wants' | 'savings';
       amount: number;
       description: string;
       recurringRuleId: string | null;
@@ -123,14 +123,14 @@ interface IndexedDbRepositoryModule {
       updatedAt: string;
     }>;
     deleteExpense: (input: { expenseId: string; applyToFuture?: boolean }) => Promise<void>;
-    getExpensesByMonthAndBucket: (
+    getExpensesByMonthAndGroup: (
       budgetMonthId: string,
-      bucket: 'needs' | 'wants' | 'savings',
+      group: 'needs' | 'wants' | 'savings',
     ) => Promise<
       Array<{
         id: string;
         budgetMonthId: string;
-        bucket: 'needs' | 'wants' | 'savings';
+        group: 'needs' | 'wants' | 'savings';
         amount: number;
         description: string;
         recurringRuleId: string | null;
@@ -140,7 +140,7 @@ interface IndexedDbRepositoryModule {
     >;
     getAllocationsByMonth: (budgetMonthId: string) => Promise<
       Array<{
-        bucket: 'needs' | 'wants' | 'savings';
+        group: 'needs' | 'wants' | 'savings';
         allocated: number;
         spent: number;
       }>
@@ -160,7 +160,7 @@ interface IndexedDbRepositoryModule {
         id: string;
         month: number;
         allocations: Array<{
-          bucket: 'needs' | 'wants' | 'savings';
+          group: 'needs' | 'wants' | 'savings';
           allocated: number;
           spent: number;
         }>;
@@ -215,7 +215,7 @@ describe('data/repositories IndexedDB integration', () => {
     const firstMonth = result.months[0];
     expect(firstMonth?.month).toBe(1);
     expect(firstMonth?.allocations).toHaveLength(3);
-    expect(firstMonth?.allocations.map((allocation) => allocation.bucket)).toEqual(BUCKET_ORDER);
+    expect(firstMonth?.allocations.map((allocation) => allocation.group)).toEqual(GROUP_ORDER);
 
     expect(firstMonth?.allocations[0]?.allocated).toBe(50_000);
     expect(firstMonth?.allocations[1]?.allocated).toBe(30_000);
@@ -340,7 +340,7 @@ describe('data/repositories IndexedDB integration', () => {
     expect(month).toBeNull();
   });
 
-  it('should return allocations sorted by bucket order even when inserted unordered', async () => {
+  it('should return allocations sorted by group order even when inserted unordered', async () => {
     const { repositoryModule } = await loadModules();
 
     const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
@@ -357,17 +357,17 @@ describe('data/repositories IndexedDB integration', () => {
 
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'savings',
+      group: 'savings',
       allocated: 20_000,
     });
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       allocated: 50_000,
     });
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'wants',
+      group: 'wants',
       allocated: 30_000,
     });
 
@@ -375,11 +375,11 @@ describe('data/repositories IndexedDB integration', () => {
       budgetMonth.id,
     );
 
-    expect(allocations.map((allocation) => allocation.bucket)).toEqual(BUCKET_ORDER);
+    expect(allocations.map((allocation) => allocation.group)).toEqual(GROUP_ORDER);
 
     const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 3);
     expect(month).not.toBeNull();
-    expect(month?.allocations.map((allocation) => allocation.bucket)).toEqual(BUCKET_ORDER);
+    expect(month?.allocations.map((allocation) => allocation.group)).toEqual(GROUP_ORDER);
   });
 
   it('should keep spent as zero when allocation is created', async () => {
@@ -399,14 +399,14 @@ describe('data/repositories IndexedDB integration', () => {
 
     const allocation = await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'wants',
+      group: 'wants',
       allocated: 30_000,
     });
 
     expect(allocation.spent).toBe(0);
   });
 
-  it('should add expense to bucket spent and keep persistence', async () => {
+  it('should add expense to group spent and keep persistence', async () => {
     const { repositoryModule } = await loadModules();
 
     const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
@@ -423,19 +423,19 @@ describe('data/repositories IndexedDB integration', () => {
 
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       allocated: 50_000,
     });
 
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'wants',
+      group: 'wants',
       allocated: 30_000,
     });
 
     const updated = await repositoryModule.indexedDbBudgetRepository.addExpenseToAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 12_345,
     });
 
@@ -443,10 +443,10 @@ describe('data/repositories IndexedDB integration', () => {
 
     const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 4);
     expect(month).not.toBeNull();
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(
+    expect(month?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
       12_345,
     );
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'wants')?.spent).toBe(0);
+    expect(month?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(0);
   });
 
   it('should throw when adding expense to missing allocation', async () => {
@@ -467,13 +467,13 @@ describe('data/repositories IndexedDB integration', () => {
     await expect(
       repositoryModule.indexedDbBudgetRepository.addExpenseToAllocation({
         budgetMonthId: budgetMonth.id,
-        bucket: 'needs',
+        group: 'needs',
         amount: 500,
       }),
-    ).rejects.toThrow(`Allocation not found for month ${budgetMonth.id} and bucket needs`);
+    ).rejects.toThrow(`Allocation not found for month ${budgetMonth.id} and group needs`);
   });
 
-  it('should create expense with description and list month expenses by bucket', async () => {
+  it('should create expense with description and list month expenses by group', async () => {
     const { repositoryModule } = await loadModules();
 
     const budgetYear = await repositoryModule.indexedDbBudgetRepository.createBudgetYear({
@@ -490,18 +490,18 @@ describe('data/repositories IndexedDB integration', () => {
 
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       allocated: 50_000,
     });
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'wants',
+      group: 'wants',
       allocated: 30_000,
     });
 
     const created = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 12_345,
       description: 'Supermercado semanal',
     });
@@ -511,25 +511,25 @@ describe('data/repositories IndexedDB integration', () => {
 
     await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 4_000,
       description: 'Transporte',
     });
 
     await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: budgetMonth.id,
-      bucket: 'wants',
+      group: 'wants',
       amount: 5_000,
       description: 'Cine',
     });
 
     const needsExpenses =
-      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndBucket(
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndGroup(
         budgetMonth.id,
         'needs',
       );
     const wantsExpenses =
-      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndBucket(
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndGroup(
         budgetMonth.id,
         'wants',
       );
@@ -542,10 +542,10 @@ describe('data/repositories IndexedDB integration', () => {
     expect(wantsExpenses[0]?.description).toBe('Cine');
 
     const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 5);
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(
+    expect(month?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
       16_345,
     );
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'wants')?.spent).toBe(
+    expect(month?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
       5_000,
     );
   });
@@ -567,13 +567,13 @@ describe('data/repositories IndexedDB integration', () => {
 
     await repositoryModule.indexedDbBudgetRepository.createBudgetAllocation({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       allocated: 50_000,
     });
 
     const created = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: budgetMonth.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 10_000,
       description: 'Compra 1',
     });
@@ -588,16 +588,16 @@ describe('data/repositories IndexedDB integration', () => {
     expect(updated.description).toBe('Compra editada');
 
     let month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 6);
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(
+    expect(month?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
       15_000,
     );
 
     await repositoryModule.indexedDbBudgetRepository.deleteExpense({ expenseId: created.id });
 
     month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(budgetYear.id, 6);
-    expect(month?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent).toBe(0);
+    expect(month?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(0);
 
-    const expenses = await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndBucket(
+    const expenses = await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndGroup(
       budgetMonth.id,
       'needs',
     );
@@ -637,7 +637,7 @@ describe('data/repositories IndexedDB integration', () => {
 
     const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: month5!.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 10_000,
       description: 'Renta',
       isRecurring: true,
@@ -659,13 +659,13 @@ describe('data/repositories IndexedDB integration', () => {
     );
 
     expect(
-      month4Before?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month4Before?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(0);
     expect(
-      month5AfterCreate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month5AfterCreate?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(10_000);
     expect(
-      month6AfterCreate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month6AfterCreate?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(10_000);
 
     await repositoryModule.indexedDbBudgetRepository.updateExpense({
@@ -684,10 +684,10 @@ describe('data/repositories IndexedDB integration', () => {
     );
 
     expect(
-      month5AfterUpdate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month5AfterUpdate?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(12_000);
     expect(
-      month6AfterUpdate?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month6AfterUpdate?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(12_000);
 
     await repositoryModule.indexedDbBudgetRepository.deleteExpense({ expenseId: recurring.id });
@@ -702,14 +702,14 @@ describe('data/repositories IndexedDB integration', () => {
     );
 
     expect(
-      month4AfterDelete?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month4AfterDelete?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(0);
     expect(
-      month5AfterDelete?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
+      month5AfterDelete?.allocations.find((allocation) => allocation.group === 'needs')?.spent,
     ).toBe(0);
 
     const month5Expenses =
-      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndBucket(
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndGroup(
         month5!.id,
         'needs',
       );
@@ -729,7 +729,7 @@ describe('data/repositories IndexedDB integration', () => {
 
     const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: january!.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 9_000,
       description: 'Suscripcion',
       isRecurring: true,
@@ -757,7 +757,7 @@ describe('data/repositories IndexedDB integration', () => {
 
     const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: month5!.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 10_000,
       description: 'Renta',
       isRecurring: true,
@@ -779,12 +779,12 @@ describe('data/repositories IndexedDB integration', () => {
       6,
     );
 
-    expect(
-      month5After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
-    ).toBe(11_000);
-    expect(
-      month6After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
-    ).toBe(10_000);
+    expect(month5After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      11_000,
+    );
+    expect(month6After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      10_000,
+    );
   });
 
   it('should delete only current month when recurring expense uses applyToFuture false', async () => {
@@ -800,7 +800,7 @@ describe('data/repositories IndexedDB integration', () => {
 
     const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
       budgetMonthId: month5!.id,
-      bucket: 'needs',
+      group: 'needs',
       amount: 10_000,
       description: 'Renta',
       isRecurring: true,
@@ -820,12 +820,12 @@ describe('data/repositories IndexedDB integration', () => {
       6,
     );
 
-    expect(
-      month5After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
-    ).toBe(0);
-    expect(
-      month6After?.allocations.find((allocation) => allocation.bucket === 'needs')?.spent,
-    ).toBe(10_000);
+    expect(month5After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      0,
+    );
+    expect(month6After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      10_000,
+    );
   });
 
   it('should throw when creating recurring expense with missing month', async () => {
@@ -834,7 +834,7 @@ describe('data/repositories IndexedDB integration', () => {
     await expect(
       repositoryModule.indexedDbBudgetRepository.addExpense({
         budgetMonthId: 'missing-month',
-        bucket: 'needs',
+        group: 'needs',
         amount: 1_000,
         description: 'Invalido',
         isRecurring: true,
@@ -883,14 +883,14 @@ describe('data/repositories IndexedDB integration', () => {
 
     expect(month5?.monthlyIncome).toBe(100_000);
     expect(month6?.monthlyIncome).toBe(120_000);
-    expect(month6?.allocations.find((allocation) => allocation.bucket === 'needs')?.allocated).toBe(
+    expect(month6?.allocations.find((allocation) => allocation.group === 'needs')?.allocated).toBe(
       60_000,
     );
-    expect(month6?.allocations.find((allocation) => allocation.bucket === 'wants')?.allocated).toBe(
+    expect(month6?.allocations.find((allocation) => allocation.group === 'wants')?.allocated).toBe(
       36_000,
     );
     expect(
-      month6?.allocations.find((allocation) => allocation.bucket === 'savings')?.allocated,
+      month6?.allocations.find((allocation) => allocation.group === 'savings')?.allocated,
     ).toBe(24_000);
   });
 });

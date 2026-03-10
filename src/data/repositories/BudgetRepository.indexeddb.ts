@@ -19,12 +19,7 @@ import type {
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
-import {
-  BUCKET_ORDER,
-  BUCKET_PERCENTAGES,
-  compareBuckets,
-  type BucketType,
-} from '@/domain/entities';
+import { GROUP_ORDER, GROUP_PERCENTAGES, compareGroups, type GroupType } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -50,7 +45,7 @@ interface BudgetMonthRow {
 interface BudgetAllocationRow {
   id: string;
   budget_month_id: string;
-  bucket: BucketType;
+  group: GroupType;
   allocated: number;
   spent: number;
   created_at: string;
@@ -60,7 +55,7 @@ interface BudgetAllocationRow {
 interface ExpenseRow {
   id: string;
   budget_month_id: string;
-  bucket: BucketType;
+  group: GroupType;
   amount: number;
   description: string;
   recurring_rule_id: string | null;
@@ -71,7 +66,7 @@ interface ExpenseRow {
 interface RecurringExpenseRuleRow {
   id: string;
   budget_year_id: string;
-  bucket: BucketType;
+  group: GroupType;
   amount: number;
   description: string;
   start_year: number;
@@ -176,16 +171,16 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   return rows;
 }
 
-async function readExpenseRowsByMonthAndBucket(
+async function readExpenseRowsByMonthAndGroup(
   budgetMonthId: string,
-  bucket: BucketType,
+  group: GroupType,
 ): Promise<ExpenseRow[]> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
   const store = tx.objectStore(indexedDbStores.budgetExpenses);
-  const index = store.index(indexedDbIndexes.expensesByMonthBucket);
+  const index = store.index(indexedDbIndexes.expensesByMonthGroup);
   const rows = (await requestToPromise(
-    index.getAll(IDBKeyRange.only([budgetMonthId, bucket])),
+    index.getAll(IDBKeyRange.only([budgetMonthId, group])),
   )) as ExpenseRow[];
   await transactionDone(tx);
   return rows;
@@ -234,7 +229,7 @@ function mapAllocationRow(row: BudgetAllocationRow): BudgetAllocation {
   return {
     id: row.id,
     budgetMonthId: row.budget_month_id,
-    bucket: row.bucket,
+    group: row.group,
     allocated: row.allocated,
     spent: row.spent,
     createdAt: row.created_at,
@@ -246,7 +241,7 @@ function mapExpenseRow(row: ExpenseRow): Expense {
   return {
     id: row.id,
     budgetMonthId: row.budget_month_id,
-    bucket: row.bucket,
+    group: row.group,
     amount: row.amount,
     description: row.description,
     recurringRuleId: row.recurring_rule_id ?? null,
@@ -263,8 +258,8 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   return { year: year - 1, month: 12 };
 }
 
-function allocationForBucket(monthlyIncome: number, bucket: BucketType): number {
-  const percentage = BUCKET_PERCENTAGES[bucket];
+function allocationForGroup(monthlyIncome: number, group: GroupType): number {
+  const percentage = GROUP_PERCENTAGES[group];
   return Math.floor((monthlyIncome * percentage) / 100);
 }
 
@@ -442,7 +437,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await insertBudgetAllocation({
       id,
       budget_month_id: input.budgetMonthId,
-      bucket: input.bucket,
+      group: input.group,
       allocated: input.allocated,
       spent: 0,
       created_at: now,
@@ -452,7 +447,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     return {
       id,
       budgetMonthId: input.budgetMonthId,
-      bucket: input.bucket,
+      group: input.group,
       allocated: input.allocated,
       spent: 0,
       createdAt: now,
@@ -464,11 +459,11 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await initIndexedDb();
 
     const rows = await readAllocationRowsByMonth(input.budgetMonthId);
-    const existing = rows.find((row) => row.bucket === input.bucket);
+    const existing = rows.find((row) => row.group === input.group);
 
     if (!existing) {
       throw new Error(
-        `Allocation not found for month ${input.budgetMonthId} and bucket ${input.bucket}`,
+        `Allocation not found for month ${input.budgetMonthId} and group ${input.group}`,
       );
     }
 
@@ -492,14 +487,14 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     if (!input.isRecurring) {
       await indexedDbBudgetRepository.addExpenseToAllocation({
         budgetMonthId: input.budgetMonthId,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
       });
 
       const row: ExpenseRow = {
         id: generateUUID(),
         budget_month_id: input.budgetMonthId,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: null,
@@ -521,7 +516,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     await insertRecurringExpenseRule({
       id: recurringRuleId,
       budget_year_id: targetMonth.budget_year_id,
-      bucket: input.bucket,
+      group: input.group,
       amount: input.amount,
       description: input.description,
       start_year: targetMonth.year,
@@ -543,14 +538,14 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     for (const month of futureMonths) {
       await indexedDbBudgetRepository.addExpenseToAllocation({
         budgetMonthId: month.id,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
       });
 
       const row: ExpenseRow = {
         id: generateUUID(),
         budget_month_id: month.id,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: recurringRuleId,
@@ -569,7 +564,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       mapExpenseRow({
         id: generateUUID(),
         budget_month_id: input.budgetMonthId,
-        bucket: input.bucket,
+        group: input.group,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: recurringRuleId,
@@ -579,10 +574,10 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     );
   },
 
-  async getExpensesByMonthAndBucket(budgetMonthId: string, bucket: BucketType): Promise<Expense[]> {
+  async getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]> {
     await initIndexedDb();
 
-    const rows = await readExpenseRowsByMonthAndBucket(budgetMonthId, bucket);
+    const rows = await readExpenseRowsByMonthAndGroup(budgetMonthId, group);
 
     return rows
       .map(mapExpenseRow)
@@ -615,7 +610,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       const existingRule = (await findRecurringExpenseRuleById(existing.recurring_rule_id)) ?? {
         id: existing.recurring_rule_id,
         budget_year_id: targetMonth.budget_year_id,
-        bucket: existing.bucket,
+        group: existing.group,
         amount: existing.amount,
         description: existing.description,
         start_year: targetMonth.year,
@@ -637,7 +632,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       await insertRecurringExpenseRule({
         id: newRuleId,
         budget_year_id: targetMonth.budget_year_id,
-        bucket: existing.bucket,
+        group: existing.group,
         amount: input.amount,
         description: input.description,
         start_year: targetMonth.year,
@@ -662,7 +657,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         const delta = input.amount - expense.amount;
         await indexedDbBudgetRepository.addExpenseToAllocation({
           budgetMonthId: expense.budget_month_id,
-          bucket: expense.bucket,
+          group: expense.group,
           amount: delta,
         });
 
@@ -690,7 +685,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     await indexedDbBudgetRepository.addExpenseToAllocation({
       budgetMonthId: existing.budget_month_id,
-      bucket: existing.bucket,
+      group: existing.group,
       amount: delta,
     });
 
@@ -734,7 +729,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       const existingRule = (await findRecurringExpenseRuleById(existing.recurring_rule_id)) ?? {
         id: existing.recurring_rule_id,
         budget_year_id: targetMonth.budget_year_id,
-        bucket: existing.bucket,
+        group: existing.group,
         amount: existing.amount,
         description: existing.description,
         start_year: targetMonth.year,
@@ -765,7 +760,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       for (const expense of futureExpenses) {
         await indexedDbBudgetRepository.addExpenseToAllocation({
           budgetMonthId: expense.budget_month_id,
-          bucket: expense.bucket,
+          group: expense.group,
           amount: -expense.amount,
         });
 
@@ -777,7 +772,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     await indexedDbBudgetRepository.addExpenseToAllocation({
       budgetMonthId: existing.budget_month_id,
-      bucket: existing.bucket,
+      group: existing.group,
       amount: -existing.amount,
     });
 
@@ -789,9 +784,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     const rows = await readAllocationRowsByMonth(budgetMonthId);
 
-    return rows
-      .map(mapAllocationRow)
-      .sort((left, right) => compareBuckets(left.bucket, right.bucket));
+    return rows.map(mapAllocationRow).sort((left, right) => compareGroups(left.group, right.group));
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {
@@ -816,7 +809,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       for (const allocation of allocations) {
         await insertBudgetAllocation({
           ...allocation,
-          allocated: allocationForBucket(input.monthlyIncome, allocation.bucket),
+          allocated: allocationForGroup(input.monthlyIncome, allocation.group),
           updated_at: now,
         });
       }
@@ -845,12 +838,12 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
       const allocations: BudgetAllocation[] = [];
 
-      for (const bucket of BUCKET_ORDER) {
-        const percentage = BUCKET_PERCENTAGES[bucket];
+      for (const group of GROUP_ORDER) {
+        const percentage = GROUP_PERCENTAGES[group];
         const allocated = Math.floor((monthlyIncome * percentage) / 100);
         const allocation = await indexedDbBudgetRepository.createBudgetAllocation({
           budgetMonthId: budgetMonth.id,
-          bucket,
+          group,
           allocated,
         });
         allocations.push(allocation);

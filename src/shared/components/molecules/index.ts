@@ -1,1 +1,1 @@
-export { default as BucketDisplay } from './BucketDisplay.vue';
+export { default as GroupDisplay } from './GroupDisplay.vue';

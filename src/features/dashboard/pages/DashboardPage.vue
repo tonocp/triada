@@ -32,11 +32,11 @@
       </div>
     </div>
 
-    <div v-if="budgetMonth" class="buckets-section">
-      <BucketDisplay
+    <div v-if="budgetMonth" class="groups-section">
+      <GroupDisplay
         v-for="allocation in allocations"
-        :key="allocation.bucket"
-        :bucket="allocation.bucket"
+        :key="allocation.group"
+        :group="allocation.group"
         :allocated="allocation.allocated"
         :spent="allocation.spent"
         :interactive="true"
@@ -65,21 +65,21 @@
     >
       <div class="expense-form">
         <div class="form-group">
-          <label>{{ t('dashboard.category') }}</label>
-          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.category')">
+          <label>{{ t('dashboard.group') }}</label>
+          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.group')">
             <label
-              v-for="cat in categories"
+              v-for="cat in groups"
               :key="cat"
               class="category-option"
-              :class="{ 'category-option--selected': expenseCategory === cat }"
+              :class="{ 'category-option--selected': expenseGroup === cat }"
             >
               <RadioButton
-                v-model="expenseCategory"
+                v-model="expenseGroup"
                 name="expense-category"
                 :input-id="`expense-category-${cat}`"
                 :value="cat"
               />
-              <span>{{ t(`buckets.${cat}`) }}</span>
+              <span>{{ t(`groups.${cat}`) }}</span>
             </label>
           </div>
         </div>
@@ -91,7 +91,7 @@
             type="number"
             inputmode="decimal"
             :placeholder="t('setup.incomePlaceholder')"
-            :disabled="expenseCategory === ''"
+            :disabled="expenseGroup === ''"
             input-class="w-full"
           />
         </div>
@@ -100,7 +100,7 @@
           <Input
             v-model="expenseDescription"
             :placeholder="t('dashboard.descriptionPlaceholder')"
-            :disabled="expenseCategory === ''"
+            :disabled="expenseGroup === ''"
             input-class="w-full"
           />
         </div>
@@ -126,15 +126,11 @@
       :header="expenseHistoryTitle"
       :style="{ width: '90vw' }"
     >
-      <div v-if="selectedBucketExpenses.length === 0" class="empty-state">
-        <p>{{ t('dashboard.noExpensesForCategory') }}</p>
+      <div v-if="selectedGroupExpenses.length === 0" class="empty-state">
+        <p>{{ t('dashboard.noExpensesForGroup') }}</p>
       </div>
       <ul v-else class="expense-history-list">
-        <li
-          v-for="expense in selectedBucketExpenses"
-          :key="expense.id"
-          class="expense-history-item"
-        >
+        <li v-for="expense in selectedGroupExpenses" :key="expense.id" class="expense-history-item">
           <div class="expense-history-content">
             <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
             <span class="expense-history-description">{{ expense.description }}</span>
@@ -288,23 +284,23 @@ import {
   deleteExpense as deleteExpenseRecord,
   getBudgetMonth,
   getBudgetYearByYear,
-  getExpensesByMonthAndBucket,
+  getExpensesByMonthAndGroup,
   getLatestBudgetYear,
   updateExpense as updateExpenseRecord,
   updateMonthlyIncomeFromMonth,
 } from '@/data/repositories';
 import {
-  BUCKET_ORDER,
-  BUCKET_PERCENTAGES,
-  compareBuckets,
-  type BucketType,
+  GROUP_ORDER,
+  GROUP_PERCENTAGES,
+  compareGroups,
   type BudgetAllocation,
   type BudgetMonth,
   type BudgetYear,
   type Expense,
+  type GroupType,
 } from '@/domain/entities';
 import { Input } from '@/shared/components/atoms';
-import { BucketDisplay } from '@/shared/components/molecules';
+import { GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
@@ -335,11 +331,11 @@ const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
 const showEditMonthlyIncome = ref(false);
 const expenseAmount = ref('');
-const expenseCategory = ref<BucketType | ''>('');
+const expenseGroup = ref<GroupType | ''>('');
 const expenseDescription = ref('');
 const isRecurringExpense = ref(false);
-const selectedHistoryBucket = ref<BucketType | null>(null);
-const selectedBucketExpenses = ref<Expense[]>([]);
+const selectedHistoryGroup = ref<GroupType | null>(null);
+const selectedGroupExpenses = ref<Expense[]>([]);
 const editingExpenseId = ref<string | null>(null);
 const editExpenseAmount = ref('');
 const editExpenseDescription = ref('');
@@ -350,11 +346,11 @@ const deletingExpenseIsRecurring = ref(false);
 const deleteApplyToFuture = ref(true);
 const editMonthlyIncome = ref('');
 
-const categories = BUCKET_ORDER;
+const groups = GROUP_ORDER;
 
 const allocations = computed<BudgetAllocation[]>(() => {
   return [...(budgetMonth.value?.allocations ?? [])].sort((left, right) =>
-    compareBuckets(left.bucket, right.bucket),
+    compareGroups(left.group, right.group),
   );
 });
 
@@ -362,7 +358,7 @@ const isExpenseValid = computed(() => {
   const amount = parseFloat(expenseAmount.value);
   const description = expenseDescription.value.trim();
   return (
-    !Number.isNaN(amount) && amount > 0 && expenseCategory.value !== '' && description.length >= 3
+    !Number.isNaN(amount) && amount > 0 && expenseGroup.value !== '' && description.length >= 3
   );
 });
 
@@ -378,12 +374,12 @@ const isMonthlyIncomeValid = computed(() => {
 });
 
 const expenseHistoryTitle = computed(() => {
-  if (!selectedHistoryBucket.value) {
-    return t('dashboard.expenseHistoryTitle', { category: '' });
+  if (!selectedHistoryGroup.value) {
+    return t('dashboard.expenseHistoryTitle', { group: '' });
   }
 
   return t('dashboard.expenseHistoryTitle', {
-    category: t(`buckets.${selectedHistoryBucket.value}`),
+    group: t(`groups.${selectedHistoryGroup.value}`),
   });
 });
 
@@ -541,9 +537,9 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
       continue;
     }
 
-    for (const bucket of BUCKET_ORDER) {
-      const percentage = BUCKET_PERCENTAGES[bucket];
-      const hasAllocation = existingMonth.allocations.some((item) => item.bucket === bucket);
+    for (const group of GROUP_ORDER) {
+      const percentage = GROUP_PERCENTAGES[group];
+      const hasAllocation = existingMonth.allocations.some((item) => item.group === group);
       if (hasAllocation) {
         continue;
       }
@@ -553,14 +549,14 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
       try {
         await createBudgetAllocation({
           budgetMonthId: existingMonth.id,
-          bucket,
+          group,
           allocated,
         });
       } catch (error) {
         console.warn('Failed to create missing allocation, continuing', {
           year: year.year,
           month,
-          bucket,
+          group,
           error,
         });
       }
@@ -685,24 +681,24 @@ async function addExpense(): Promise<void> {
 
   const normalizedAmount = parseFloat(expenseAmount.value);
   const amount = toMinorUnits(normalizedAmount);
-  const selectedCategory = expenseCategory.value;
+  const selectedGroup = expenseGroup.value;
   const description = expenseDescription.value.trim();
 
-  if (amount <= 0 || selectedCategory === '' || description.length < 3) {
+  if (amount <= 0 || selectedGroup === '' || description.length < 3) {
     return;
   }
 
   try {
     await createExpenseRecord({
       budgetMonthId: budgetMonth.value.id,
-      bucket: selectedCategory,
+      group: selectedGroup,
       amount,
       description,
       isRecurring: isRecurringExpense.value,
     });
 
     await refreshMonthData();
-    if (showExpenseHistory.value && selectedHistoryBucket.value === selectedCategory) {
+    if (showExpenseHistory.value && selectedHistoryGroup.value === selectedGroup) {
       await refreshExpenseHistory();
     }
 
@@ -715,14 +711,14 @@ async function addExpense(): Promise<void> {
 
     showAddExpense.value = false;
     expenseAmount.value = '';
-    expenseCategory.value = '';
+    expenseGroup.value = '';
     expenseDescription.value = '';
     isRecurringExpense.value = false;
   } catch (error) {
     console.error('Failed to add expense to allocation', {
       error,
       budgetMonthId: budgetMonth.value.id,
-      bucket: expenseCategory.value,
+      group: expenseGroup.value,
       amount,
       description,
     });
@@ -748,21 +744,21 @@ function formatExpenseDate(value: string): string {
   }).format(parsed);
 }
 
-async function openExpenseHistory(bucket: BucketType): Promise<void> {
+async function openExpenseHistory(group: GroupType): Promise<void> {
   if (!budgetMonth.value) {
     return;
   }
 
-  selectedHistoryBucket.value = bucket;
+  selectedHistoryGroup.value = group;
 
   try {
     await refreshExpenseHistory();
     showExpenseHistory.value = true;
   } catch (error) {
-    console.error('Failed to load expenses for bucket', {
+    console.error('Failed to load expenses for group', {
       error,
       budgetMonthId: budgetMonth.value.id,
-      bucket,
+      group,
     });
 
     toast.add({
@@ -775,14 +771,14 @@ async function openExpenseHistory(bucket: BucketType): Promise<void> {
 }
 
 async function refreshExpenseHistory(): Promise<void> {
-  if (!budgetMonth.value || !selectedHistoryBucket.value) {
-    selectedBucketExpenses.value = [];
+  if (!budgetMonth.value || !selectedHistoryGroup.value) {
+    selectedGroupExpenses.value = [];
     return;
   }
 
-  selectedBucketExpenses.value = await getExpensesByMonthAndBucket(
+  selectedGroupExpenses.value = await getExpensesByMonthAndGroup(
     budgetMonth.value.id,
-    selectedHistoryBucket.value,
+    selectedHistoryGroup.value,
   );
 }
 
@@ -962,7 +958,7 @@ onMounted(() => {
   margin-top: 0.5rem;
 }
 
-.buckets-section {
+.groups-section {
   margin-bottom: 1.5rem;
 }
 

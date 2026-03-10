@@ -1,9 +1,9 @@
-import type { BucketType } from './Bucket';
+import type { GroupType } from './Group';
 
 export interface Expense {
   id: string;
   budgetMonthId: string;
-  bucket: BucketType;
+  group: GroupType;
   amount: number;
   description: string;
   recurringRuleId: string | null;
@@ -13,7 +13,7 @@ export interface Expense {
 
 export interface CreateExpenseInput {
   budgetMonthId: string;
-  bucket: BucketType;
+  group: GroupType;
   amount: number;
   description: string;
   isRecurring?: boolean;

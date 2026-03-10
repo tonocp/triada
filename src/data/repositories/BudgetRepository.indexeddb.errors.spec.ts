@@ -51,10 +51,14 @@ describe('data/repositories IndexedDB transaction failures', () => {
         budgetYears: 'budget_years',
         budgetMonths: 'budget_months',
         budgetAllocations: 'budget_allocations',
+        budgetExpenses: 'budget_expenses',
+        recurringExpenseRules: 'recurring_expense_rules',
       },
       indexedDbIndexes: {
         budgetMonthByYearMonth: 'by_budget_year_month',
         allocationsByMonth: 'by_budget_month',
+        expensesByMonthGroup: 'by_budget_month_group',
+        expensesByRule: 'by_recurring_rule_id',
       },
     }));
 
@@ -86,6 +90,7 @@ describe('data/repositories IndexedDB transaction failures', () => {
         budgetYearId: 'year-1',
         month: 1,
         year: 2026,
+        monthlyIncome: 100_000,
       }),
     ).rejects.toThrow('tx aborted');
   });

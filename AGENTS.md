@@ -53,6 +53,14 @@ Operational guide for coding agents working in this repository.
 
 ## 4) Testing strategy (mandatory)
 
+### 4.0 TDD methodology (mandatory)
+
+- Follow TDD in every change: **Red -> Green -> Refactor**.
+- Start by adding or updating a failing test that captures the requested behavior.
+- Implement the minimal production change required to make the test pass.
+- Refactor only after tests are green, keeping behavior unchanged.
+- Do not ship behavior changes without accompanying tests (unit/integration/E2E depending on scope).
+
 ### 4.1 Unit tests
 
 - Framework: Vitest.

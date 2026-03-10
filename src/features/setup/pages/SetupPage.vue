@@ -42,15 +42,15 @@
         <div class="preview-section" v-if="monthlyIncomeNumber > 0">
           <h3 class="preview-title">{{ t('setup.previewBreakdown') }}</h3>
           <div class="preview-row">
-            <span class="preview-label">{{ t('buckets.needs') }} (50%)</span>
+            <span class="preview-label">{{ t('groups.needs') }} (50%)</span>
             <span class="preview-value">{{ formatCurrencyValue(needsAmount) }}</span>
           </div>
           <div class="preview-row">
-            <span class="preview-label">{{ t('buckets.wants') }} (30%)</span>
+            <span class="preview-label">{{ t('groups.wants') }} (30%)</span>
             <span class="preview-value">{{ formatCurrencyValue(wantsAmount) }}</span>
           </div>
           <div class="preview-row">
-            <span class="preview-label">{{ t('buckets.savings') }} (20%)</span>
+            <span class="preview-label">{{ t('groups.savings') }} (20%)</span>
             <span class="preview-value">{{ formatCurrencyValue(savingsAmount) }}</span>
           </div>
         </div>

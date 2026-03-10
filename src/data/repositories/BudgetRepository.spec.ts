@@ -7,6 +7,16 @@ const indexedDbRepositoryMock = {
   createBudgetMonth: vi.fn(),
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
+  addExpenseToAllocation: vi.fn(),
+  addExpense: vi.fn(),
+  updateExpense: vi.fn(),
+  deleteExpense: vi.fn(),
+  updateMonthlyIncomeFromMonth: vi.fn(),
+  getExpensesByMonthAndGroup: vi.fn(),
+  getCategoriesByGroup: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategoryName: vi.fn(),
+  softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -18,6 +28,16 @@ const sqliteRepositoryMock = {
   createBudgetMonth: vi.fn(),
   getBudgetMonth: vi.fn(),
   createBudgetAllocation: vi.fn(),
+  addExpenseToAllocation: vi.fn(),
+  addExpense: vi.fn(),
+  updateExpense: vi.fn(),
+  deleteExpense: vi.fn(),
+  updateMonthlyIncomeFromMonth: vi.fn(),
+  getExpensesByMonthAndGroup: vi.fn(),
+  getCategoriesByGroup: vi.fn(),
+  createCategory: vi.fn(),
+  updateCategoryName: vi.fn(),
+  softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
 };
@@ -101,8 +121,25 @@ describe('data/repositories BudgetRepository facade', () => {
     const monthInput = { budgetYearId: 'year-1', month: 4, year: 2026 };
     const allocationInput = {
       budgetMonthId: 'month-1',
-      bucket: 'needs' as const,
+      group: 'needs' as const,
       allocated: 50_000,
+    };
+    const expenseInput = {
+      budgetMonthId: 'month-1',
+      group: 'needs' as const,
+      amount: 12_345,
+    };
+    const newExpenseInput = {
+      budgetMonthId: 'month-1',
+      group: 'needs' as const,
+      categoryId: 'food' as const,
+      amount: 12_345,
+      description: 'Supermercado',
+    };
+    const updateExpenseInput = {
+      expenseId: 'expense-1',
+      amount: 10_000,
+      description: 'Compra semanal',
     };
 
     await repository.createBudgetYear(yearInput);
@@ -110,6 +147,31 @@ describe('data/repositories BudgetRepository facade', () => {
     await repository.createBudgetMonth(monthInput);
     await repository.getBudgetMonth('year-1', 4);
     await repository.createBudgetAllocation(allocationInput);
+    await repository.addExpenseToAllocation(expenseInput);
+    await repository.addExpense(newExpenseInput);
+    await repository.updateExpense(updateExpenseInput);
+    await repository.deleteExpense({ expenseId: 'expense-1', applyToFuture: true });
+    await repository.updateMonthlyIncomeFromMonth({
+      budgetYearId: 'year-1',
+      fromMonth: 4,
+      monthlyIncome: 120_000,
+    });
+    await repository.getExpensesByMonthAndGroup('month-1', 'needs');
+    await repository.getCategoriesByGroup('needs');
+    await repository.createCategory({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    await repository.updateCategoryName({
+      group: 'needs',
+      categoryId: 'pets',
+      name: 'Mascotas y veterinaria',
+    });
+    await repository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
 
@@ -118,6 +180,37 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(indexedDbRepositoryMock.createBudgetMonth).toHaveBeenCalledWith(monthInput);
     expect(indexedDbRepositoryMock.getBudgetMonth).toHaveBeenCalledWith('year-1', 4);
     expect(indexedDbRepositoryMock.createBudgetAllocation).toHaveBeenCalledWith(allocationInput);
+    expect(indexedDbRepositoryMock.addExpenseToAllocation).toHaveBeenCalledWith(expenseInput);
+    expect(indexedDbRepositoryMock.addExpense).toHaveBeenCalledWith(newExpenseInput);
+    expect(indexedDbRepositoryMock.updateExpense).toHaveBeenCalledWith(updateExpenseInput);
+    expect(indexedDbRepositoryMock.deleteExpense).toHaveBeenCalledWith({
+      expenseId: 'expense-1',
+      applyToFuture: true,
+    });
+    expect(indexedDbRepositoryMock.updateMonthlyIncomeFromMonth).toHaveBeenCalledWith({
+      budgetYearId: 'year-1',
+      fromMonth: 4,
+      monthlyIncome: 120_000,
+    });
+    expect(indexedDbRepositoryMock.getExpensesByMonthAndGroup).toHaveBeenCalledWith(
+      'month-1',
+      'needs',
+    );
+    expect(indexedDbRepositoryMock.getCategoriesByGroup).toHaveBeenCalledWith('needs', undefined);
+    expect(indexedDbRepositoryMock.createCategory).toHaveBeenCalledWith({
+      group: 'needs',
+      name: 'Mascotas',
+    });
+    expect(indexedDbRepositoryMock.updateCategoryName).toHaveBeenCalledWith({
+      group: 'needs',
+      categoryId: 'pets',
+      name: 'Mascotas y veterinaria',
+    });
+    expect(indexedDbRepositoryMock.softDeleteCategoryAndReassign).toHaveBeenCalledWith({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
     expect(indexedDbRepositoryMock.getAllocationsByMonth).toHaveBeenCalledWith('month-1');
     expect(indexedDbRepositoryMock.createYearWithAllocations).toHaveBeenCalledWith(
       100_000,

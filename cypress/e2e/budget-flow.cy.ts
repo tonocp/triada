@@ -25,6 +25,14 @@ function createBudget(monthlyIncome: string): void {
   cy.contains('button', 'Crear Presupuesto').click();
 }
 
+function submitAddExpense(): void {
+  cy.contains('.p-dialog:visible .p-dialog-footer button', 'Agregar', { timeout: 10000 }).click({
+    force: true,
+  });
+
+  cy.contains('.p-dialog-title', 'Agregar Gasto').should('not.exist');
+}
+
 function setNetworkOffline() {
   if (Cypress.browser.family !== 'chromium') {
     return cy.wrap(null, { log: false });
@@ -165,6 +173,62 @@ describe('Budget flow', () => {
     cy.contains('€1000.00').should('be.visible');
   });
 
+  it('should add expense from dashboard form and persist after reload', () => {
+    createBudget('1000');
+
+    cy.url().should('include', '/dashboard');
+
+    cy.contains('Necesidades').should('be.visible');
+    cy.contains('€0.00').should('be.visible');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+    cy.get('#expense-amount').should('not.be.disabled');
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('100.50');
+    cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
+    submitAddExpense();
+
+    cy.contains('€100.50').should('be.visible');
+
+    cy.reload();
+
+    cy.contains('€100.50').should('be.visible');
+  });
+
+  it('should apply recurring expense from current month to future months', () => {
+    createBudget('1000');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+    cy.get('#expense-amount').should('not.be.disabled');
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('50');
+    cy.get('input[placeholder="Describe este gasto"]').type('Renta fija');
+    cy.get('#expense-recurring').check({ force: true });
+    cy.get('#expense-recurring').should('be.checked');
+    submitAddExpense();
+  });
+
+  it('should update monthly income from selected month to future months only', () => {
+    createBudget('1000');
+
+    cy.get('.month-selector .p-button').last().click({ force: true });
+
+    cy.get('#edit-monthly-income').click({ force: true });
+    cy.get('#monthly-income-edit-input').clear();
+    cy.get('#monthly-income-edit-input').type('1200');
+    cy.contains('.p-dialog:visible button', 'Guardar').click();
+
+    cy.contains('€1200.00').should('be.visible');
+    cy.contains('€600.00').should('be.visible');
+
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+    cy.contains('€1000.00').should('be.visible');
+  });
+
   it('should render dashboard while offline after service worker activation', () => {
     createBudget('1300');
 
@@ -179,5 +243,48 @@ describe('Budget flow', () => {
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
     cy.contains('€1300.00').should('be.visible');
+  });
+
+  it('should create, edit, and delete a custom category from category manager', () => {
+    createBudget('1000');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+
+    cy.get('[data-testid="open-manage-categories"]').click({ force: true });
+    cy.contains('.p-dialog-title', 'Gestionar categorías').should('be.visible');
+
+    cy.get('[data-testid="new-category-name-input"]').type('Mascotas');
+    cy.get('[data-testid="add-category-submit"]').click();
+    cy.contains('Categoría creada').should('be.visible');
+
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas')
+      .find('[data-testid^="edit-category-"]')
+      .click({ force: true });
+
+    cy.contains('.p-dialog-title', 'Editar categoría').should('be.visible');
+    cy.contains('.p-dialog-title', 'Editar categoría')
+      .parents('.p-dialog')
+      .first()
+      .within(() => {
+        cy.get('input').first().click({ force: true });
+        cy.get('input').first().type('{selectall}Mascotas y vet', { force: true });
+        cy.get('input').first().should('contain.value', 'Mascotas y vet');
+        cy.get('#save-category-name').should('not.be.disabled');
+        cy.get('#save-category-name').click({ force: true });
+      });
+    cy.contains('Categoría actualizada').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet').should('be.visible');
+
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet')
+      .find('[data-testid^="delete-category-"]')
+      .click();
+    cy.contains('.p-dialog-title', 'Eliminar categoría').should('be.visible');
+    cy.get('#confirm-category-delete').click();
+
+    cy.contains('Categoría eliminada').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet').should('not.exist');
   });
 });

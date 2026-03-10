@@ -1,11 +1,18 @@
 <template>
-  <div class="bucket-display">
-    <div class="bucket-header">
-      <i :class="bucketIcon" class="bucket-icon"></i>
-      <span class="bucket-label">{{ bucketLabel }}</span>
-      <span class="bucket-percentage">{{ bucketPercentage }}%</span>
+  <div
+    class="group-display"
+    :class="{ 'group-display--interactive': interactive }"
+    :role="interactive ? 'button' : undefined"
+    :tabindex="interactive ? 0 : undefined"
+    @click="onSelect"
+    @keydown.enter.prevent="onSelect"
+  >
+    <div class="group-header">
+      <i :class="groupIcon" class="group-icon"></i>
+      <span class="group-label">{{ groupLabel }}</span>
+      <span class="group-percentage">{{ groupPercentage }}%</span>
     </div>
-    <div class="bucket-amounts">
+    <div class="group-amounts">
       <div class="amount-row">
         <span class="amount-label">{{ t('dashboard.allocated') }}</span>
         <span class="amount-value">{{ formatCurrencyValue(allocated) }}</span>
@@ -21,7 +28,7 @@
         }}</span>
       </div>
     </div>
-    <div class="bucket-progress">
+    <div class="group-progress">
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
       </div>
@@ -31,8 +38,8 @@
 </template>
 
 <script setup lang="ts">
-import type { BucketType } from '@/domain/entities';
-import { BUCKET_ICONS, BUCKET_PERCENTAGES } from '@/domain/entities';
+import type { GroupType } from '@/domain/entities';
+import { GROUP_ICONS, GROUP_PERCENTAGES } from '@/domain/entities';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -41,14 +48,27 @@ const { t } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const props = defineProps<{
-  bucket: BucketType;
+  group: GroupType;
   allocated: number;
   spent: number;
+  interactive?: boolean;
 }>();
 
-const bucketLabel = computed(() => t(`buckets.${props.bucket}`));
-const bucketIcon = computed(() => BUCKET_ICONS[props.bucket]);
-const bucketPercentage = computed(() => BUCKET_PERCENTAGES[props.bucket]);
+const emit = defineEmits<{
+  select: [group: GroupType];
+}>();
+
+function onSelect(): void {
+  if (!props.interactive) {
+    return;
+  }
+
+  emit('select', props.group);
+}
+
+const groupLabel = computed(() => t(`groups.${props.group}`));
+const groupIcon = computed(() => GROUP_ICONS[props.group]);
+const groupPercentage = computed(() => GROUP_PERCENTAGES[props.group]);
 
 const remaining = computed(() => props.allocated - props.spent);
 
@@ -64,35 +84,39 @@ const progressPercent = computed(() => {
 </script>
 
 <style scoped>
-.bucket-display {
+.group-display {
   padding: 1rem;
   border-radius: 8px;
   background: var(--p-content-background);
   margin-bottom: 0.75rem;
 }
 
-.bucket-header {
+.group-display--interactive {
+  cursor: pointer;
+}
+
+.group-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.75rem;
 }
 
-.bucket-icon {
+.group-icon {
   font-size: 1.25rem;
 }
 
-.bucket-label {
+.group-label {
   font-weight: 600;
   flex: 1;
 }
 
-.bucket-percentage {
+.group-percentage {
   color: var(--p-text-muted-color);
   font-size: 0.875rem;
 }
 
-.bucket-amounts {
+.group-amounts {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -117,7 +141,7 @@ const progressPercent = computed(() => {
   color: var(--p-red-500);
 }
 
-.bucket-progress {
+.group-progress {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;

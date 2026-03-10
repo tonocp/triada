@@ -94,7 +94,7 @@ export async function initDatabase(): Promise<void> {
         CREATE TABLE IF NOT EXISTS budget_allocations (
           id TEXT PRIMARY KEY,
           budget_month_id TEXT NOT NULL,
-          group TEXT NOT NULL,
+          "group" TEXT NOT NULL,
           allocated INTEGER NOT NULL,
           spent INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL,
@@ -105,7 +105,7 @@ export async function initDatabase(): Promise<void> {
         CREATE TABLE IF NOT EXISTS budget_expenses (
           id TEXT PRIMARY KEY,
           budget_month_id TEXT NOT NULL,
-          group TEXT NOT NULL,
+          "group" TEXT NOT NULL,
           category_id TEXT NOT NULL,
           amount INTEGER NOT NULL,
           description TEXT NOT NULL,
@@ -118,7 +118,7 @@ export async function initDatabase(): Promise<void> {
         CREATE TABLE IF NOT EXISTS recurring_expense_rules (
           id TEXT PRIMARY KEY,
           budget_year_id TEXT NOT NULL,
-          group TEXT NOT NULL,
+          "group" TEXT NOT NULL,
           category_id TEXT NOT NULL,
           amount INTEGER NOT NULL,
           description TEXT NOT NULL,

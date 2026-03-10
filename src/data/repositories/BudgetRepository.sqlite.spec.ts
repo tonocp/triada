@@ -384,6 +384,71 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(updated.description).toBe('Nueva descripcion');
   });
 
+  it('should update expense group and category when editing expense', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-id',
+          group: 'needs',
+          category_id: 'housing',
+          amount: 6_000,
+          description: 'Vieja descripcion',
+          recurring_rule_id: null,
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+          budget_year_id: 'year-id',
+          month: 6,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'shopping' }]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const updated = await sqliteBudgetRepository.updateExpense({
+      expenseId: 'expense-1',
+      amount: 6_000,
+      description: 'Cambio de grupo',
+      group: 'wants',
+      categoryId: 'shopping',
+    });
+
+    expect(updated.group).toBe('wants');
+    expect(updated.categoryId).toBe('shopping');
+  });
+
+  it('should reject update when default category does not belong to selected group', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'expense-1',
+        budget_month_id: 'month-id',
+        group: 'needs',
+        category_id: 'housing',
+        amount: 6_000,
+        description: 'Vieja descripcion',
+        recurring_rule_id: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+        budget_year_id: 'year-id',
+        month: 6,
+        year: 2026,
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.updateExpense({
+        expenseId: 'expense-1',
+        amount: 6_000,
+        description: 'Cambio de grupo',
+        group: 'wants',
+        categoryId: 'housing',
+      }),
+    ).rejects.toThrow('Category housing does not belong to group wants');
+  });
+
   it('should delete expense and decrement allocation spent', async () => {
     queryMock.mockResolvedValueOnce([
       {
@@ -526,6 +591,60 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(runMock).toHaveBeenCalledTimes(6);
     expect(updated.recurringRuleId).not.toBeNull();
     expect(updated.amount).toBe(12_000);
+  });
+
+  it('should update recurring expense group and category for current and future months', async () => {
+    queryMock
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          group: 'needs',
+          category_id: 'housing',
+          amount: 10_000,
+          description: 'Renta',
+          recurring_rule_id: 'rule-1',
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+          budget_year_id: 'year-id',
+          month: 5,
+          year: 2026,
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'shopping' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'expense-1',
+          budget_month_id: 'month-5',
+          group: 'needs',
+          category_id: 'housing',
+          amount: 10_000,
+        },
+        {
+          id: 'expense-2',
+          budget_month_id: 'month-6',
+          group: 'needs',
+          category_id: 'housing',
+          amount: 10_000,
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const updated = await sqliteBudgetRepository.updateExpense({
+      expenseId: 'expense-1',
+      amount: 12_000,
+      description: 'Renta actualizada',
+      group: 'wants',
+      categoryId: 'shopping',
+    });
+
+    expect(updated.group).toBe('wants');
+    expect(updated.categoryId).toBe('shopping');
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('SET spent = spent - ?'),
+      expect.arrayContaining([10_000]),
+    );
   });
 
   it('should delete recurring expense for current and future months', async () => {

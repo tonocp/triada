@@ -26,6 +26,8 @@ export interface UpdateExpenseInput {
   expenseId: string;
   amount: number;
   description: string;
+  group?: GroupType;
+  categoryId?: CategoryId;
   applyToFuture?: boolean;
 }
 

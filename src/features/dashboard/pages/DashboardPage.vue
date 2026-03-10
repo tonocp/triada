@@ -53,7 +53,7 @@
         :label="t('dashboard.addExpense')"
         icon="pi pi-plus"
         class="w-full"
-        @click="showAddExpense = true"
+        @click="openAddExpenseDialog"
       />
     </div>
 
@@ -66,22 +66,15 @@
       <div class="expense-form">
         <div class="form-group">
           <label>{{ t('dashboard.group') }}</label>
-          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.group')">
-            <label
-              v-for="cat in groups"
-              :key="cat"
-              class="category-option"
-              :class="{ 'category-option--selected': expenseGroup === cat }"
-            >
-              <RadioButton
-                v-model="expenseGroup"
-                name="expense-group"
-                :input-id="`expense-group-${cat}`"
-                :value="cat"
-              />
-              <span>{{ t(`groups.${cat}`) }}</span>
-            </label>
-          </div>
+          <SelectButton
+            v-model="expenseGroup"
+            id="expense-group-select"
+            data-testid="add-expense-group-selector"
+            :options="groupOptions"
+            option-label="label"
+            option-value="value"
+            class="group-selector"
+          />
         </div>
         <div class="form-group">
           <label>{{ t('dashboard.category') }}</label>
@@ -94,22 +87,17 @@
             class="manage-categories-action"
             @click="openManageCategories"
           />
-          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.category')">
-            <label
+          <div class="category-selector-list" data-testid="add-expense-category-list">
+            <Button
               v-for="category in expenseCategories"
-              :key="category.id"
-              class="category-option"
-              :class="{ 'category-option--selected': expenseCategoryId === category.id }"
-            >
-              <RadioButton
-                v-model="expenseCategoryId"
-                name="expense-category"
-                :input-id="`expense-category-${category.id}`"
-                :value="category.id"
-                :disabled="expenseGroup === ''"
-              />
-              <span>{{ categoryLabel(category) }}</span>
-            </label>
+              :key="`add-category-${category.id}`"
+              :label="categoryLabel(category)"
+              class="category-selector-item"
+              :severity="expenseCategoryId === category.id ? 'primary' : 'secondary'"
+              :outlined="expenseCategoryId !== category.id"
+              :disabled="expenseGroup === ''"
+              @click="expenseCategoryId = category.id"
+            />
           </div>
         </div>
         <div class="form-group">
@@ -141,9 +129,11 @@
       <template #footer>
         <Button :label="t('common.cancel')" severity="secondary" @click="showAddExpense = false" />
         <Button
+          id="add-expense-submit"
           :label="t('common.add')"
           icon="pi pi-check"
           :disabled="!isExpenseValid"
+          :pt="{ root: { 'data-testid': 'add-expense-submit' } }"
           @click="addExpense"
         />
       </template>
@@ -369,6 +359,33 @@
     >
       <div class="expense-form">
         <div class="form-group">
+          <label>{{ t('dashboard.group') }}</label>
+          <SelectButton
+            v-model="editExpenseGroup"
+            id="edit-expense-group"
+            data-testid="edit-expense-group-selector"
+            :options="groupOptions"
+            option-label="label"
+            option-value="value"
+            class="group-selector"
+          />
+        </div>
+        <div class="form-group">
+          <label>{{ t('dashboard.category') }}</label>
+          <div class="category-selector-list" data-testid="edit-expense-category-list">
+            <Button
+              v-for="category in editExpenseCategories"
+              :key="`edit-category-${category.id}`"
+              :label="categoryLabel(category)"
+              class="category-selector-item"
+              :severity="editExpenseCategoryId === category.id ? 'primary' : 'secondary'"
+              :outlined="editExpenseCategoryId !== category.id"
+              :disabled="editExpenseGroup === ''"
+              @click="editExpenseCategoryId = category.id"
+            />
+          </div>
+        </div>
+        <div class="form-group">
           <label>{{ t('dashboard.amount') }}</label>
           <Input
             v-model="editExpenseAmount"
@@ -506,6 +523,7 @@ import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import RadioButton from 'primevue/radiobutton';
+import SelectButton from 'primevue/selectbutton';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -542,6 +560,8 @@ const selectedGroupExpenses = ref<Expense[]>([]);
 const editingExpenseId = ref<string | null>(null);
 const editExpenseAmount = ref('');
 const editExpenseDescription = ref('');
+const editExpenseGroup = ref<GroupType | ''>('');
+const editExpenseCategoryId = ref<CategoryId | ''>('');
 const editingExpenseIsRecurring = ref(false);
 const editApplyToFuture = ref(true);
 const expensePendingDelete = ref<Expense | null>(null);
@@ -562,10 +582,11 @@ const categoriesByGroup = ref<Record<GroupType, Category[]>>({
 
 const groups = GROUP_ORDER;
 
-const allocations = computed<BudgetAllocation[]>(() => {
-  return [...(budgetMonth.value?.allocations ?? [])].sort((left, right) =>
-    compareGroups(left.group, right.group),
-  );
+const groupOptions = computed(() => {
+  return groups.map((group) => ({
+    label: t(`groups.${group}`),
+    value: group,
+  }));
 });
 
 const expenseCategories = computed<Category[]>(() => {
@@ -574,6 +595,20 @@ const expenseCategories = computed<Category[]>(() => {
   }
 
   return categoriesByGroup.value[expenseGroup.value];
+});
+
+const editExpenseCategories = computed<Category[]>(() => {
+  if (editExpenseGroup.value === '') {
+    return [];
+  }
+
+  return categoriesByGroup.value[editExpenseGroup.value];
+});
+
+const allocations = computed<BudgetAllocation[]>(() => {
+  return [...(budgetMonth.value?.allocations ?? [])].sort((left, right) =>
+    compareGroups(left.group, right.group),
+  );
 });
 
 const activeCategoriesByManagingGroup = computed<Category[]>(() => {
@@ -605,7 +640,13 @@ const isExpenseValid = computed(() => {
 const isEditExpenseValid = computed(() => {
   const amount = parseFloat(editExpenseAmount.value);
   const description = editExpenseDescription.value.trim();
-  return !Number.isNaN(amount) && amount > 0 && description.length >= 3;
+  return (
+    !Number.isNaN(amount) &&
+    amount > 0 &&
+    description.length >= 3 &&
+    editExpenseGroup.value !== '' &&
+    editExpenseCategoryId.value !== ''
+  );
 });
 
 const isMonthlyIncomeValid = computed(() => {
@@ -990,6 +1031,18 @@ async function addExpense(): Promise<void> {
   }
 }
 
+function openAddExpenseDialog(): void {
+  const selectedGroup: GroupType = expenseGroup.value === '' ? 'needs' : expenseGroup.value;
+  expenseGroup.value = selectedGroup;
+
+  if (expenseCategoryId.value === '') {
+    const firstCategory = categoriesByGroup.value[selectedGroup][0];
+    expenseCategoryId.value = firstCategory ? firstCategory.id : '';
+  }
+
+  showAddExpense.value = true;
+}
+
 function formatExpenseDate(value: string): string {
   const parsed = new Date(value);
 
@@ -1044,6 +1097,8 @@ function startExpenseEdit(expense: Expense): void {
   editingExpenseId.value = expense.id;
   editExpenseAmount.value = fromMinorUnits(expense.amount);
   editExpenseDescription.value = expense.description;
+  editExpenseGroup.value = expense.group;
+  editExpenseCategoryId.value = expense.categoryId;
   editingExpenseIsRecurring.value = expense.recurringRuleId !== null;
   editApplyToFuture.value = true;
   showEditExpense.value = true;
@@ -1057,7 +1112,12 @@ async function saveExpenseEdit(): Promise<void> {
   const amount = toMinorUnits(parseFloat(editExpenseAmount.value));
   const description = editExpenseDescription.value.trim();
 
-  if (amount <= 0 || description.length < 3) {
+  if (
+    amount <= 0 ||
+    description.length < 3 ||
+    editExpenseGroup.value === '' ||
+    editExpenseCategoryId.value === ''
+  ) {
     return;
   }
 
@@ -1066,6 +1126,8 @@ async function saveExpenseEdit(): Promise<void> {
       expenseId: editingExpenseId.value,
       amount,
       description,
+      group: editExpenseGroup.value,
+      categoryId: editExpenseCategoryId.value,
       applyToFuture: editingExpenseIsRecurring.value ? editApplyToFuture.value : false,
     });
 
@@ -1074,6 +1136,8 @@ async function saveExpenseEdit(): Promise<void> {
 
     showEditExpense.value = false;
     editingExpenseIsRecurring.value = false;
+    editExpenseGroup.value = '';
+    editExpenseCategoryId.value = '';
     toast.add({
       severity: 'success',
       summary: t('dashboard.expenseUpdated'),
@@ -1351,8 +1415,86 @@ watch(expenseGroup, (nextGroup) => {
     return;
   }
 
-  const firstCategory = categoriesByGroup.value[nextGroup][0];
+  const categories = categoriesByGroup.value[nextGroup];
+  const hasCurrentCategory = categories.some((category) => category.id === expenseCategoryId.value);
+  if (hasCurrentCategory) {
+    return;
+  }
+
+  const firstCategory = categories[0];
   expenseCategoryId.value = firstCategory ? firstCategory.id : '';
+});
+
+watch(expenseCategoryId, (nextCategoryId) => {
+  if (!nextCategoryId) {
+    return;
+  }
+
+  const matchedGroup = groups.find((group) =>
+    categoriesByGroup.value[group].some((category) => category.id === nextCategoryId),
+  );
+
+  if (matchedGroup) {
+    expenseGroup.value = matchedGroup;
+  }
+});
+
+watch(editExpenseGroup, (nextGroup) => {
+  if (!nextGroup) {
+    editExpenseCategoryId.value = '';
+    return;
+  }
+
+  const categories = categoriesByGroup.value[nextGroup];
+  const hasCurrentCategory = categories.some(
+    (category) => category.id === editExpenseCategoryId.value,
+  );
+  if (hasCurrentCategory) {
+    return;
+  }
+
+  const firstCategory = categories[0];
+  editExpenseCategoryId.value = firstCategory ? firstCategory.id : '';
+});
+
+watch(editExpenseCategoryId, (nextCategoryId) => {
+  if (!nextCategoryId) {
+    return;
+  }
+
+  const matchedGroup = groups.find((group) =>
+    categoriesByGroup.value[group].some((category) => category.id === nextCategoryId),
+  );
+
+  if (matchedGroup) {
+    editExpenseGroup.value = matchedGroup;
+  }
+});
+
+watch(showAddExpense, (isVisible) => {
+  if (isVisible) {
+    return;
+  }
+
+  expenseAmount.value = '';
+  expenseGroup.value = '';
+  expenseCategoryId.value = '';
+  expenseDescription.value = '';
+  isRecurringExpense.value = false;
+});
+
+watch(showEditExpense, (isVisible) => {
+  if (isVisible) {
+    return;
+  }
+
+  editingExpenseId.value = null;
+  editExpenseAmount.value = '';
+  editExpenseDescription.value = '';
+  editExpenseGroup.value = '';
+  editExpenseCategoryId.value = '';
+  editingExpenseIsRecurring.value = false;
+  editApplyToFuture.value = true;
 });
 
 watch(showManageCategories, (isVisible) => {
@@ -1455,6 +1597,21 @@ onMounted(() => {
 .manage-categories-action {
   width: fit-content;
   margin: 0 0 0.5rem;
+}
+
+.group-selector {
+  width: 100%;
+}
+
+.category-selector-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+}
+
+.category-selector-item {
+  justify-content: flex-start;
+  min-height: 44px;
 }
 
 .category-form-row {

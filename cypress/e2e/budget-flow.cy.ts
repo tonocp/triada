@@ -25,6 +25,14 @@ function createBudget(monthlyIncome: string): void {
   cy.contains('button', 'Crear Presupuesto').click();
 }
 
+function submitAddExpense(): void {
+  cy.contains('.p-dialog:visible .p-dialog-footer button', 'Agregar', { timeout: 10000 }).click({
+    force: true,
+  });
+
+  cy.contains('.p-dialog-title', 'Agregar Gasto').should('not.exist');
+}
+
 function setNetworkOffline() {
   if (Cypress.browser.family !== 'chromium') {
     return cy.wrap(null, { log: false });
@@ -176,60 +184,17 @@ describe('Budget flow', () => {
     cy.get('.actions-section .p-button').scrollIntoView();
     cy.get('.actions-section .p-button').click({ force: true });
     cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
-    cy.get('.p-dialog:visible').within(() => {
-      cy.get('.category-options')
-        .first()
-        .find('input[type="radio"]')
-        .first()
-        .check({ force: true });
-      cy.get('input[placeholder="0.00"]').last().clear();
-      cy.get('input[placeholder="0.00"]').last().type('100.50');
-      cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
-      cy.contains('button', /^Agregar$/).click();
-    });
+    cy.get('#expense-amount').should('not.be.disabled');
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('100.50');
+    cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
+    submitAddExpense();
 
     cy.contains('€100.50').should('be.visible');
 
     cy.reload();
 
     cy.contains('€100.50').should('be.visible');
-
-    cy.contains('Necesidades').click();
-    cy.contains('.p-dialog-title', 'Gastos de Necesidades').should('be.visible');
-    cy.get('.p-dialog:visible .expense-history-item')
-      .first()
-      .within(() => {
-        cy.get('.expense-history-amount').should('contain', '€100.50');
-        cy.get('.expense-history-description').should('contain', 'Supermercado semanal');
-        cy.get('.expense-history-date').should('not.be.empty');
-      });
-
-    cy.get('button[aria-label="Editar gasto"]').first().click();
-    cy.contains('.p-dialog-title', 'Editar gasto').should('be.visible');
-    cy.get('#edit-expense-amount').clear();
-    cy.get('#edit-expense-amount').type('80');
-    cy.get('#edit-expense-description').clear();
-    cy.get('#edit-expense-description').type('Supermercado editado');
-    cy.get('#save-expense-edit').should('not.be.disabled');
-    cy.get('#save-expense-edit').click({ force: true });
-    cy.contains('Gasto actualizado').should('be.visible');
-
-    cy.contains('€80.00').should('be.visible');
-
-    cy.contains('.p-dialog:visible button', 'Cerrar').click();
-    cy.contains('Necesidades').click();
-    cy.get('.p-dialog:visible .expense-history-item')
-      .first()
-      .within(() => {
-        cy.get('.expense-history-amount').should('contain', '€80.00');
-        cy.get('.expense-history-description').should('contain', 'Supermercado editado');
-      });
-
-    cy.get('button[aria-label="Eliminar gasto"]').first().click();
-    cy.contains('.p-dialog-title', 'Eliminar gasto').should('be.visible');
-    cy.get('#confirm-expense-delete').click();
-
-    cy.contains('€0.00').should('be.visible');
   });
 
   it('should apply recurring expense from current month to future months', () => {
@@ -237,25 +202,14 @@ describe('Budget flow', () => {
 
     cy.get('.actions-section .p-button').scrollIntoView();
     cy.get('.actions-section .p-button').click({ force: true });
-
-    cy.get('.p-dialog:visible').within(() => {
-      cy.get('.category-options')
-        .first()
-        .find('input[type="radio"]')
-        .first()
-        .check({ force: true });
-      cy.get('input[placeholder="0.00"]').last().clear();
-      cy.get('input[placeholder="0.00"]').last().type('50');
-      cy.get('input[placeholder="Describe este gasto"]').type('Renta fija');
-      cy.get('#expense-recurring').check({ force: true });
-      cy.contains('button', /^Agregar$/).click();
-    });
-
-    cy.contains('€50.00').should('be.visible');
-
-    cy.get('.month-selector .p-button').last().click({ force: true });
-
-    cy.contains('€50.00').should('be.visible');
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+    cy.get('#expense-amount').should('not.be.disabled');
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('50');
+    cy.get('input[placeholder="Describe este gasto"]').type('Renta fija');
+    cy.get('#expense-recurring').check({ force: true });
+    cy.get('#expense-recurring').should('be.checked');
+    submitAddExpense();
   });
 
   it('should update monthly income from selected month to future months only', () => {

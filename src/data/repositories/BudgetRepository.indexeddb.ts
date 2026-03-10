@@ -712,6 +712,20 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       throw new Error(`Expense not found with id ${input.expenseId}`);
     }
 
+    const nextGroup = input.group ?? existing.group;
+    const nextCategoryId = input.categoryId ?? existing.category_id;
+
+    if (input.group || input.categoryId) {
+      if (
+        isDefaultCategoryId(nextCategoryId) &&
+        !isValidCategoryForGroup(nextGroup, nextCategoryId)
+      ) {
+        throw new Error(`Category ${nextCategoryId} does not belong to group ${nextGroup}`);
+      }
+
+      await assertActiveCategoryForGroup(nextGroup, nextCategoryId);
+    }
+
     if (existing.recurring_rule_id && input.applyToFuture !== false) {
       const months = await readAllBudgetMonths();
       const targetMonth = months.find((month) => month.id === existing.budget_month_id) ?? {
@@ -752,8 +766,8 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       await insertRecurringExpenseRule({
         id: newRuleId,
         budget_year_id: targetMonth.budget_year_id,
-        group: existing.group,
-        category_id: existing.category_id,
+        group: nextGroup,
+        category_id: nextCategoryId,
         amount: input.amount,
         description: input.description,
         start_year: targetMonth.year,
@@ -775,15 +789,30 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       });
 
       for (const expense of futureExpenses) {
-        const delta = input.amount - expense.amount;
-        await indexedDbBudgetRepository.addExpenseToAllocation({
-          budgetMonthId: expense.budget_month_id,
-          group: expense.group,
-          amount: delta,
-        });
+        if (expense.group === nextGroup) {
+          const delta = input.amount - expense.amount;
+          await indexedDbBudgetRepository.addExpenseToAllocation({
+            budgetMonthId: expense.budget_month_id,
+            group: expense.group,
+            amount: delta,
+          });
+        } else {
+          await indexedDbBudgetRepository.addExpenseToAllocation({
+            budgetMonthId: expense.budget_month_id,
+            group: expense.group,
+            amount: -expense.amount,
+          });
+          await indexedDbBudgetRepository.addExpenseToAllocation({
+            budgetMonthId: expense.budget_month_id,
+            group: nextGroup,
+            amount: input.amount,
+          });
+        }
 
         await insertExpense({
           ...expense,
+          group: nextGroup,
+          category_id: nextCategoryId,
           amount: input.amount,
           description: input.description,
           recurring_rule_id: newRuleId,
@@ -793,6 +822,8 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
       const updatedTarget = (await findExpenseRowById(input.expenseId)) ?? {
         ...existing,
+        group: nextGroup,
+        category_id: nextCategoryId,
         amount: input.amount,
         description: input.description,
         recurring_rule_id: newRuleId,
@@ -802,17 +833,32 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       return mapExpenseRow(updatedTarget);
     }
 
-    const delta = input.amount - existing.amount;
+    if (existing.group === nextGroup) {
+      const delta = input.amount - existing.amount;
 
-    await indexedDbBudgetRepository.addExpenseToAllocation({
-      budgetMonthId: existing.budget_month_id,
-      group: existing.group,
-      amount: delta,
-    });
+      await indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: existing.budget_month_id,
+        group: existing.group,
+        amount: delta,
+      });
+    } else {
+      await indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: existing.budget_month_id,
+        group: existing.group,
+        amount: -existing.amount,
+      });
+      await indexedDbBudgetRepository.addExpenseToAllocation({
+        budgetMonthId: existing.budget_month_id,
+        group: nextGroup,
+        amount: input.amount,
+      });
+    }
 
     const now = getCurrentTimestamp();
     const updatedRow: ExpenseRow = {
       ...existing,
+      group: nextGroup,
+      category_id: nextCategoryId,
       amount: input.amount,
       description: input.description,
       recurring_rule_id: null,

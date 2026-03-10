@@ -113,11 +113,14 @@ interface IndexedDbRepositoryModule {
       expenseId: string;
       amount: number;
       description: string;
+      group?: 'needs' | 'wants' | 'savings';
+      categoryId?: string;
       applyToFuture?: boolean;
     }) => Promise<{
       id: string;
       budgetMonthId: string;
       group: 'needs' | 'wants' | 'savings';
+      categoryId: string;
       amount: number;
       description: string;
       recurringRuleId: string | null;
@@ -640,6 +643,49 @@ describe('data/repositories IndexedDB integration', () => {
     expect(expenses).toHaveLength(0);
   });
 
+  it('should update non-recurring expense group and category and rebalance allocations', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month6 = result.months[5];
+
+    const created = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month6!.id,
+      group: 'needs',
+      categoryId: 'housing',
+      amount: 10_000,
+      description: 'Compra 1',
+    });
+
+    const updated = await repositoryModule.indexedDbBudgetRepository.updateExpense({
+      expenseId: created.id,
+      amount: 10_000,
+      description: 'Compra editada',
+      group: 'wants',
+      categoryId: 'shopping',
+    });
+
+    expect(updated.group).toBe('wants');
+    expect(updated.categoryId).toBe('shopping');
+
+    const monthAfter = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(monthAfter?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      0,
+    );
+    expect(monthAfter?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
+      10_000,
+    );
+  });
+
   it('should throw when updating a missing expense', async () => {
     const { repositoryModule } = await loadModules();
 
@@ -650,6 +696,36 @@ describe('data/repositories IndexedDB integration', () => {
         description: 'Nada',
       }),
     ).rejects.toThrow('Expense not found with id missing-expense');
+  });
+
+  it('should reject updating expense when default category does not belong to selected group', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month6 = result.months[5];
+
+    const created = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month6!.id,
+      group: 'needs',
+      categoryId: 'housing',
+      amount: 10_000,
+      description: 'Compra 1',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.updateExpense({
+        expenseId: created.id,
+        amount: 10_000,
+        description: 'Compra editada',
+        group: 'wants',
+        categoryId: 'housing',
+      }),
+    ).rejects.toThrow('Category housing does not belong to group wants');
   });
 
   it('should throw when deleting a missing expense', async () => {
@@ -778,6 +854,60 @@ describe('data/repositories IndexedDB integration', () => {
     });
 
     expect(updated.amount).toBe(10_000);
+  });
+
+  it('should update recurring expense group and category for current and future months', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const result = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+
+    const month5 = result.months[4];
+
+    const recurring = await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month5!.id,
+      group: 'needs',
+      categoryId: 'housing',
+      amount: 10_000,
+      description: 'Renta',
+      isRecurring: true,
+    });
+
+    const updated = await repositoryModule.indexedDbBudgetRepository.updateExpense({
+      expenseId: recurring.id,
+      amount: 12_000,
+      description: 'Renta actualizada',
+      group: 'wants',
+      categoryId: 'shopping',
+    });
+
+    expect(updated.group).toBe('wants');
+    expect(updated.categoryId).toBe('shopping');
+
+    const month5After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      5,
+    );
+    const month6After = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      result.budgetYear.id,
+      6,
+    );
+
+    expect(month5After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      0,
+    );
+    expect(month5After?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
+      12_000,
+    );
+    expect(month6After?.allocations.find((allocation) => allocation.group === 'needs')?.spent).toBe(
+      0,
+    );
+    expect(month6After?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
+      12_000,
+    );
   });
 
   it('should update only current month when recurring expense uses applyToFuture false', async () => {

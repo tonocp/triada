@@ -87,6 +87,7 @@
           <label>{{ t('dashboard.category') }}</label>
           <Button
             id="manage-categories"
+            data-testid="open-manage-categories"
             :label="t('dashboard.manageCategories')"
             text
             size="small"
@@ -107,7 +108,7 @@
                 :value="category.id"
                 :disabled="expenseGroup === ''"
               />
-              <span>{{ t(`categories.${category.id}`) }}</span>
+              <span>{{ categoryLabel(category) }}</span>
             </label>
           </div>
         </div>
@@ -175,22 +176,55 @@
           </div>
         </div>
         <div class="form-group">
+          <label>{{ t('dashboard.newCategory') }}</label>
+          <div class="category-form-row">
+            <Input
+              v-model="newCategoryName"
+              id="new-category-name"
+              data-testid="new-category-name-input"
+              :placeholder="t('dashboard.newCategoryPlaceholder')"
+              input-class="w-full"
+            />
+            <Button
+              id="add-category"
+              data-testid="add-category-submit"
+              :label="t('common.add')"
+              icon="pi pi-plus"
+              :disabled="!canCreateCategory"
+              @click="addCategory"
+            />
+          </div>
+        </div>
+        <div class="form-group">
           <label>{{ t('dashboard.activeCategories') }}</label>
           <div class="category-options">
             <div
               v-for="category in activeCategoriesByManagingGroup"
               :key="`active-${category.id}`"
               class="category-row"
+              :data-testid="`category-row-${category.id}`"
             >
-              <span>{{ t(`categories.${category.id}`) }}</span>
-              <Button
-                :label="t('dashboard.deleteCategory')"
-                severity="danger"
-                text
-                size="small"
-                :disabled="activeCategoriesByManagingGroup.length <= 1"
-                @click="askCategoryDelete(category)"
-              />
+              <span>{{ categoryLabel(category) }}</span>
+              <div class="category-row-actions">
+                <Button
+                  v-if="!category.isDefault"
+                  :data-testid="`edit-category-${category.id}`"
+                  :label="t('dashboard.editCategory')"
+                  severity="secondary"
+                  text
+                  size="small"
+                  @click="openCategoryEdit(category)"
+                />
+                <Button
+                  :data-testid="`delete-category-${category.id}`"
+                  :label="t('dashboard.deleteCategory')"
+                  severity="danger"
+                  text
+                  size="small"
+                  :disabled="activeCategoriesByManagingGroup.length <= 1"
+                  @click="askCategoryDelete(category)"
+                />
+              </div>
             </div>
           </div>
           <small class="help-text">{{ t('dashboard.deleteCategoryHelp') }}</small>
@@ -201,6 +235,34 @@
           :label="t('common.close')"
           severity="secondary"
           @click="showManageCategories = false"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showEditCategoryDialog"
+      modal
+      :header="t('dashboard.editCategory')"
+      :style="{ width: '90vw' }"
+    >
+      <div class="expense-form">
+        <div class="form-group">
+          <label>{{ t('dashboard.categoryName') }}</label>
+          <Input
+            v-model="editCategoryName"
+            id="edit-category-name"
+            :placeholder="t('dashboard.newCategoryPlaceholder')"
+            input-class="w-full"
+          />
+        </div>
+      </div>
+      <template #footer>
+        <Button :label="t('common.cancel')" severity="secondary" @click="closeCategoryEditDialog" />
+        <Button
+          id="save-category-name"
+          :label="t('common.save')"
+          :disabled="!canSaveCategoryName"
+          @click="saveCategoryName"
         />
       </template>
     </Dialog>
@@ -231,7 +293,7 @@
               :input-id="`replacement-category-${category.id}`"
               :value="category.id"
             />
-            <span>{{ t(`categories.${category.id}`) }}</span>
+            <span>{{ categoryLabel(category) }}</span>
           </label>
         </div>
       </div>
@@ -410,6 +472,7 @@ import { initDatabase } from '@/data/database';
 import {
   createBudgetAllocation,
   createBudgetMonth,
+  createCategory as createCategoryRecord,
   addExpense as createExpenseRecord,
   createYearWithAllocations,
   deleteExpense as deleteExpenseRecord,
@@ -419,6 +482,7 @@ import {
   getExpensesByMonthAndGroup,
   getLatestBudgetYear,
   softDeleteCategoryAndReassign,
+  updateCategoryName as updateCategoryNameRecord,
   updateExpense as updateExpenseRecord,
   updateMonthlyIncomeFromMonth,
 } from '@/data/repositories';
@@ -449,7 +513,7 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const toast = useToast();
-const { t, locale } = useI18n();
+const { t, te, locale } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const budgetYear = ref<BudgetYear | null>(null);
@@ -467,6 +531,7 @@ const showDeleteExpenseConfirm = ref(false);
 const showEditMonthlyIncome = ref(false);
 const showManageCategories = ref(false);
 const showDeleteCategoryConfirm = ref(false);
+const showEditCategoryDialog = ref(false);
 const expenseAmount = ref('');
 const expenseGroup = ref<GroupType | ''>('');
 const expenseCategoryId = ref<CategoryId | ''>('');
@@ -485,7 +550,10 @@ const deleteApplyToFuture = ref(true);
 const editMonthlyIncome = ref('');
 const managingGroup = ref<GroupType>('needs');
 const categoryPendingDelete = ref<Category | null>(null);
+const categoryPendingEdit = ref<Category | null>(null);
 const replacementCategoryId = ref<CategoryId | ''>('');
+const newCategoryName = ref('');
+const editCategoryName = ref('');
 const categoriesByGroup = ref<Record<GroupType, Category[]>>({
   needs: [],
   wants: [],
@@ -547,6 +615,16 @@ const isMonthlyIncomeValid = computed(() => {
 
 const canConfirmCategoryDelete = computed(() => {
   return categoryPendingDelete.value !== null && replacementCategoryId.value !== '';
+});
+
+const canCreateCategory = computed(() => {
+  return newCategoryName.value.trim().length >= 2;
+});
+
+const canSaveCategoryName = computed(() => {
+  const trimmed = editCategoryName.value.trim();
+  const currentName = categoryPendingEdit.value?.name?.trim() ?? '';
+  return trimmed.length >= 2 && trimmed !== currentName;
 });
 
 const expenseHistoryTitle = computed(() => {
@@ -1100,7 +1178,114 @@ async function loadCategories(): Promise<void> {
 
 function openManageCategories(): void {
   managingGroup.value = expenseGroup.value || 'needs';
+  newCategoryName.value = '';
   showManageCategories.value = true;
+}
+
+function categoryLabel(category: Category): string {
+  if (category.name && category.name.trim().length > 0) {
+    return category.name;
+  }
+
+  const key = `categories.${category.id}`;
+  if (te(key)) {
+    return t(key);
+  }
+
+  return category.id;
+}
+
+async function addCategory(): Promise<void> {
+  const name = newCategoryName.value.trim();
+  if (name.length < 2) {
+    return;
+  }
+
+  try {
+    await createCategoryRecord({
+      group: managingGroup.value,
+      name,
+    });
+
+    await loadCategories();
+    newCategoryName.value = '';
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.categoryCreated'),
+      detail: t('dashboard.categoryCreated'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to create category', {
+      error,
+      group: managingGroup.value,
+      name,
+    });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.categoryCreateError'),
+      life: 3000,
+    });
+  }
+}
+
+function openCategoryEdit(category: Category): void {
+  if (category.isDefault) {
+    return;
+  }
+
+  categoryPendingEdit.value = category;
+  editCategoryName.value = category.name ?? '';
+  showEditCategoryDialog.value = true;
+}
+
+function closeCategoryEditDialog(): void {
+  showEditCategoryDialog.value = false;
+  categoryPendingEdit.value = null;
+  editCategoryName.value = '';
+}
+
+async function saveCategoryName(): Promise<void> {
+  if (!categoryPendingEdit.value || !canSaveCategoryName.value) {
+    return;
+  }
+
+  const pendingCategory = categoryPendingEdit.value;
+  const name = editCategoryName.value.trim();
+
+  try {
+    await updateCategoryNameRecord({
+      group: pendingCategory.group,
+      categoryId: pendingCategory.id,
+      name,
+    });
+
+    await loadCategories();
+
+    closeCategoryEditDialog();
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.categoryUpdated'),
+      detail: t('dashboard.categoryUpdated'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to update category name', {
+      error,
+      categoryId: pendingCategory.id,
+      group: pendingCategory.group,
+      name,
+    });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.categoryUpdateError'),
+      life: 3000,
+    });
+  }
 }
 
 function askCategoryDelete(category: Category): void {
@@ -1168,6 +1353,19 @@ watch(expenseGroup, (nextGroup) => {
 
   const firstCategory = categoriesByGroup.value[nextGroup][0];
   expenseCategoryId.value = firstCategory ? firstCategory.id : '';
+});
+
+watch(showManageCategories, (isVisible) => {
+  if (!isVisible) {
+    newCategoryName.value = '';
+  }
+});
+
+watch(showEditCategoryDialog, (isVisible) => {
+  if (!isVisible) {
+    categoryPendingEdit.value = null;
+    editCategoryName.value = '';
+  }
 });
 
 onMounted(() => {
@@ -1259,6 +1457,12 @@ onMounted(() => {
   margin: 0 0 0.5rem;
 }
 
+.category-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .category-options {
   display: flex;
   flex-direction: column;
@@ -1292,6 +1496,12 @@ onMounted(() => {
   padding: 0.75rem;
   border: 1px solid var(--p-input-border-color);
   border-radius: 8px;
+}
+
+.category-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .help-text {

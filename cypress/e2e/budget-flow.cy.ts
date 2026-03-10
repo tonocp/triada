@@ -290,4 +290,47 @@ describe('Budget flow', () => {
     cy.contains('Ingreso Mensual').should('be.visible');
     cy.contains('€1300.00').should('be.visible');
   });
+
+  it('should create, edit, and delete a custom category from category manager', () => {
+    createBudget('1000');
+
+    cy.get('.actions-section .p-button').scrollIntoView();
+    cy.get('.actions-section .p-button').click({ force: true });
+    cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+
+    cy.get('[data-testid="open-manage-categories"]').click({ force: true });
+    cy.contains('.p-dialog-title', 'Gestionar categorías').should('be.visible');
+
+    cy.get('[data-testid="new-category-name-input"]').type('Mascotas');
+    cy.get('[data-testid="add-category-submit"]').click();
+    cy.contains('Categoría creada').should('be.visible');
+
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas')
+      .find('[data-testid^="edit-category-"]')
+      .click({ force: true });
+
+    cy.contains('.p-dialog-title', 'Editar categoría').should('be.visible');
+    cy.contains('.p-dialog-title', 'Editar categoría')
+      .parents('.p-dialog')
+      .first()
+      .within(() => {
+        cy.get('input').first().click({ force: true });
+        cy.get('input').first().type('{selectall}Mascotas y vet', { force: true });
+        cy.get('input').first().should('contain.value', 'Mascotas y vet');
+        cy.get('#save-category-name').should('not.be.disabled');
+        cy.get('#save-category-name').click({ force: true });
+      });
+    cy.contains('Categoría actualizada').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet').should('be.visible');
+
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet')
+      .find('[data-testid^="delete-category-"]')
+      .click();
+    cy.contains('.p-dialog-title', 'Eliminar categoría').should('be.visible');
+    cy.get('#confirm-category-delete').click();
+
+    cy.contains('Categoría eliminada').should('be.visible');
+    cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet').should('not.exist');
+  });
 });

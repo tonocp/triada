@@ -85,6 +85,14 @@
         </div>
         <div class="form-group">
           <label>{{ t('dashboard.category') }}</label>
+          <Button
+            id="manage-categories"
+            :label="t('dashboard.manageCategories')"
+            text
+            size="small"
+            class="manage-categories-action"
+            @click="openManageCategories"
+          />
           <div class="category-options" role="radiogroup" :aria-label="t('dashboard.category')">
             <label
               v-for="category in expenseCategories"
@@ -136,6 +144,109 @@
           icon="pi pi-check"
           :disabled="!isExpenseValid"
           @click="addExpense"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showManageCategories"
+      modal
+      :header="t('dashboard.manageCategories')"
+      :style="{ width: '90vw' }"
+    >
+      <div class="expense-form">
+        <div class="form-group">
+          <label>{{ t('dashboard.group') }}</label>
+          <div class="category-options" role="radiogroup" :aria-label="t('dashboard.group')">
+            <label
+              v-for="cat in groups"
+              :key="`manage-${cat}`"
+              class="category-option"
+              :class="{ 'category-option--selected': managingGroup === cat }"
+            >
+              <RadioButton
+                v-model="managingGroup"
+                name="manage-group"
+                :input-id="`manage-group-${cat}`"
+                :value="cat"
+              />
+              <span>{{ t(`groups.${cat}`) }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>{{ t('dashboard.activeCategories') }}</label>
+          <div class="category-options">
+            <div
+              v-for="category in activeCategoriesByManagingGroup"
+              :key="`active-${category.id}`"
+              class="category-row"
+            >
+              <span>{{ t(`categories.${category.id}`) }}</span>
+              <Button
+                :label="t('dashboard.deleteCategory')"
+                severity="danger"
+                text
+                size="small"
+                :disabled="activeCategoriesByManagingGroup.length <= 1"
+                @click="askCategoryDelete(category)"
+              />
+            </div>
+          </div>
+          <small class="help-text">{{ t('dashboard.deleteCategoryHelp') }}</small>
+        </div>
+      </div>
+      <template #footer>
+        <Button
+          :label="t('common.close')"
+          severity="secondary"
+          @click="showManageCategories = false"
+        />
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:visible="showDeleteCategoryConfirm"
+      modal
+      :header="t('dashboard.deleteCategory')"
+      :style="{ width: '90vw' }"
+    >
+      <p>{{ t('dashboard.reassignCategoryPrompt') }}</p>
+      <div class="form-group">
+        <label>{{ t('dashboard.replacementCategory') }}</label>
+        <div
+          class="category-options"
+          role="radiogroup"
+          :aria-label="t('dashboard.replacementCategory')"
+        >
+          <label
+            v-for="category in replacementCategories"
+            :key="`replacement-${category.id}`"
+            class="category-option"
+            :class="{ 'category-option--selected': replacementCategoryId === category.id }"
+          >
+            <RadioButton
+              v-model="replacementCategoryId"
+              name="replacement-category"
+              :input-id="`replacement-category-${category.id}`"
+              :value="category.id"
+            />
+            <span>{{ t(`categories.${category.id}`) }}</span>
+          </label>
+        </div>
+      </div>
+      <template #footer>
+        <Button
+          :label="t('common.cancel')"
+          severity="secondary"
+          @click="showDeleteCategoryConfirm = false"
+        />
+        <Button
+          id="confirm-category-delete"
+          :label="t('dashboard.deleteCategory')"
+          severity="danger"
+          :disabled="!canConfirmCategoryDelete"
+          @click="confirmCategoryDelete"
         />
       </template>
     </Dialog>
@@ -307,6 +418,7 @@ import {
   getCategoriesByGroup,
   getExpensesByMonthAndGroup,
   getLatestBudgetYear,
+  softDeleteCategoryAndReassign,
   updateExpense as updateExpenseRecord,
   updateMonthlyIncomeFromMonth,
 } from '@/data/repositories';
@@ -353,6 +465,8 @@ const showExpenseHistory = ref(false);
 const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
 const showEditMonthlyIncome = ref(false);
+const showManageCategories = ref(false);
+const showDeleteCategoryConfirm = ref(false);
 const expenseAmount = ref('');
 const expenseGroup = ref<GroupType | ''>('');
 const expenseCategoryId = ref<CategoryId | ''>('');
@@ -369,6 +483,9 @@ const expensePendingDelete = ref<Expense | null>(null);
 const deletingExpenseIsRecurring = ref(false);
 const deleteApplyToFuture = ref(true);
 const editMonthlyIncome = ref('');
+const managingGroup = ref<GroupType>('needs');
+const categoryPendingDelete = ref<Category | null>(null);
+const replacementCategoryId = ref<CategoryId | ''>('');
 const categoriesByGroup = ref<Record<GroupType, Category[]>>({
   needs: [],
   wants: [],
@@ -389,6 +506,20 @@ const expenseCategories = computed<Category[]>(() => {
   }
 
   return categoriesByGroup.value[expenseGroup.value];
+});
+
+const activeCategoriesByManagingGroup = computed<Category[]>(() => {
+  return categoriesByGroup.value[managingGroup.value].filter((category) => category.isActive);
+});
+
+const replacementCategories = computed<Category[]>(() => {
+  if (!categoryPendingDelete.value) {
+    return [];
+  }
+
+  return activeCategoriesByManagingGroup.value.filter(
+    (category) => category.id !== categoryPendingDelete.value?.id,
+  );
 });
 
 const isExpenseValid = computed(() => {
@@ -412,6 +543,10 @@ const isEditExpenseValid = computed(() => {
 const isMonthlyIncomeValid = computed(() => {
   const amount = parseFloat(editMonthlyIncome.value);
   return !Number.isNaN(amount) && amount > 0;
+});
+
+const canConfirmCategoryDelete = computed(() => {
+  return categoryPendingDelete.value !== null && replacementCategoryId.value !== '';
 });
 
 const expenseHistoryTitle = computed(() => {
@@ -963,6 +1098,68 @@ async function loadCategories(): Promise<void> {
   };
 }
 
+function openManageCategories(): void {
+  managingGroup.value = expenseGroup.value || 'needs';
+  showManageCategories.value = true;
+}
+
+function askCategoryDelete(category: Category): void {
+  categoryPendingDelete.value = category;
+  const firstReplacement = activeCategoriesByManagingGroup.value.find(
+    (item) => item.id !== category.id,
+  );
+  replacementCategoryId.value = firstReplacement?.id ?? '';
+  showDeleteCategoryConfirm.value = true;
+}
+
+async function confirmCategoryDelete(): Promise<void> {
+  if (!categoryPendingDelete.value || replacementCategoryId.value === '') {
+    return;
+  }
+
+  const pendingCategory = categoryPendingDelete.value;
+
+  try {
+    await softDeleteCategoryAndReassign({
+      group: managingGroup.value,
+      categoryId: pendingCategory.id,
+      replacementCategoryId: replacementCategoryId.value,
+    });
+
+    await loadCategories();
+
+    if (
+      expenseGroup.value === managingGroup.value &&
+      expenseCategoryId.value === pendingCategory.id
+    ) {
+      expenseCategoryId.value = replacementCategoryId.value;
+    }
+
+    showDeleteCategoryConfirm.value = false;
+    categoryPendingDelete.value = null;
+    replacementCategoryId.value = '';
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.categoryDeleted'),
+      detail: t('dashboard.categoryDeleted'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to soft delete category', {
+      error,
+      group: managingGroup.value,
+      categoryId: pendingCategory.id,
+    });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.categoryDeleteError'),
+      life: 3000,
+    });
+  }
+}
+
 watch(expenseGroup, (nextGroup) => {
   if (!nextGroup) {
     expenseCategoryId.value = '';
@@ -1057,6 +1254,11 @@ onMounted(() => {
   font-weight: 600;
 }
 
+.manage-categories-action {
+  width: fit-content;
+  margin: 0 0 0.5rem;
+}
+
 .category-options {
   display: flex;
   flex-direction: column;
@@ -1080,6 +1282,21 @@ onMounted(() => {
 .category-option--selected {
   border-color: var(--p-primary-color);
   background: color-mix(in srgb, var(--p-primary-color) 10%, var(--p-content-background));
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--p-input-border-color);
+  border-radius: 8px;
+}
+
+.help-text {
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
 }
 
 .expense-history-list {

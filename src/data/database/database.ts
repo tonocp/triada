@@ -136,6 +136,8 @@ export async function initDatabase(): Promise<void> {
           group_name TEXT NOT NULL,
           order_index INTEGER NOT NULL,
           is_default INTEGER NOT NULL,
+          is_active INTEGER NOT NULL DEFAULT 1,
+          deleted_at TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -180,6 +182,23 @@ export async function initDatabase(): Promise<void> {
       // ignore if column already exists
     }
 
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(
+        `ALTER TABLE expense_categories ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1;`,
+        false,
+      );
+    } catch {
+      // ignore if column already exists
+    }
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(`ALTER TABLE expense_categories ADD COLUMN deleted_at TEXT;`, false);
+    } catch {
+      // ignore if column already exists
+    }
+
     isDbReady = true;
   } finally {
     isInitializing = false;
@@ -197,7 +216,7 @@ export async function execute(statements: string): Promise<unknown> {
 
 export async function query<T = Record<string, unknown>>(
   statement: string,
-  values: (string | number)[] = [],
+  values: (string | number | null)[] = [],
 ): Promise<T[]> {
   if (!isDbReady) {
     await initDatabase();
@@ -208,7 +227,10 @@ export async function query<T = Record<string, unknown>>(
   return (result.values ?? []) as T[];
 }
 
-export async function run(statement: string, values: (string | number)[] = []): Promise<unknown> {
+export async function run(
+  statement: string,
+  values: (string | number | null)[] = [],
+): Promise<unknown> {
   if (!isDbReady) {
     await initDatabase();
   }

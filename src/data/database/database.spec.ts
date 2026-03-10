@@ -83,7 +83,7 @@ describe('data/database sqlite runtime', () => {
 
     expect(createConnectionMock).toHaveBeenCalledTimes(1);
     expect(dbOpenMock).toHaveBeenCalledTimes(1);
-    expect(dbExecuteMock).toHaveBeenCalledTimes(5);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(7);
     expect(database.isDatabaseReady()).toBe(true);
   });
 
@@ -113,7 +113,7 @@ describe('data/database sqlite runtime', () => {
     await database.initDatabase();
     await database.initDatabase();
 
-    expect(dbExecuteMock).toHaveBeenCalledTimes(5);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(7);
   });
 
   it('should execute query and run operations', async () => {
@@ -180,7 +180,7 @@ describe('data/database sqlite runtime', () => {
     await Promise.all([firstInit, secondInit]);
 
     expect(createConnectionMock).toHaveBeenCalledTimes(1);
-    expect(dbExecuteMock).toHaveBeenCalledTimes(5);
+    expect(dbExecuteMock).toHaveBeenCalledTimes(7);
   });
 
   it('should return empty array when query has no values', async () => {

@@ -47,10 +47,37 @@ async function ensureDefaultCategories(): Promise<void> {
   for (const category of DEFAULT_CATEGORIES) {
     await run(
       `INSERT OR IGNORE INTO expense_categories
-      (id, group_name, order_index, is_default, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)`,
-      [category.id, category.group, category.order, category.isDefault ? 1 : 0, now, now],
+      (id, group_name, order_index, is_default, is_active, deleted_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        category.id,
+        category.group,
+        category.order,
+        category.isDefault ? 1 : 0,
+        category.isActive ? 1 : 0,
+        category.deletedAt,
+        now,
+        now,
+      ],
     );
+  }
+}
+
+async function assertActiveCategoryForGroup(
+  group: GroupType,
+  categoryId: CategoryId,
+): Promise<void> {
+  await ensureDefaultCategories();
+
+  const rows = await query<{ id: string }>(
+    `SELECT id FROM expense_categories
+     WHERE id = ? AND group_name = ? AND is_active = 1
+     LIMIT 1`,
+    [categoryId, group],
+  );
+
+  if (rows.length === 0) {
+    throw new Error(`Category ${categoryId} does not belong to group ${group}`);
   }
 }
 
@@ -281,8 +308,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
     const categoryId: CategoryId =
       input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
 
-    if (!isValidCategoryForGroup(input.group, categoryId)) {
-      throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+    if (input.categoryId) {
+      if (!isValidCategoryForGroup(input.group, categoryId)) {
+        throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+      }
+
+      await assertActiveCategoryForGroup(input.group, categoryId);
     }
 
     if (!input.isRecurring) {
@@ -697,7 +728,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
       .sort((left, right) => compareGroups(left.group, right.group));
   },
 
-  async getCategoriesByGroup(group: GroupType): Promise<Category[]> {
+  async getCategoriesByGroup(
+    group: GroupType,
+    options?: { includeInactive?: boolean },
+  ): Promise<Category[]> {
     await ensureDefaultCategories();
 
     const rows = await query<{
@@ -705,10 +739,12 @@ export const sqliteBudgetRepository: BudgetRepository = {
       group_name: string;
       order_index: number;
       is_default: number;
+      is_active: number;
+      deleted_at: string | null;
     }>(
-      `SELECT id, group_name, order_index, is_default
+      `SELECT id, group_name, order_index, is_default, is_active, deleted_at
        FROM expense_categories
-       WHERE group_name = ?
+       WHERE group_name = ? ${options?.includeInactive ? '' : 'AND is_active = 1'}
        ORDER BY order_index ASC`,
       [group],
     );
@@ -718,7 +754,60 @@ export const sqliteBudgetRepository: BudgetRepository = {
       group: row.group_name as GroupType,
       order: Number(row.order_index),
       isDefault: Number(row.is_default) === 1,
+      isActive: Number(row.is_active) === 1,
+      deletedAt: row.deleted_at,
     }));
+  },
+
+  async softDeleteCategoryAndReassign(input: {
+    group: GroupType;
+    categoryId: CategoryId;
+    replacementCategoryId: CategoryId;
+  }): Promise<void> {
+    await ensureDefaultCategories();
+
+    if (input.categoryId === input.replacementCategoryId) {
+      throw new Error('Replacement category must be different from category to delete');
+    }
+
+    const categories = await sqliteBudgetRepository.getCategoriesByGroup(input.group, {
+      includeInactive: true,
+    });
+    const target = categories.find((category) => category.id === input.categoryId);
+    const replacement = categories.find((category) => category.id === input.replacementCategoryId);
+
+    if (!target || !target.isActive) {
+      throw new Error(`Category ${input.categoryId} does not belong to group ${input.group}`);
+    }
+
+    if (!replacement || !replacement.isActive) {
+      throw new Error(
+        `Replacement category ${input.replacementCategoryId} does not belong to group ${input.group}`,
+      );
+    }
+
+    const now = getCurrentTimestamp();
+
+    await run(
+      `UPDATE budget_expenses
+       SET category_id = ?, updated_at = ?
+       WHERE group = ? AND category_id = ?`,
+      [input.replacementCategoryId, now, input.group, input.categoryId],
+    );
+
+    await run(
+      `UPDATE recurring_expense_rules
+       SET category_id = ?, updated_at = ?
+       WHERE group = ? AND category_id = ?`,
+      [input.replacementCategoryId, now, input.group, input.categoryId],
+    );
+
+    await run(
+      `UPDATE expense_categories
+       SET is_active = 0, deleted_at = ?, updated_at = ?
+       WHERE id = ?`,
+      [now, now, input.categoryId],
+    );
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {

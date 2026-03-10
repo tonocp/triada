@@ -19,6 +19,8 @@ export interface Category {
   group: GroupType;
   order: number;
   isDefault: boolean;
+  isActive: boolean;
+  deletedAt: string | null;
 }
 
 export const DEFAULT_CATEGORIES_BY_GROUP: Record<GroupType, readonly CategoryId[]> = {
@@ -28,15 +30,78 @@ export const DEFAULT_CATEGORIES_BY_GROUP: Record<GroupType, readonly CategoryId[
 };
 
 export const DEFAULT_CATEGORIES: readonly Category[] = [
-  { id: CategoryId.HOUSING, group: 'needs', order: 0, isDefault: true },
-  { id: CategoryId.FOOD, group: 'needs', order: 1, isDefault: true },
-  { id: CategoryId.TRANSPORT, group: 'needs', order: 2, isDefault: true },
-  { id: CategoryId.DINING, group: 'wants', order: 0, isDefault: true },
-  { id: CategoryId.ENTERTAINMENT, group: 'wants', order: 1, isDefault: true },
-  { id: CategoryId.SHOPPING, group: 'wants', order: 2, isDefault: true },
-  { id: CategoryId.EMERGENCY_FUND, group: 'savings', order: 0, isDefault: true },
-  { id: CategoryId.INVESTMENTS, group: 'savings', order: 1, isDefault: true },
-  { id: CategoryId.FINANCIAL_GOALS, group: 'savings', order: 2, isDefault: true },
+  {
+    id: CategoryId.HOUSING,
+    group: 'needs',
+    order: 0,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.FOOD,
+    group: 'needs',
+    order: 1,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.TRANSPORT,
+    group: 'needs',
+    order: 2,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.DINING,
+    group: 'wants',
+    order: 0,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.ENTERTAINMENT,
+    group: 'wants',
+    order: 1,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.SHOPPING,
+    group: 'wants',
+    order: 2,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.EMERGENCY_FUND,
+    group: 'savings',
+    order: 0,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.INVESTMENTS,
+    group: 'savings',
+    order: 1,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
+  {
+    id: CategoryId.FINANCIAL_GOALS,
+    group: 'savings',
+    order: 2,
+    isDefault: true,
+    isActive: true,
+    deletedAt: null,
+  },
 ];
 
 export function isValidCategoryForGroup(group: GroupType, categoryId: CategoryId): boolean {

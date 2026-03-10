@@ -4,6 +4,7 @@ import type {
   BudgetMonth,
   BudgetYear,
   Category,
+  CategoryId,
   CreateBudgetAllocationInput,
   CreateBudgetMonthInput,
   CreateBudgetYearInput,
@@ -96,8 +97,19 @@ export async function getExpensesByMonthAndGroup(
   return getRepository().getExpensesByMonthAndGroup(budgetMonthId, group);
 }
 
-export async function getCategoriesByGroup(group: GroupType): Promise<Category[]> {
-  return getRepository().getCategoriesByGroup(group);
+export async function getCategoriesByGroup(
+  group: GroupType,
+  options?: { includeInactive?: boolean },
+): Promise<Category[]> {
+  return getRepository().getCategoriesByGroup(group, options);
+}
+
+export async function softDeleteCategoryAndReassign(input: {
+  group: GroupType;
+  categoryId: CategoryId;
+  replacementCategoryId: CategoryId;
+}): Promise<void> {
+  return getRepository().softDeleteCategoryAndReassign(input);
 }
 
 export async function getAllocationsByMonth(budgetMonthId: string): Promise<BudgetAllocation[]> {

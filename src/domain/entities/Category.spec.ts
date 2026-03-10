@@ -20,6 +20,8 @@ describe('domain/entities - Category', () => {
   it('should keep category catalog with stable ids', () => {
     expect(DEFAULT_CATEGORIES).toHaveLength(9);
     expect(DEFAULT_CATEGORIES.map((item) => item.id)).toContain(CategoryId.FINANCIAL_GOALS);
+    expect(DEFAULT_CATEGORIES.every((item) => item.isActive)).toBe(true);
+    expect(DEFAULT_CATEGORIES.every((item) => item.deletedAt === null)).toBe(true);
   });
 
   it('should validate category ownership by group', () => {

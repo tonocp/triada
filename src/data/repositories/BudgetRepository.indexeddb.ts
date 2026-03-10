@@ -94,6 +94,8 @@ interface CategoryRow {
   group: GroupType;
   order: number;
   is_default: boolean;
+  is_active: boolean;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -180,6 +182,16 @@ async function readAllCategoryRows(): Promise<CategoryRow[]> {
   )) as CategoryRow[];
   await transactionDone(tx);
   return result;
+}
+
+async function findCategoryRowById(categoryId: CategoryId): Promise<CategoryRow | null> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.expenseCategories, 'readonly');
+  const row = (await requestToPromise(
+    tx.objectStore(indexedDbStores.expenseCategories).get(categoryId),
+  )) as CategoryRow | undefined;
+  await transactionDone(tx);
+  return row ?? null;
 }
 
 async function findBudgetMonthRow(
@@ -295,6 +307,8 @@ function mapCategoryRow(row: CategoryRow): Category {
     group: row.group,
     order: row.order,
     isDefault: row.is_default,
+    isActive: row.is_active,
+    deletedAt: row.deleted_at,
   };
 }
 
@@ -313,9 +327,23 @@ async function ensureDefaultCategories(): Promise<void> {
       group: category.group,
       order: category.order,
       is_default: category.isDefault,
+      is_active: category.isActive,
+      deleted_at: category.deletedAt,
       created_at: now,
       updated_at: now,
     });
+  }
+}
+
+async function assertActiveCategoryForGroup(
+  group: GroupType,
+  categoryId: CategoryId,
+): Promise<void> {
+  await ensureDefaultCategories();
+
+  const category = await findCategoryRowById(categoryId);
+  if (!category || category.group !== group || !category.is_active) {
+    throw new Error(`Category ${categoryId} does not belong to group ${group}`);
   }
 }
 
@@ -555,8 +583,12 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     const categoryId: CategoryId =
       input.categoryId ?? DEFAULT_CATEGORIES_BY_GROUP[input.group][0] ?? 'housing';
 
-    if (!isValidCategoryForGroup(input.group, categoryId)) {
-      throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+    if (input.categoryId) {
+      if (!isValidCategoryForGroup(input.group, categoryId)) {
+        throw new Error(`Category ${categoryId} does not belong to group ${input.group}`);
+      }
+
+      await assertActiveCategoryForGroup(input.group, categoryId);
     }
 
     if (!input.isRecurring) {
@@ -869,15 +901,96 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     return rows.map(mapAllocationRow).sort((left, right) => compareGroups(left.group, right.group));
   },
 
-  async getCategoriesByGroup(group: GroupType): Promise<Category[]> {
+  async getCategoriesByGroup(
+    group: GroupType,
+    options?: { includeInactive?: boolean },
+  ): Promise<Category[]> {
     await initIndexedDb();
     await ensureDefaultCategories();
 
     const rows = await readAllCategoryRows();
     return rows
-      .filter((row) => row.group === group)
+      .filter((row) => row.group === group && (options?.includeInactive === true || row.is_active))
       .sort((left, right) => left.order - right.order)
       .map(mapCategoryRow);
+  },
+
+  async softDeleteCategoryAndReassign(input: {
+    group: GroupType;
+    categoryId: CategoryId;
+    replacementCategoryId: CategoryId;
+  }): Promise<void> {
+    await initIndexedDb();
+    await ensureDefaultCategories();
+
+    if (input.categoryId === input.replacementCategoryId) {
+      throw new Error('Replacement category must be different from category to delete');
+    }
+
+    const categories = await indexedDbBudgetRepository.getCategoriesByGroup(input.group, {
+      includeInactive: true,
+    });
+    const target = categories.find((category) => category.id === input.categoryId);
+    const replacement = categories.find((category) => category.id === input.replacementCategoryId);
+
+    if (!target || !target.isActive) {
+      throw new Error(`Category ${input.categoryId} does not belong to group ${input.group}`);
+    }
+
+    if (!replacement || !replacement.isActive) {
+      throw new Error(
+        `Replacement category ${input.replacementCategoryId} does not belong to group ${input.group}`,
+      );
+    }
+
+    const now = getCurrentTimestamp();
+    const db = await getIndexedDb();
+    const tx = db.transaction(
+      [
+        indexedDbStores.expenseCategories,
+        indexedDbStores.budgetExpenses,
+        indexedDbStores.recurringExpenseRules,
+      ],
+      'readwrite',
+    );
+
+    const categoriesStore = tx.objectStore(indexedDbStores.expenseCategories);
+    const expensesStore = tx.objectStore(indexedDbStores.budgetExpenses);
+    const rulesStore = tx.objectStore(indexedDbStores.recurringExpenseRules);
+
+    const allExpenses = (await requestToPromise(expensesStore.getAll())) as ExpenseRow[];
+    const allRules = (await requestToPromise(rulesStore.getAll())) as RecurringExpenseRuleRow[];
+
+    for (const expense of allExpenses) {
+      if (expense.group === input.group && expense.category_id === input.categoryId) {
+        expensesStore.put({
+          ...expense,
+          category_id: input.replacementCategoryId,
+          updated_at: now,
+        });
+      }
+    }
+
+    for (const rule of allRules) {
+      if (rule.group === input.group && rule.category_id === input.categoryId) {
+        rulesStore.put({ ...rule, category_id: input.replacementCategoryId, updated_at: now });
+      }
+    }
+
+    const targetRow = (await requestToPromise(categoriesStore.get(input.categoryId))) as
+      | CategoryRow
+      | undefined;
+
+    if (targetRow) {
+      categoriesStore.put({
+        ...targetRow,
+        is_active: false,
+        deleted_at: now,
+        updated_at: now,
+      });
+    }
+
+    await transactionDone(tx);
   },
 
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {

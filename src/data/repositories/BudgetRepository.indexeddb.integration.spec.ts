@@ -143,9 +143,22 @@ interface IndexedDbRepositoryModule {
     >;
     getCategoriesByGroup: (
       group: 'needs' | 'wants' | 'savings',
+      options?: { includeInactive?: boolean },
     ) => Promise<
-      Array<{ id: string; group: 'needs' | 'wants' | 'savings'; order: number; isDefault: boolean }>
+      Array<{
+        id: string;
+        group: 'needs' | 'wants' | 'savings';
+        order: number;
+        isDefault: boolean;
+        isActive: boolean;
+        deletedAt: string | null;
+      }>
     >;
+    softDeleteCategoryAndReassign: (input: {
+      group: 'needs' | 'wants' | 'savings';
+      categoryId: string;
+      replacementCategoryId: string;
+    }) => Promise<void>;
     getAllocationsByMonth: (budgetMonthId: string) => Promise<
       Array<{
         group: 'needs' | 'wants' | 'savings';
@@ -937,5 +950,124 @@ describe('data/repositories IndexedDB integration', () => {
         description: 'Invalido',
       }),
     ).rejects.toThrow('Category shopping does not belong to group needs');
+  });
+
+  it('should soft delete category and hide it from active list', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
+
+    const activeCategories =
+      await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup('needs');
+    const allCategories = await repositoryModule.indexedDbBudgetRepository.getCategoriesByGroup(
+      'needs',
+      { includeInactive: true },
+    );
+
+    expect(activeCategories.map((category) => category.id)).toEqual(['housing', 'transport']);
+    expect(allCategories.find((category) => category.id === 'food')?.isActive).toBe(false);
+  });
+
+  it('should reject soft delete when replacement equals target', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'food',
+      }),
+    ).rejects.toThrow('Replacement category must be different from category to delete');
+  });
+
+  it('should reject soft delete when replacement is invalid for group', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'shopping',
+      }),
+    ).rejects.toThrow('Replacement category shopping does not belong to group needs');
+  });
+
+  it('should reject soft delete when category is already inactive', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'housing',
+      }),
+    ).rejects.toThrow('Category food does not belong to group needs');
+  });
+
+  it('should reject addExpense when selected category is inactive', async () => {
+    const { repositoryModule } = await loadModules();
+    const budget = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    const month = budget.months[0];
+
+    await repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.addExpense({
+        budgetMonthId: month!.id,
+        group: 'needs',
+        categoryId: 'food',
+        amount: 1_000,
+        description: 'Categoria inactiva',
+      }),
+    ).rejects.toThrow('Category food does not belong to group needs');
+  });
+
+  it('should reassign recurring rules and expenses on soft delete', async () => {
+    const { repositoryModule } = await loadModules();
+    const budget = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    const month = budget.months[0];
+
+    await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month!.id,
+      group: 'needs',
+      categoryId: 'food',
+      amount: 4_000,
+      description: 'Supermercado',
+      isRecurring: true,
+    });
+
+    await repositoryModule.indexedDbBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
+
+    const expenses = await repositoryModule.indexedDbBudgetRepository.getExpensesByMonthAndGroup(
+      month!.id,
+      'needs',
+    );
+    expect(expenses[0]?.categoryId).toBe('housing');
   });
 });

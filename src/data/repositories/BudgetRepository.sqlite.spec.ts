@@ -720,12 +720,16 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         group_name: 'needs',
         order_index: 0,
         is_default: 1,
+        is_active: 1,
+        deleted_at: null,
       },
       {
         id: 'food',
         group_name: 'needs',
         order_index: 1,
         is_default: 1,
+        is_active: 1,
+        deleted_at: null,
       },
     ]);
 
@@ -733,9 +737,139 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     const categories = await sqliteBudgetRepository.getCategoriesByGroup('needs');
 
     expect(categories).toEqual([
-      { id: 'housing', group: 'needs', order: 0, isDefault: true },
-      { id: 'food', group: 'needs', order: 1, isDefault: true },
+      {
+        id: 'housing',
+        group: 'needs',
+        order: 0,
+        isDefault: true,
+        isActive: true,
+        deletedAt: null,
+      },
+      {
+        id: 'food',
+        group: 'needs',
+        order: 1,
+        isDefault: true,
+        isActive: true,
+        deletedAt: null,
+      },
     ]);
+  });
+
+  it('should soft delete category and reassign expenses', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'housing',
+        group_name: 'needs',
+        order_index: 0,
+        is_default: 1,
+        is_active: 1,
+        deleted_at: null,
+      },
+      {
+        id: 'food',
+        group_name: 'needs',
+        order_index: 1,
+        is_default: 1,
+        is_active: 1,
+        deleted_at: null,
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.softDeleteCategoryAndReassign({
+      group: 'needs',
+      categoryId: 'food',
+      replacementCategoryId: 'housing',
+    });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE budget_expenses'),
+      expect.any(Array),
+    );
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE recurring_expense_rules'),
+      expect.any(Array),
+    );
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE expense_categories'),
+      expect.any(Array),
+    );
+  });
+
+  it('should reject soft delete when replacement equals target', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'food',
+      }),
+    ).rejects.toThrow('Replacement category must be different from category to delete');
+  });
+
+  it('should reject soft delete when target category is not active', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'housing',
+        group_name: 'needs',
+        order_index: 0,
+        is_default: 1,
+        is_active: 1,
+        deleted_at: null,
+      },
+      {
+        id: 'food',
+        group_name: 'needs',
+        order_index: 1,
+        is_default: 1,
+        is_active: 0,
+        deleted_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'housing',
+      }),
+    ).rejects.toThrow('Category food does not belong to group needs');
+  });
+
+  it('should reject soft delete when replacement category is not active', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'housing',
+        group_name: 'needs',
+        order_index: 0,
+        is_default: 1,
+        is_active: 0,
+        deleted_at: '2026-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'food',
+        group_name: 'needs',
+        order_index: 1,
+        is_default: 1,
+        is_active: 1,
+        deleted_at: null,
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.softDeleteCategoryAndReassign({
+        group: 'needs',
+        categoryId: 'food',
+        replacementCategoryId: 'housing',
+      }),
+    ).rejects.toThrow('Replacement category housing does not belong to group needs');
   });
 
   it('should reject expense when category does not belong to group', async () => {
@@ -750,5 +884,47 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         description: 'Compra invalida',
       }),
     ).rejects.toThrow('Category shopping does not belong to group needs');
+  });
+
+  it('should add expense with explicit active category', async () => {
+    queryMock.mockResolvedValueOnce([{ id: 'food' }]).mockResolvedValueOnce([
+      {
+        id: 'alloc-2',
+        budget_month_id: 'month-id',
+        group: 'needs',
+        allocated: 50_000,
+        spent: 12_345,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.addExpense({
+      budgetMonthId: 'month-id',
+      group: 'needs',
+      categoryId: 'food',
+      amount: 1_000,
+      description: 'Gasto con categoria',
+    });
+
+    expect(result.categoryId).toBe('food');
+  });
+
+  it('should reject expense when category is inactive', async () => {
+    queryMock.mockResolvedValueOnce([]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await expect(
+      sqliteBudgetRepository.addExpense({
+        budgetMonthId: 'month-id',
+        group: 'needs',
+        categoryId: 'food',
+        amount: 1_000,
+        description: 'Gasto con categoria inactiva',
+      }),
+    ).rejects.toThrow('Category food does not belong to group needs');
   });
 });

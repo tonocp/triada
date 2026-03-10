@@ -315,30 +315,39 @@
       <ul v-else class="expense-history-list">
         <li v-for="expense in selectedGroupExpenses" :key="expense.id" class="expense-history-item">
           <div class="expense-history-content">
-            <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
+            <div class="expense-history-top-row">
+              <span class="expense-history-amount">{{ formatCurrencyValue(expense.amount) }}</span>
+              <div class="expense-history-actions">
+                <Button
+                  icon="pi pi-pencil"
+                  text
+                  rounded
+                  severity="secondary"
+                  class="expense-history-action-button"
+                  :aria-label="t('dashboard.editExpense')"
+                  @click="startExpenseEdit(expense)"
+                />
+                <Button
+                  icon="pi pi-trash"
+                  text
+                  rounded
+                  severity="danger"
+                  class="expense-history-action-button"
+                  :aria-label="t('dashboard.deleteExpense')"
+                  @click="askExpenseDelete(expense)"
+                />
+              </div>
+            </div>
+            <div class="expense-history-tags">
+              <span class="expense-history-category">{{ expenseCategoryLabel(expense) }}</span>
+            </div>
             <span class="expense-history-description">{{ expense.description }}</span>
-            <span v-if="expense.recurringRuleId" class="expense-history-recurring">
-              {{ t('dashboard.recurring') }}
-            </span>
-            <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
-          </div>
-          <div class="expense-history-actions">
-            <Button
-              icon="pi pi-pencil"
-              text
-              rounded
-              severity="secondary"
-              :aria-label="t('dashboard.editExpense')"
-              @click="startExpenseEdit(expense)"
-            />
-            <Button
-              icon="pi pi-trash"
-              text
-              rounded
-              severity="danger"
-              :aria-label="t('dashboard.deleteExpense')"
-              @click="askExpenseDelete(expense)"
-            />
+            <div class="expense-history-meta-row">
+              <span class="expense-history-date">{{ formatExpenseDate(expense.createdAt) }}</span>
+              <span v-if="expense.recurringRuleId" class="expense-history-recurring">
+                {{ t('dashboard.recurring') }}
+              </span>
+            </div>
           </div>
         </li>
       </ul>
@@ -670,12 +679,14 @@ const canSaveCategoryName = computed(() => {
 
 const expenseHistoryTitle = computed(() => {
   if (!selectedHistoryGroup.value) {
-    return t('dashboard.expenseHistoryTitle', { group: '' });
+    return `${t('dashboard.expenseHistoryTitle', { group: '' })} (0)`;
   }
 
-  return t('dashboard.expenseHistoryTitle', {
+  const title = t('dashboard.expenseHistoryTitle', {
     group: t(`groups.${selectedHistoryGroup.value}`),
   });
+
+  return `${title} (${selectedGroupExpenses.value.length})`;
 });
 
 function setActivePeriod(year: number, month: number): void {
@@ -1259,6 +1270,22 @@ function categoryLabel(category: Category): string {
   return category.id;
 }
 
+function expenseCategoryLabel(expense: Expense): string {
+  const category = categoriesByGroup.value[expense.group].find(
+    (item) => item.id === expense.categoryId,
+  );
+  if (category) {
+    return categoryLabel(category);
+  }
+
+  const key = `categories.${expense.categoryId}`;
+  if (te(key)) {
+    return t(key);
+  }
+
+  return expense.categoryId;
+}
+
 async function addCategory(): Promise<void> {
   const name = newCategoryName.value.trim();
   if (name.length < 2) {
@@ -1676,44 +1703,85 @@ onMounted(() => {
 }
 
 .expense-history-item {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  padding: 0.875rem;
   border: 1px solid var(--p-input-border-color);
-  border-radius: 8px;
+  border-radius: 10px;
+  background: var(--p-content-background);
 }
 
 .expense-history-content {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.5rem;
+}
+
+.expense-history-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.expense-history-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.expense-history-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.expense-history-category {
+  width: fit-content;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--p-primary-200);
+  background: var(--p-primary-50);
+  color: var(--p-primary-700);
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .expense-history-actions {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.125rem;
+}
+
+.expense-history-action-button {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 
 .expense-history-amount {
+  font-size: 1.25rem;
   font-weight: 700;
 }
 
 .expense-history-description {
-  font-weight: 500;
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
 .expense-history-date {
   color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
 }
 
 .expense-history-recurring {
   width: fit-content;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--p-input-border-color);
+  background: var(--p-surface-100);
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--p-primary-color);
+  color: var(--p-text-muted-color);
 }
 </style>

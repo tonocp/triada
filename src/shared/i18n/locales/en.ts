@@ -51,6 +51,10 @@ export default {
     backupMenu: 'Backup',
     moreActionsMenu: 'More actions',
     databaseExported: 'Backup exported successfully.',
+    databaseExportedToFiles: 'Backup saved to Files/Documents as {fileName}.',
+    databaseExportedToDownloads: 'Backup saved to Downloads as {fileName}.',
+    databaseExportedSharedFallback:
+      'Backup ready to share. Choose an app to save it as {fileName}.',
     databaseExportError: 'Could not export database backup.',
     databaseImportConfirm:
       'This action will replace your entire current database. Continue with import?',

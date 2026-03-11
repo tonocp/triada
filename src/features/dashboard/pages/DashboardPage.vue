@@ -586,6 +586,8 @@ import { Input } from '@/shared/components/atoms';
 import { GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { Capacitor } from '@capacitor/core';
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
@@ -1166,7 +1168,6 @@ function runMoreAction(actionId: MoreActionId): void {
   }
 
   openImportDatabasePicker();
-  showMoreActionsSheet.value = false;
 }
 
 async function exportDatabaseToJson(): Promise<void> {
@@ -1175,18 +1176,80 @@ async function exportDatabaseToJson(): Promise<void> {
     const payload = JSON.stringify(snapshot, null, 2);
 
     const fileName = buildBackupFileName();
-    const backupFile = new File([payload], fileName, { type: 'application/json' });
-    const supportsFileShare =
-      typeof navigator.share === 'function' &&
-      typeof navigator.canShare === 'function' &&
-      navigator.canShare({ files: [backupFile] });
+    let exported = false;
+    let successDetail = t('dashboard.databaseExported');
 
-    if (supportsFileShare) {
-      await navigator.share({
-        title: fileName,
-        files: [backupFile],
-      });
-    } else {
+    const isAndroidNative = useNativeActionsSheet.value && Capacitor.getPlatform() === 'android';
+
+    if (isAndroidNative) {
+      try {
+        await Filesystem.requestPermissions();
+      } catch (permissionError) {
+        console.error('Failed to request Android filesystem permissions', {
+          error: permissionError,
+        });
+      }
+
+      try {
+        await Filesystem.writeFile({
+          path: `Download/${fileName}`,
+          data: payload,
+          directory: Directory.ExternalStorage,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        exported = true;
+        successDetail = t('dashboard.databaseExportedToDownloads', { fileName });
+      } catch (writeError) {
+        console.error('Failed to save backup file in Android downloads directory', {
+          error: writeError,
+          fileName,
+        });
+      }
+    }
+
+    if (!exported && useNativeActionsSheet.value) {
+      try {
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: payload,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+
+        await Share.share({
+          title: fileName,
+          url: writeResult.uri,
+          dialogTitle: t('dashboard.exportDatabase'),
+        });
+        exported = true;
+        successDetail = t('dashboard.databaseExportedSharedFallback', { fileName });
+      } catch (shareError) {
+        if (shareError instanceof Error && shareError.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Failed to share native backup file', {
+          error: shareError,
+        });
+      }
+    }
+
+    if (!exported && typeof navigator.share === 'function') {
+      try {
+        const backupFile = new File([payload], fileName, { type: 'application/json' });
+        await navigator.share({ files: [backupFile] });
+        exported = true;
+      } catch (shareError) {
+        if (shareError instanceof Error && shareError.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Failed web share fallback for backup file', { error: shareError });
+      }
+    }
+
+    if (!exported) {
       const blob = new Blob([payload], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1201,7 +1264,7 @@ async function exportDatabaseToJson(): Promise<void> {
     toast.add({
       severity: 'success',
       summary: t('dashboard.databaseExported'),
-      detail: t('dashboard.databaseExported'),
+      detail: successDetail,
       life: 3000,
     });
   } catch (error) {
@@ -1234,11 +1297,13 @@ async function onImportFileSelected(event: Event): Promise<void> {
   const file = target.files?.[0];
 
   if (!file) {
+    showMoreActionsSheet.value = false;
     resetImportInput();
     return;
   }
 
   if (!window.confirm(t('dashboard.databaseImportConfirm'))) {
+    showMoreActionsSheet.value = false;
     resetImportInput();
     return;
   }
@@ -1265,6 +1330,7 @@ async function onImportFileSelected(event: Event): Promise<void> {
       life: 5000,
     });
   } finally {
+    showMoreActionsSheet.value = false;
     resetImportInput();
   }
 }

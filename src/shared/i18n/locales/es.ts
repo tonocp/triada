@@ -51,6 +51,10 @@ export default {
     backupMenu: 'Respaldo',
     moreActionsMenu: 'Mas acciones',
     databaseExported: 'Respaldo exportado correctamente.',
+    databaseExportedToFiles: 'Respaldo guardado en Archivos/Documentos como {fileName}.',
+    databaseExportedToDownloads: 'Respaldo guardado en Descargas como {fileName}.',
+    databaseExportedSharedFallback:
+      'Respaldo listo para compartir. Selecciona una app para guardarlo como {fileName}.',
     databaseExportError: 'No se pudo exportar el respaldo de datos.',
     databaseImportConfirm:
       'Esta accion reemplazara toda tu base de datos actual. Continuar con la importacion?',

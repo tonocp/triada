@@ -84,6 +84,13 @@ export default {
     spent: 'Gastado',
     remaining: 'Restante',
     spentOf: '% gastado',
+    yearSummaryTitle: 'Resumen anual',
+    viewYearSummary: 'Resumen anual',
+    viewMonthly: 'Vista mensual',
+    annualPlannedIncome: 'Ingreso anual planificado',
+    annualTotals: 'Totales del año',
+    annualTotalSpentOfAllocated: '{spent} de {allocated}',
+    yearSummaryLoadError: 'No se pudo cargar el resumen anual. Intenta de nuevo.',
     monthNames: [
       'Enero',
       'Febrero',
@@ -126,6 +133,7 @@ export default {
     add: 'Agregar',
     close: 'Cerrar',
     confirm: 'Confirmar',
+    loading: 'Cargando...',
     comingSoon: 'Próximamente',
   },
 };

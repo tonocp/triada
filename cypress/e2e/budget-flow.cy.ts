@@ -301,6 +301,28 @@ describe('Budget flow', () => {
     cy.contains('€1000.00').should('be.visible');
   });
 
+  it('should open annual summary with 12 months and navigate back to selected month', () => {
+    createBudget('1000');
+
+    const currentMonth = new Date().getMonth() + 1;
+
+    cy.get('#open-year-summary').click();
+    cy.url().should('include', '/dashboard/year');
+    cy.contains('Resumen anual').should('be.visible');
+    cy.contains('Ingreso anual planificado').should('be.visible');
+    cy.contains('€12000.00').should('be.visible');
+
+    cy.get('[data-testid^="year-month-card-"]').should('have.length', 12);
+    cy.get('[data-testid="annual-group-needs"]').should('contain', '€6000.00');
+    cy.get('[data-testid="annual-group-wants"]').should('contain', '€3600.00');
+    cy.get('[data-testid="annual-group-savings"]').should('contain', '€2400.00');
+
+    cy.get(`[data-testid="year-month-card-${currentMonth}"]`).click();
+    cy.url().should('include', '/dashboard?');
+    cy.contains('Ingreso Mensual').should('be.visible');
+    cy.contains('€1000.00').should('be.visible');
+  });
+
   it('should render dashboard while offline after service worker activation', () => {
     createBudget('1300');
 

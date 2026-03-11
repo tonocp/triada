@@ -16,6 +16,15 @@
           <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
         </div>
         <Button
+          id="open-year-summary"
+          :label="t('dashboard.viewYearSummary')"
+          icon="pi pi-calendar"
+          severity="secondary"
+          outlined
+          class="year-summary-trigger"
+          @click="goToYearSummary"
+        />
+        <Button
           id="more-actions-menu-trigger"
           icon="pi pi-ellipsis-h"
           rounded
@@ -598,8 +607,9 @@ import SelectButton from 'primevue/selectbutton';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const { t, te, locale } = useI18n();
@@ -796,6 +806,34 @@ function setActivePeriod(year: number, month: number): void {
   activeYear.value = normalizedDate.getFullYear();
   activeMonth.value = normalizedDate.getMonth() + 1;
   selectedPeriod.value = new Date(activeYear.value, activeMonth.value - 1, 1);
+}
+
+function toInteger(value: unknown): number | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function resolveInitialPeriod(defaultYear: number): { year: number; month: number } {
+  const queryYear = toInteger(route.query.year);
+  const queryMonth = toInteger(route.query.month);
+  const year = queryYear ?? defaultYear;
+  const month = queryMonth && queryMonth >= 1 && queryMonth <= 12 ? queryMonth : activeMonth.value;
+
+  return { year, month };
+}
+
+function goToYearSummary(): void {
+  void router.push({
+    name: 'year-summary',
+    query: {
+      year: String(activeYear.value),
+      month: String(activeMonth.value),
+    },
+  });
 }
 
 function previousMonth(): void {
@@ -1516,7 +1554,8 @@ async function loadData(): Promise<void> {
       return;
     }
 
-    setActivePeriod(year.year, new Date().getMonth() + 1);
+    const initialPeriod = resolveInitialPeriod(year.year);
+    setActivePeriod(initialPeriod.year, initialPeriod.month);
     await loadCategories();
     await refreshMonthData();
   } catch (error) {
@@ -1867,6 +1906,17 @@ onMounted(() => {
 .dashboard-menu-trigger {
   width: 2.5rem;
   height: 2.5rem;
+}
+
+.year-summary-trigger {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .year-summary-trigger {
+    min-width: 2.5rem;
+    padding-inline: 0.5rem;
+  }
 }
 
 .more-actions-sheet-list {

@@ -84,6 +84,13 @@ export default {
     spent: 'Spent',
     remaining: 'Remaining',
     spentOf: '% spent',
+    yearSummaryTitle: 'Annual summary',
+    viewYearSummary: 'Annual summary',
+    viewMonthly: 'Monthly view',
+    annualPlannedIncome: 'Planned annual income',
+    annualTotals: 'Year totals',
+    annualTotalSpentOfAllocated: '{spent} of {allocated}',
+    yearSummaryLoadError: 'Could not load annual summary. Please try again.',
     monthNames: [
       'January',
       'February',
@@ -126,6 +133,7 @@ export default {
     add: 'Add',
     close: 'Close',
     confirm: 'Confirm',
+    loading: 'Loading...',
     comingSoon: 'Coming Soon',
   },
 };

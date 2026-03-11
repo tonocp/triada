@@ -6,8 +6,14 @@ PODS:
     - SQLCipher
     - ZIPFoundation
   - CapacitorCordova (7.4.4)
+  - CapacitorFilesystem (7.1.8):
+    - Capacitor
+    - IONFilesystemLib (~> 1.1.1)
+  - CapacitorShare (7.0.4):
+    - Capacitor
   - CapacitorStatusBar (7.0.3):
     - Capacitor
+  - IONFilesystemLib (1.1.2)
   - SQLCipher (4.10.0):
     - SQLCipher/standard (= 4.10.0)
   - SQLCipher/common (4.10.0)
@@ -19,10 +25,13 @@ DEPENDENCIES:
   - "Capacitor (from `../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios`)"
   - "CapacitorCommunitySqlite (from `../../node_modules/.pnpm/@capacitor-community+sqlite@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor-community/sqlite`)"
   - "CapacitorCordova (from `../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios`)"
+  - "CapacitorFilesystem (from `../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.4.4/node_modules/@capacitor/filesystem`)"
+  - "CapacitorShare (from `../../node_modules/.pnpm/@capacitor+share@7.0.4_@capacitor+core@7.4.4/node_modules/@capacitor/share`)"
   - "CapacitorStatusBar (from `../../node_modules/.pnpm/@capacitor+status-bar@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor/status-bar`)"
 
 SPEC REPOS:
   trunk:
+    - IONFilesystemLib
     - SQLCipher
     - ZIPFoundation
 
@@ -33,6 +42,10 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/.pnpm/@capacitor-community+sqlite@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor-community/sqlite"
   CapacitorCordova:
     :path: "../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios"
+  CapacitorFilesystem:
+    :path: "../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.4.4/node_modules/@capacitor/filesystem"
+  CapacitorShare:
+    :path: "../../node_modules/.pnpm/@capacitor+share@7.0.4_@capacitor+core@7.4.4/node_modules/@capacitor/share"
   CapacitorStatusBar:
     :path: "../../node_modules/.pnpm/@capacitor+status-bar@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor/status-bar"
 
@@ -40,10 +53,13 @@ SPEC CHECKSUMS:
   Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
   CapacitorCommunitySqlite: 4813d82ad33001e612a39d313cb5d28066cbafda
   CapacitorCordova: bf648a636f3c153f652d312ae145fb508b6ffced
+  CapacitorFilesystem: c63fc54df41e5a6761785a7f3c49dc696c22e296
+  CapacitorShare: 25f7fc5dd0e4edbde5d6801c6de5d14a8b450a41
   CapacitorStatusBar: 0659ddc7b1713764a05831463d215b177a15d054
+  IONFilesystemLib: 21a63377696b2d8fab5632ecfb7d2ac67bddb68a
   SQLCipher: eb79c64049cb002b4e9fcb30edb7979bf4706dfc
   ZIPFoundation: dfd3d681c4053ff7e2f7350bc4e53b5dba3f5351
 
-PODFILE CHECKSUM: e06356bdd1f5bbcee40924dc85237d14f29fbae2
+PODFILE CHECKSUM: 4192b548929b9c27802236e51ed4399f940b899c
 
 COCOAPODS: 1.16.2

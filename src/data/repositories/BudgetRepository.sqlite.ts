@@ -1,3 +1,5 @@
+//noinspection SqlNoDataSourceInspection
+
 import { query, run } from '@/data/database/database';
 import { generateUUID, getCurrentTimestamp } from '@/data/database/utils';
 import type {
@@ -27,7 +29,58 @@ import {
   type GroupType,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
+import {
+  assertValidBudgetDatabaseSnapshot,
+  createBudgetDatabaseSnapshot,
+  type BudgetDatabaseSnapshot,
+} from './BudgetRepository.snapshot';
 import type { BudgetRepository } from './BudgetRepository.types';
+
+const APP_VERSION = '0.0.1';
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  return false;
+}
+
+function normalizeCategorySnapshotRow(row: Record<string, unknown>): {
+  id: string;
+  group_name: string;
+  order_index: number;
+  name: string | null;
+  is_default: number;
+  is_active: number;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+} {
+  const id = String(row.id ?? '');
+  const groupName = String(row.group_name ?? row.group ?? '');
+  const orderIndexRaw = row.order_index ?? row.order;
+  const orderIndex =
+    typeof orderIndexRaw === 'number' && Number.isFinite(orderIndexRaw) ? orderIndexRaw : 0;
+  const createdAt = String(row.created_at ?? getCurrentTimestamp());
+  const updatedAt = String(row.updated_at ?? createdAt);
+
+  return {
+    id,
+    group_name: groupName,
+    order_index: orderIndex,
+    name: typeof row.name === 'string' ? row.name : null,
+    is_default: toBoolean(row.is_default) ? 1 : 0,
+    is_active: toBoolean(row.is_active) ? 1 : 0,
+    deleted_at: typeof row.deleted_at === 'string' ? row.deleted_at : null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
 
 function getPreviousMonth(year: number, month: number): { year: number; month: number } {
   if (month > 1) {
@@ -1036,5 +1089,233 @@ export const sqliteBudgetRepository: BudgetRepository = {
     }
 
     return { budgetYear, months };
+  },
+
+  async exportDatabase(): Promise<BudgetDatabaseSnapshot> {
+    const [budgetYears, budgetMonths, budgetAllocations, budgetExpenses, recurringExpenseRules] =
+      await Promise.all([
+        query(`SELECT * FROM budget_years`),
+        query(`SELECT * FROM budget_months`),
+        query(`SELECT * FROM budget_allocations`),
+        query(`SELECT * FROM budget_expenses`),
+        query(`SELECT * FROM recurring_expense_rules`),
+      ]);
+    const expenseCategoriesRows = await query(`SELECT * FROM expense_categories`);
+    const expenseCategories = expenseCategoriesRows.map((row) => {
+      const categoryRow = row as {
+        id: string;
+        group_name: string;
+        order_index: number;
+        name: string | null;
+        is_default: number;
+        is_active: number;
+        deleted_at: string | null;
+        created_at: string;
+        updated_at: string;
+      };
+
+      return {
+        id: categoryRow.id,
+        group: categoryRow.group_name,
+        order: categoryRow.order_index,
+        name: categoryRow.name,
+        is_default: categoryRow.is_default === 1,
+        is_active: categoryRow.is_active === 1,
+        deleted_at: categoryRow.deleted_at,
+        created_at: categoryRow.created_at,
+        updated_at: categoryRow.updated_at,
+      };
+    });
+
+    return createBudgetDatabaseSnapshot(
+      {
+        budget_years: budgetYears,
+        budget_months: budgetMonths,
+        budget_allocations: budgetAllocations,
+        budget_expenses: budgetExpenses,
+        recurring_expense_rules: recurringExpenseRules,
+        expense_categories: expenseCategories,
+      },
+      APP_VERSION,
+    );
+  },
+
+  async importDatabase(snapshot: unknown): Promise<void> {
+    assertValidBudgetDatabaseSnapshot(snapshot);
+
+    await run('BEGIN TRANSACTION');
+
+    try {
+      await run('DELETE FROM budget_expenses');
+      await run('DELETE FROM recurring_expense_rules');
+      await run('DELETE FROM budget_allocations');
+      await run('DELETE FROM budget_months');
+      await run('DELETE FROM budget_years');
+      await run('DELETE FROM expense_categories');
+
+      for (const row of snapshot.data.budget_years) {
+        const budgetYear = row as {
+          id: string;
+          monthly_income: number;
+          year: number;
+          currency: string;
+          created_at: string;
+          updated_at: string;
+        };
+        await run(
+          `INSERT INTO budget_years (id, monthly_income, year, currency, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            budgetYear.id,
+            budgetYear.monthly_income,
+            budgetYear.year,
+            budgetYear.currency,
+            budgetYear.created_at,
+            budgetYear.updated_at,
+          ],
+        );
+      }
+
+      for (const row of snapshot.data.budget_months) {
+        const budgetMonth = row as {
+          id: string;
+          budget_year_id: string;
+          month: number;
+          year: number;
+          monthly_income: number;
+          created_at: string;
+          updated_at: string;
+        };
+        await run(
+          `INSERT INTO budget_months (id, budget_year_id, month, year, monthly_income, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            budgetMonth.id,
+            budgetMonth.budget_year_id,
+            budgetMonth.month,
+            budgetMonth.year,
+            budgetMonth.monthly_income,
+            budgetMonth.created_at,
+            budgetMonth.updated_at,
+          ],
+        );
+      }
+
+      for (const row of snapshot.data.budget_allocations) {
+        const budgetAllocation = row as {
+          id: string;
+          budget_month_id: string;
+          group: string;
+          allocated: number;
+          spent: number;
+          created_at: string;
+          updated_at: string;
+        };
+        await run(
+          `INSERT INTO budget_allocations (id, budget_month_id, "group", allocated, spent, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            budgetAllocation.id,
+            budgetAllocation.budget_month_id,
+            budgetAllocation.group,
+            budgetAllocation.allocated,
+            budgetAllocation.spent,
+            budgetAllocation.created_at,
+            budgetAllocation.updated_at,
+          ],
+        );
+      }
+
+      for (const row of snapshot.data.recurring_expense_rules) {
+        const recurringRule = row as {
+          id: string;
+          budget_year_id: string;
+          group: string;
+          category_id: string;
+          amount: number;
+          description: string;
+          start_year: number;
+          start_month: number;
+          end_year: number | null;
+          end_month: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        await run(
+          `INSERT INTO recurring_expense_rules
+           (id, budget_year_id, "group", category_id, amount, description, start_year, start_month, end_year, end_month, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            recurringRule.id,
+            recurringRule.budget_year_id,
+            recurringRule.group,
+            recurringRule.category_id,
+            recurringRule.amount,
+            recurringRule.description,
+            recurringRule.start_year,
+            recurringRule.start_month,
+            recurringRule.end_year,
+            recurringRule.end_month,
+            recurringRule.created_at,
+            recurringRule.updated_at,
+          ],
+        );
+      }
+
+      for (const row of snapshot.data.budget_expenses) {
+        const expense = row as {
+          id: string;
+          budget_month_id: string;
+          group: string;
+          category_id: string;
+          amount: number;
+          description: string;
+          recurring_rule_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        await run(
+          `INSERT INTO budget_expenses
+           (id, budget_month_id, "group", category_id, amount, description, recurring_rule_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            expense.id,
+            expense.budget_month_id,
+            expense.group,
+            expense.category_id,
+            expense.amount,
+            expense.description,
+            expense.recurring_rule_id,
+            expense.created_at,
+            expense.updated_at,
+          ],
+        );
+      }
+
+      for (const row of snapshot.data.expense_categories) {
+        const category = normalizeCategorySnapshotRow(row as Record<string, unknown>);
+        await run(
+          `INSERT INTO expense_categories
+           (id, group_name, order_index, name, is_default, is_active, deleted_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            category.id,
+            category.group_name,
+            category.order_index,
+            category.name,
+            category.is_default,
+            category.is_active,
+            category.deleted_at,
+            category.created_at,
+            category.updated_at,
+          ],
+        );
+      }
+
+      await run('COMMIT');
+    } catch (error) {
+      await run('ROLLBACK');
+      throw error;
+    }
   },
 };

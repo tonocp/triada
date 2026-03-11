@@ -1,34 +1,46 @@
 <template>
   <div class="page-container">
     <div class="dashboard-header">
-      <div class="month-selector">
-        <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
-        <DatePicker
-          :model-value="selectedPeriod"
-          view="month"
-          date-format="MM yy"
-          :manual-input="false"
-          update-model-type="date"
-          class="month-picker"
-          @update:model-value="onPeriodChange"
+      <div class="dashboard-toolbar">
+        <div class="month-selector">
+          <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
+          <DatePicker
+            :model-value="selectedPeriod"
+            view="month"
+            date-format="MM yy"
+            :manual-input="false"
+            update-model-type="date"
+            class="month-picker"
+            @update:model-value="onPeriodChange"
+          />
+          <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
+        </div>
+        <Button
+          id="more-actions-menu-trigger"
+          icon="pi pi-ellipsis-h"
+          rounded
+          text
+          severity="secondary"
+          class="dashboard-menu-trigger"
+          :aria-label="t('dashboard.moreActionsMenu')"
+          aria-haspopup="true"
+          aria-controls="more-actions-menu"
+          @click="toggleMoreActionsMenu"
         />
-        <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
       </div>
+      <Menu
+        id="more-actions-menu"
+        ref="moreActionsMenuRef"
+        :model="moreActionsMenuItems"
+        popup
+        class="more-actions-menu-popup"
+      />
     </div>
 
     <div class="budget-summary" v-if="budgetMonth && budgetYear">
       <div class="summary-card">
         <span class="summary-label">{{ t('dashboard.monthlyIncome') }}</span>
         <span class="summary-value">{{ formatCurrencyValue(budgetMonth.monthlyIncome) }}</span>
-        <Button
-          id="edit-monthly-income"
-          :label="t('dashboard.editMonthlyIncome')"
-          icon="pi pi-pencil"
-          text
-          severity="contrast"
-          class="summary-action"
-          @click="openEditMonthlyIncome"
-        />
       </div>
     </div>
 
@@ -55,7 +67,51 @@
         class="w-full"
         @click="openAddExpenseDialog"
       />
+      <input
+        ref="importFileInput"
+        type="file"
+        accept="application/json,.json"
+        class="visually-hidden"
+        @change="onImportFileSelected"
+      />
     </div>
+
+    <Dialog
+      v-model:visible="showMoreActionsSheet"
+      modal
+      :header="t('dashboard.moreActionsMenu')"
+      :draggable="false"
+      :dismissable-mask="true"
+      position="bottom"
+      class="more-actions-sheet"
+    >
+      <div class="more-actions-sheet-list">
+        <Button
+          data-testid="more-actions-edit-monthly-income"
+          :label="t('dashboard.editMonthlyIncome')"
+          icon="pi pi-pencil"
+          text
+          class="more-actions-sheet-item"
+          @click="runMoreAction('editMonthlyIncome')"
+        />
+        <Button
+          data-testid="more-actions-export-database"
+          :label="t('dashboard.exportDatabase')"
+          icon="pi pi-download"
+          text
+          class="more-actions-sheet-item"
+          @click="runMoreAction('exportDatabase')"
+        />
+        <Button
+          data-testid="more-actions-import-database"
+          :label="t('dashboard.importDatabase')"
+          icon="pi pi-upload"
+          text
+          class="more-actions-sheet-item"
+          @click="runMoreAction('importDatabase')"
+        />
+      </div>
+    </Dialog>
 
     <Dialog
       v-model:visible="showAddExpense"
@@ -502,11 +558,13 @@ import {
   addExpense as createExpenseRecord,
   createYearWithAllocations,
   deleteExpense as deleteExpenseRecord,
+  exportDatabase as exportDatabaseSnapshot,
   getBudgetMonth,
   getBudgetYearByYear,
   getCategoriesByGroup,
   getExpensesByMonthAndGroup,
   getLatestBudgetYear,
+  importDatabase as importDatabaseSnapshot,
   softDeleteCategoryAndReassign,
   updateCategoryName as updateCategoryNameRecord,
   updateExpense as updateExpenseRecord,
@@ -527,10 +585,14 @@ import {
 import { Input } from '@/shared/components/atoms';
 import { GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
+import { Capacitor } from '@capacitor/core';
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
+import Menu from 'primevue/menu';
 import RadioButton from 'primevue/radiobutton';
 import SelectButton from 'primevue/selectbutton';
 import { useToast } from 'primevue/usetoast';
@@ -552,6 +614,7 @@ let isRepairingYear = false;
 let isRebuildingYear = false;
 
 const showAddExpense = ref(false);
+const showMoreActionsSheet = ref(false);
 const showExpenseHistory = ref(false);
 const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
@@ -583,6 +646,9 @@ const categoryPendingEdit = ref<Category | null>(null);
 const replacementCategoryId = ref<CategoryId | ''>('');
 const newCategoryName = ref('');
 const editCategoryName = ref('');
+const importFileInput = ref<HTMLInputElement | null>(null);
+const moreActionsMenuRef = ref<{ toggle: (event: Event) => void } | null>(null);
+const useNativeActionsSheet = ref(false);
 const categoriesByGroup = ref<Record<GroupType, Category[]>>({
   needs: [],
   wants: [],
@@ -688,6 +754,33 @@ const expenseHistoryTitle = computed(() => {
 
   return `${title} (${selectedGroupExpenses.value.length})`;
 });
+
+const moreActionsMenuItems = computed(() => [
+  {
+    label: t('dashboard.editMonthlyIncome'),
+    icon: 'pi pi-pencil',
+    command: (): void => {
+      openEditMonthlyIncome();
+    },
+  },
+  {
+    separator: true,
+  },
+  {
+    label: t('dashboard.exportDatabase'),
+    icon: 'pi pi-download',
+    command: (): void => {
+      void exportDatabaseToJson();
+    },
+  },
+  {
+    label: t('dashboard.importDatabase'),
+    icon: 'pi pi-upload',
+    command: (): void => {
+      openImportDatabasePicker();
+    },
+  },
+]);
 
 function setActivePeriod(year: number, month: number): void {
   const normalizedYear = Number(year);
@@ -1039,6 +1132,206 @@ async function addExpense(): Promise<void> {
       detail: t('dashboard.expenseAddError'),
       life: 3000,
     });
+  }
+}
+
+function buildBackupFileName(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `triada-backup-${year}-${month}-${day}.json`;
+}
+
+function toggleMoreActionsMenu(event: Event): void {
+  if (useNativeActionsSheet.value) {
+    showMoreActionsSheet.value = true;
+    return;
+  }
+
+  moreActionsMenuRef.value?.toggle(event);
+}
+
+type MoreActionId = 'editMonthlyIncome' | 'exportDatabase' | 'importDatabase';
+
+function runMoreAction(actionId: MoreActionId): void {
+  if (actionId === 'editMonthlyIncome') {
+    showMoreActionsSheet.value = false;
+    openEditMonthlyIncome();
+    return;
+  }
+
+  if (actionId === 'exportDatabase') {
+    showMoreActionsSheet.value = false;
+    void exportDatabaseToJson();
+    return;
+  }
+
+  openImportDatabasePicker();
+}
+
+async function exportDatabaseToJson(): Promise<void> {
+  try {
+    const snapshot = await exportDatabaseSnapshot();
+    const payload = JSON.stringify(snapshot, null, 2);
+
+    const fileName = buildBackupFileName();
+    let exported = false;
+    let successDetail = t('dashboard.databaseExported');
+
+    const isAndroidNative = useNativeActionsSheet.value && Capacitor.getPlatform() === 'android';
+
+    if (isAndroidNative) {
+      try {
+        await Filesystem.requestPermissions();
+      } catch (permissionError) {
+        console.error('Failed to request Android filesystem permissions', {
+          error: permissionError,
+        });
+      }
+
+      try {
+        await Filesystem.writeFile({
+          path: `Download/${fileName}`,
+          data: payload,
+          directory: Directory.ExternalStorage,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        });
+        exported = true;
+        successDetail = t('dashboard.databaseExportedToDownloads', { fileName });
+      } catch (writeError) {
+        console.error('Failed to save backup file in Android downloads directory', {
+          error: writeError,
+          fileName,
+        });
+      }
+    }
+
+    if (!exported && useNativeActionsSheet.value) {
+      try {
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: payload,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+
+        await Share.share({
+          title: fileName,
+          url: writeResult.uri,
+          dialogTitle: t('dashboard.exportDatabase'),
+        });
+        exported = true;
+        successDetail = t('dashboard.databaseExportedSharedFallback', { fileName });
+      } catch (shareError) {
+        if (shareError instanceof Error && shareError.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Failed to share native backup file', {
+          error: shareError,
+        });
+      }
+    }
+
+    if (!exported && typeof navigator.share === 'function') {
+      try {
+        const backupFile = new File([payload], fileName, { type: 'application/json' });
+        await navigator.share({ files: [backupFile] });
+        exported = true;
+      } catch (shareError) {
+        if (shareError instanceof Error && shareError.name === 'AbortError') {
+          return;
+        }
+
+        console.error('Failed web share fallback for backup file', { error: shareError });
+      }
+    }
+
+    if (!exported) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.databaseExported'),
+      detail: successDetail,
+      life: 3000,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return;
+    }
+
+    console.error('Failed to export database snapshot', { error });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.databaseExportError'),
+      life: 3000,
+    });
+  }
+}
+
+function openImportDatabasePicker(): void {
+  importFileInput.value?.click();
+}
+
+function resetImportInput(): void {
+  if (importFileInput.value) {
+    importFileInput.value.value = '';
+  }
+}
+
+async function onImportFileSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) {
+    showMoreActionsSheet.value = false;
+    resetImportInput();
+    return;
+  }
+
+  if (!window.confirm(t('dashboard.databaseImportConfirm'))) {
+    showMoreActionsSheet.value = false;
+    resetImportInput();
+    return;
+  }
+
+  try {
+    const fileContents = await file.text();
+    const parsedSnapshot = JSON.parse(fileContents) as unknown;
+    await importDatabaseSnapshot(parsedSnapshot);
+    await loadData();
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.databaseImported'),
+      detail: t('dashboard.databaseImported'),
+      life: 3000,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
+    console.error('Failed to import database snapshot', { error });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
+      life: 5000,
+    });
+  } finally {
+    showMoreActionsSheet.value = false;
+    resetImportInput();
   }
 }
 
@@ -1538,24 +1831,63 @@ watch(showEditCategoryDialog, (isVisible) => {
 });
 
 onMounted(() => {
+  useNativeActionsSheet.value = Capacitor.isNativePlatform();
   loadData();
 });
 </script>
 
 <style scoped>
+.page-container {
+  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
+}
+
 .dashboard-header {
   margin-bottom: 1.5rem;
+}
+
+.dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .month-selector {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  flex: 1;
 }
 
 .month-picker {
-  min-width: 170px;
+  min-width: 160px;
+}
+
+.dashboard-menu-trigger {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.more-actions-sheet-list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.more-actions-sheet-item {
+  justify-content: flex-start;
+}
+
+/*noinspection CssUnusedSymbol */
+:global(.more-actions-sheet.p-dialog) {
+  margin: 0;
+  border-radius: 16px 16px 0 0;
+}
+
+/*noinspection CssUnusedSymbol */
+:global(.more-actions-sheet .p-dialog-content) {
+  padding-top: 0.5rem;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
 }
 
 .empty-state {
@@ -1572,10 +1904,10 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1rem;
+  padding: 1.1rem 1rem;
   background: var(--p-primary-color);
   color: var(--p-primary-contrast-color);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .summary-label {
@@ -1588,16 +1920,40 @@ onMounted(() => {
   font-weight: 700;
 }
 
-.summary-action {
-  margin-top: 0.5rem;
-}
-
 .groups-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
 }
 
 .actions-section {
-  margin-top: 1rem;
+  margin-top: 0;
+  padding-top: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .actions-section {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.9) 68%, rgba(255, 255, 255, 0));
+    backdrop-filter: blur(1px);
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .expense-form {

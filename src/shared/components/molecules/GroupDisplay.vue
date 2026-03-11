@@ -86,13 +86,31 @@ const progressPercent = computed(() => {
 <style scoped>
 .group-display {
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 12px;
   background: var(--p-content-background);
+  border: 1px solid color-mix(in srgb, var(--p-primary-color) 12%, var(--p-input-border-color));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   margin-bottom: 0.75rem;
 }
 
 .group-display--interactive {
   cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.group-display--interactive:hover,
+.group-display--interactive:focus-visible {
+  border-color: color-mix(in srgb, var(--p-primary-color) 35%, var(--p-input-border-color));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.group-display--interactive:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--p-primary-color) 55%, white);
+  outline-offset: 2px;
 }
 
 .group-header {

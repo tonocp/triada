@@ -1,3 +1,5 @@
+//noinspection SqlNoDataSourceInspection
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const queryMock = vi.fn();
@@ -142,6 +144,19 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     });
   });
 
+  it('should create budget month using explicit monthlyIncome input', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.createBudgetMonth({
+      budgetYearId: 'year-id',
+      month: 2,
+      year: 2026,
+      monthlyIncome: 95_000,
+    });
+
+    expect(result.monthlyIncome).toBe(95_000);
+  });
+
   it('should return null when budget month is missing', async () => {
     queryMock.mockResolvedValueOnce([]);
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
@@ -190,6 +205,15 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     expect(result?.monthlyIncome).toBe(100_000);
     expect(result?.allocations.map((item) => item.group)).toEqual(['needs', 'savings']);
+  });
+
+  it('should return null when budget month first row is undefined', async () => {
+    queryMock.mockResolvedValueOnce([undefined]);
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.getBudgetMonth('year-id', 9);
+
+    expect(result).toBeNull();
   });
 
   it('should update monthly income from month and recalculate allocations without changing spent', async () => {
@@ -295,7 +319,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(runMock).toHaveBeenCalledTimes(2);
     expect(queryMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({
-      id: 'expense-id',
+      id: 'year-id',
       budgetMonthId: 'month-id',
       group: 'needs',
       categoryId: 'housing',
@@ -1213,5 +1237,231 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         description: 'Gasto con categoria inactiva',
       }),
     ).rejects.toThrow('Category food does not belong to group needs');
+  });
+
+  it('should export snapshot with metadata and all tables', async () => {
+    queryMock
+      .mockResolvedValueOnce([{ id: 'year-1' }])
+      .mockResolvedValueOnce([{ id: 'month-1' }])
+      .mockResolvedValueOnce([{ id: 'allocation-1' }])
+      .mockResolvedValueOnce([{ id: 'expense-1' }])
+      .mockResolvedValueOnce([{ id: 'rule-1' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'category-1',
+          group_name: 'needs',
+          order_index: 0,
+          name: null,
+          is_default: 1,
+          is_active: 1,
+          deleted_at: null,
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+    const snapshot = await sqliteBudgetRepository.exportDatabase();
+
+    expect(snapshot.meta.format).toBe('triada-db-export');
+    expect(snapshot.meta.schemaVersion).toBe(1);
+    expect(snapshot.data.budget_years).toEqual([{ id: 'year-1' }]);
+    expect(snapshot.data.expense_categories).toEqual([
+      {
+        id: 'category-1',
+        group: 'needs',
+        order: 0,
+        name: null,
+        is_default: true,
+        is_active: true,
+        deleted_at: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('should import valid snapshot inside transaction', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [
+          {
+            id: 'year-1',
+            monthly_income: 100000,
+            year: 2026,
+            currency: 'USD',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_months: [
+          {
+            id: 'month-1',
+            budget_year_id: 'year-1',
+            month: 1,
+            year: 2026,
+            monthly_income: 100000,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_allocations: [
+          {
+            id: 'allocation-1',
+            budget_month_id: 'month-1',
+            group: 'needs',
+            allocated: 50000,
+            spent: 0,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_expenses: [
+          {
+            id: 'expense-1',
+            budget_month_id: 'month-1',
+            group: 'needs',
+            category_id: 'housing',
+            amount: 1000,
+            description: 'Sample expense',
+            recurring_rule_id: 'rule-1',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        recurring_expense_rules: [
+          {
+            id: 'rule-1',
+            budget_year_id: 'year-1',
+            group: 'needs',
+            category_id: 'housing',
+            amount: 1000,
+            description: 'Sample recurring rule',
+            start_year: 2026,
+            start_month: 1,
+            end_year: null,
+            end_month: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        expense_categories: [
+          {
+            id: 'housing',
+            group: 'needs',
+            order: 0,
+            name: null,
+            is_default: true,
+            is_active: true,
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await sqliteBudgetRepository.importDatabase(snapshot);
+
+    expect(runMock).toHaveBeenCalledWith('BEGIN TRANSACTION');
+    expect(runMock).toHaveBeenCalledWith('COMMIT');
+  });
+
+  it('should rollback transaction when import fails', async () => {
+    runMock.mockImplementation((statement: string) => {
+      if (statement.includes('INSERT INTO budget_years')) {
+        throw new Error('insert failed');
+      }
+      return Promise.resolve();
+    });
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [
+          {
+            id: 'year-1',
+            monthly_income: 100000,
+            year: 2026,
+            currency: 'USD',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_months: [],
+        budget_allocations: [],
+        budget_expenses: [],
+        recurring_expense_rules: [],
+        expense_categories: [],
+      },
+    };
+
+    await expect(sqliteBudgetRepository.importDatabase(snapshot)).rejects.toThrow('insert failed');
+    expect(runMock).toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  it('should normalize mixed category flag formats on import', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [],
+        budget_months: [],
+        budget_allocations: [],
+        budget_expenses: [],
+        recurring_expense_rules: [],
+        expense_categories: [
+          {
+            id: 'housing',
+            group: 'needs',
+            order: 0,
+            name: null,
+            is_default: 1,
+            is_active: 'unexpected',
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await sqliteBudgetRepository.importDatabase(snapshot);
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO expense_categories'),
+      [
+        'housing',
+        'needs',
+        0,
+        null,
+        1,
+        0,
+        null,
+        '2026-01-01T00:00:00.000Z',
+        '2026-01-01T00:00:00.000Z',
+      ],
+    );
   });
 });

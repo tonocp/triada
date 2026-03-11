@@ -12,6 +12,8 @@ def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/.pnpm/@capacitor+ios@7.4.4_@capacitor+core@7.4.4/node_modules/@capacitor/ios'
   pod 'CapacitorCommunitySqlite', :path => '../../node_modules/.pnpm/@capacitor-community+sqlite@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor-community/sqlite'
+  pod 'CapacitorFilesystem', :path => '../../node_modules/.pnpm/@capacitor+filesystem@7.1.8_@capacitor+core@7.4.4/node_modules/@capacitor/filesystem'
+  pod 'CapacitorShare', :path => '../../node_modules/.pnpm/@capacitor+share@7.0.4_@capacitor+core@7.4.4/node_modules/@capacitor/share'
   pod 'CapacitorStatusBar', :path => '../../node_modules/.pnpm/@capacitor+status-bar@7.0.3_@capacitor+core@7.4.4/node_modules/@capacitor/status-bar'
 end
 

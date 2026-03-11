@@ -33,6 +33,77 @@ function submitAddExpense(): void {
   cy.contains('.p-dialog-title', 'Agregar Gasto').should('not.exist');
 }
 
+function buildImportSnapshot(): Record<string, unknown> {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const timestamp = now.toISOString();
+
+  return {
+    meta: {
+      format: 'triada-db-export',
+      schemaVersion: 1,
+      exportedAt: timestamp,
+      appVersion: '0.0.1',
+    },
+    data: {
+      budget_years: [
+        {
+          id: 'import-year',
+          monthly_income: 90000,
+          year: currentYear,
+          currency: 'EUR',
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ],
+      budget_months: [
+        {
+          id: 'import-month',
+          budget_year_id: 'import-year',
+          month: currentMonth,
+          year: currentYear,
+          monthly_income: 90000,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ],
+      budget_allocations: [
+        {
+          id: 'import-allocation-needs',
+          budget_month_id: 'import-month',
+          group: 'needs',
+          allocated: 45000,
+          spent: 0,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+        {
+          id: 'import-allocation-wants',
+          budget_month_id: 'import-month',
+          group: 'wants',
+          allocated: 27000,
+          spent: 0,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+        {
+          id: 'import-allocation-savings',
+          budget_month_id: 'import-month',
+          group: 'savings',
+          allocated: 18000,
+          spent: 0,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ],
+      budget_expenses: [],
+      recurring_expense_rules: [],
+      expense_categories: [],
+    },
+  };
+}
+
 function setNetworkOffline() {
   if (Cypress.browser.family !== 'chromium') {
     return cy.wrap(null, { log: false });
@@ -181,8 +252,8 @@ describe('Budget flow', () => {
     cy.contains('Necesidades').should('be.visible');
     cy.contains('€0.00').should('be.visible');
 
-    cy.get('.actions-section .p-button').scrollIntoView();
-    cy.get('.actions-section .p-button').click({ force: true });
+    cy.get('.actions-section .p-button').first().scrollIntoView();
+    cy.get('.actions-section .p-button').first().click({ force: true });
     cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
     cy.get('#expense-amount').should('not.be.disabled');
     cy.get('#expense-amount').clear();
@@ -200,8 +271,8 @@ describe('Budget flow', () => {
   it('should apply recurring expense from current month to future months', () => {
     createBudget('1000');
 
-    cy.get('.actions-section .p-button').scrollIntoView();
-    cy.get('.actions-section .p-button').click({ force: true });
+    cy.get('.actions-section .p-button').first().scrollIntoView();
+    cy.get('.actions-section .p-button').first().click({ force: true });
     cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
     cy.get('#expense-amount').should('not.be.disabled');
     cy.get('#expense-amount').clear();
@@ -217,7 +288,8 @@ describe('Budget flow', () => {
 
     cy.get('.month-selector .p-button').last().click({ force: true });
 
-    cy.get('#edit-monthly-income').click({ force: true });
+    cy.get('#more-actions-menu-trigger').click();
+    cy.contains('.p-menu-item-link', 'Editar ingreso mensual').click();
     cy.get('#monthly-income-edit-input').clear();
     cy.get('#monthly-income-edit-input').type('1200');
     cy.contains('.p-dialog:visible button', 'Guardar').click();
@@ -248,8 +320,8 @@ describe('Budget flow', () => {
   it('should create, edit, and delete a custom category from category manager', () => {
     createBudget('1000');
 
-    cy.get('.actions-section .p-button').scrollIntoView();
-    cy.get('.actions-section .p-button').click({ force: true });
+    cy.get('.actions-section .p-button').first().scrollIntoView();
+    cy.get('.actions-section .p-button').first().click({ force: true });
     cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
 
     cy.get('[data-testid="open-manage-categories"]').click({ force: true });
@@ -286,5 +358,47 @@ describe('Budget flow', () => {
 
     cy.contains('Categoría eliminada').should('be.visible');
     cy.contains('[data-testid^="category-row-"]', 'Mascotas y vet').should('not.exist');
+  });
+
+  it('should export backup and import snapshot replacing current data', () => {
+    createBudget('1000');
+    cy.contains('Ingreso Mensual').should('be.visible');
+
+    let createObjectUrlCallCount = 0;
+    let downloadClickCallCount = 0;
+
+    cy.window().then((win) => {
+      cy.stub(win.URL, 'createObjectURL').callsFake(() => {
+        createObjectUrlCallCount += 1;
+        return 'blob:triada-test';
+      });
+      cy.stub(win.HTMLAnchorElement.prototype, 'click').callsFake(() => {
+        downloadClickCallCount += 1;
+      });
+    });
+
+    cy.get('#more-actions-menu-trigger').click();
+    cy.contains('.p-menu-item-link', 'Exportar respaldo JSON').click();
+
+    cy.then(() => {
+      expect(createObjectUrlCallCount).to.eq(1);
+      expect(downloadClickCallCount).to.eq(1);
+    });
+    cy.contains('Respaldo exportado correctamente.').should('be.visible');
+
+    const snapshot = buildImportSnapshot();
+
+    cy.get('input[type="file"]').selectFile(
+      {
+        contents: Cypress.Buffer.from(JSON.stringify(snapshot)),
+        fileName: 'triada-import.json',
+        mimeType: 'application/json',
+      },
+      { force: true },
+    );
+
+    cy.contains('Respaldo importado correctamente.').should('be.visible');
+    cy.contains('€900.00').should('be.visible');
+    cy.contains('€1000.00').should('not.exist');
   });
 });

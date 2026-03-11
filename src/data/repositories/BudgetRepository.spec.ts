@@ -19,6 +19,8 @@ const indexedDbRepositoryMock = {
   softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
+  exportDatabase: vi.fn(),
+  importDatabase: vi.fn(),
 };
 
 const sqliteRepositoryMock = {
@@ -40,6 +42,8 @@ const sqliteRepositoryMock = {
   softDeleteCategoryAndReassign: vi.fn(),
   getAllocationsByMonth: vi.fn(),
   createYearWithAllocations: vi.fn(),
+  exportDatabase: vi.fn(),
+  importDatabase: vi.fn(),
 };
 
 const getPlatformMock = vi.fn<() => string>();
@@ -174,6 +178,8 @@ describe('data/repositories BudgetRepository facade', () => {
     });
     await repository.getAllocationsByMonth('month-1');
     await repository.createYearWithAllocations(100_000, 2026, 'USD');
+    await repository.exportDatabase();
+    await repository.importDatabase({});
 
     expect(indexedDbRepositoryMock.createBudgetYear).toHaveBeenCalledWith(yearInput);
     expect(indexedDbRepositoryMock.getBudgetYearByYear).toHaveBeenCalledWith(2026);
@@ -217,5 +223,7 @@ describe('data/repositories BudgetRepository facade', () => {
       2026,
       'USD',
     );
+    expect(indexedDbRepositoryMock.exportDatabase).toHaveBeenCalledWith();
+    expect(indexedDbRepositoryMock.importDatabase).toHaveBeenCalledWith({});
   });
 });

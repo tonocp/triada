@@ -65,6 +65,21 @@
             class="w-full"
             @click="createBudget"
           />
+          <Button
+            :label="t('dashboard.importDatabase')"
+            icon="pi pi-upload"
+            severity="secondary"
+            outlined
+            class="w-full"
+            @click="openImportDatabasePicker"
+          />
+          <input
+            ref="importFileInput"
+            type="file"
+            accept="application/json,.json"
+            class="visually-hidden"
+            @change="onImportFileSelected"
+          />
         </div>
       </template>
     </Card>
@@ -77,6 +92,7 @@ import {
   createYearWithAllocations,
   getBudgetMonth,
   getLatestBudgetYear,
+  importDatabase as importDatabaseSnapshot,
 } from '@/data/repositories';
 import { Button, Card, Input } from '@/shared/components/atoms';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
@@ -99,6 +115,7 @@ const {
 
 const monthlyIncome = ref<string>('');
 const isLoading = ref(false);
+const importFileInput = ref<HTMLInputElement | null>(null);
 const selectedLocale = ref<SupportedLocale>(getLocale());
 const selectedCurrency = ref<SupportedCurrency>(currency.value);
 
@@ -186,6 +203,55 @@ async function checkExistingBudget(): Promise<void> {
     }
   } catch (error) {
     console.error('Failed to check existing budget on setup page:', error);
+  }
+}
+
+function openImportDatabasePicker(): void {
+  importFileInput.value?.click();
+}
+
+function resetImportInput(): void {
+  if (importFileInput.value) {
+    importFileInput.value.value = '';
+  }
+}
+
+async function onImportFileSelected(event: Event): Promise<void> {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+
+  if (!file) {
+    resetImportInput();
+    return;
+  }
+
+  isLoading.value = true;
+
+  try {
+    const fileContents = await file.text();
+    const parsedSnapshot = JSON.parse(fileContents) as unknown;
+    await importDatabaseSnapshot(parsedSnapshot);
+
+    toast.add({
+      severity: 'success',
+      summary: t('dashboard.databaseImported'),
+      detail: t('dashboard.databaseImported'),
+      life: 3000,
+    });
+
+    router.push('/dashboard');
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
+    console.error('Failed to import database snapshot from setup page', { error });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
+      life: 5000,
+    });
+  } finally {
+    isLoading.value = false;
+    resetImportInput();
   }
 }
 
@@ -282,5 +348,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

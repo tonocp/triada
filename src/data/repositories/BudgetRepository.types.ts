@@ -18,6 +18,7 @@ import type {
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
+import type { BudgetDatabaseSnapshot } from './BudgetRepository.snapshot';
 
 export interface BudgetRepository {
   createBudgetYear(input: CreateBudgetYearInput): Promise<BudgetYear>;
@@ -49,4 +50,6 @@ export interface BudgetRepository {
     year: number,
     currency: SupportedCurrency,
   ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }>;
+  exportDatabase(): Promise<BudgetDatabaseSnapshot>;
+  importDatabase(snapshot: unknown): Promise<void>;
 }

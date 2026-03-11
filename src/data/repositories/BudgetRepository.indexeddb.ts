@@ -32,7 +32,15 @@ import {
   type GroupType,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
+import {
+  assertValidBudgetDatabaseSnapshot,
+  createBudgetDatabaseSnapshot,
+  type BudgetDatabaseSnapshot,
+  type BudgetDatabaseSnapshotData,
+} from './BudgetRepository.snapshot';
 import type { BudgetRepository } from './BudgetRepository.types';
+
+const APP_VERSION = '0.0.1';
 
 interface BudgetYearRow {
   id: string;
@@ -100,6 +108,39 @@ interface CategoryRow {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  return false;
+}
+
+function normalizeCategorySnapshotRow(row: Record<string, unknown>): CategoryRow {
+  const id = String(row.id ?? '') as CategoryId;
+  const group = String(row.group ?? row.group_name ?? 'needs') as GroupType;
+  const orderValue = row.order ?? row.order_index;
+  const order = typeof orderValue === 'number' && Number.isFinite(orderValue) ? orderValue : 0;
+  const createdAt = String(row.created_at ?? getCurrentTimestamp());
+  const updatedAt = String(row.updated_at ?? createdAt);
+
+  return {
+    id,
+    group,
+    order,
+    name: typeof row.name === 'string' ? row.name : undefined,
+    is_default: toBoolean(row.is_default),
+    is_active: toBoolean(row.is_active),
+    deleted_at: typeof row.deleted_at === 'string' ? row.deleted_at : null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -376,6 +417,89 @@ async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
   )) as BudgetMonthRow[];
   await transactionDone(tx);
   return rows;
+}
+
+async function readAllBudgetAllocations(): Promise<BudgetAllocationRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetAllocations, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetAllocations).getAll(),
+  )) as BudgetAllocationRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function readAllBudgetExpenses(): Promise<ExpenseRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetExpenses).getAll(),
+  )) as ExpenseRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function readAllRecurringExpenseRules(): Promise<RecurringExpenseRuleRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.recurringExpenseRules, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.recurringExpenseRules).getAll(),
+  )) as RecurringExpenseRuleRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function replaceAllData(snapshotData: BudgetDatabaseSnapshotData): Promise<void> {
+  const db = await getIndexedDb();
+  const stores = [
+    indexedDbStores.budgetYears,
+    indexedDbStores.budgetMonths,
+    indexedDbStores.budgetAllocations,
+    indexedDbStores.budgetExpenses,
+    indexedDbStores.recurringExpenseRules,
+    indexedDbStores.expenseCategories,
+  ];
+  const tx = db.transaction(stores, 'readwrite');
+
+  const budgetYearsStore = tx.objectStore(indexedDbStores.budgetYears);
+  const budgetMonthsStore = tx.objectStore(indexedDbStores.budgetMonths);
+  const budgetAllocationsStore = tx.objectStore(indexedDbStores.budgetAllocations);
+  const budgetExpensesStore = tx.objectStore(indexedDbStores.budgetExpenses);
+  const recurringRulesStore = tx.objectStore(indexedDbStores.recurringExpenseRules);
+  const categoriesStore = tx.objectStore(indexedDbStores.expenseCategories);
+
+  budgetYearsStore.clear();
+  budgetMonthsStore.clear();
+  budgetAllocationsStore.clear();
+  budgetExpensesStore.clear();
+  recurringRulesStore.clear();
+  categoriesStore.clear();
+
+  for (const row of snapshotData.budget_years) {
+    budgetYearsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_months) {
+    budgetMonthsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_allocations) {
+    budgetAllocationsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_expenses) {
+    budgetExpensesStore.put(row);
+  }
+
+  for (const row of snapshotData.recurring_expense_rules) {
+    recurringRulesStore.put(row);
+  }
+
+  for (const row of snapshotData.expense_categories) {
+    categoriesStore.put(normalizeCategorySnapshotRow(row as Record<string, unknown>));
+  }
+
+  await transactionDone(tx);
 }
 
 async function hasBudgetMonthsForYear(budgetYearId: string): Promise<boolean> {
@@ -1204,5 +1328,37 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     }
 
     return { budgetYear, months };
+  },
+
+  async exportDatabase(): Promise<BudgetDatabaseSnapshot> {
+    await initIndexedDb();
+
+    const [budgetYears, budgetMonths, budgetAllocations, budgetExpenses, recurringExpenseRules] =
+      await Promise.all([
+        readAllBudgetYears(),
+        readAllBudgetMonths(),
+        readAllBudgetAllocations(),
+        readAllBudgetExpenses(),
+        readAllRecurringExpenseRules(),
+      ]);
+    const expenseCategories = await readAllCategoryRows();
+
+    return createBudgetDatabaseSnapshot(
+      {
+        budget_years: budgetYears,
+        budget_months: budgetMonths,
+        budget_allocations: budgetAllocations,
+        budget_expenses: budgetExpenses,
+        recurring_expense_rules: recurringExpenseRules,
+        expense_categories: expenseCategories,
+      },
+      APP_VERSION,
+    );
+  },
+
+  async importDatabase(snapshot: unknown): Promise<void> {
+    await initIndexedDb();
+    assertValidBudgetDatabaseSnapshot(snapshot);
+    await replaceAllData(snapshot.data);
   },
 };

@@ -205,6 +205,23 @@ interface IndexedDbRepositoryModule {
         }>;
       }>;
     }>;
+    exportDatabase: () => Promise<{
+      meta: {
+        format: string;
+        schemaVersion: number;
+        exportedAt: string;
+        appVersion: string;
+      };
+      data: {
+        budget_years: Array<Record<string, unknown>>;
+        budget_months: Array<Record<string, unknown>>;
+        budget_allocations: Array<Record<string, unknown>>;
+        budget_expenses: Array<Record<string, unknown>>;
+        recurring_expense_rules: Array<Record<string, unknown>>;
+        expense_categories: Array<Record<string, unknown>>;
+      };
+    }>;
+    importDatabase: (snapshot: unknown) => Promise<void>;
   };
 }
 
@@ -1352,5 +1369,165 @@ describe('data/repositories IndexedDB integration', () => {
       'needs',
     );
     expect(expenses[0]?.categoryId).toBe('housing');
+  });
+
+  it('should export and import full snapshot with replace-all behavior', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const base = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    const month = base.months[0];
+    await repositoryModule.indexedDbBudgetRepository.addExpense({
+      budgetMonthId: month!.id,
+      group: 'needs',
+      amount: 5_000,
+      description: 'Base expense',
+    });
+
+    const snapshot = await repositoryModule.indexedDbBudgetRepository.exportDatabase();
+    expect(snapshot.meta.format).toBe('triada-db-export');
+    expect(snapshot.meta.schemaVersion).toBe(1);
+    expect(snapshot.data.budget_years.length).toBeGreaterThan(0);
+
+    await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      200_000,
+      2027,
+      'EUR',
+    );
+    expect(
+      await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2027),
+    ).not.toBeNull();
+
+    await repositoryModule.indexedDbBudgetRepository.importDatabase(snapshot);
+
+    expect(await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2027)).toBeNull();
+    expect(
+      await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2026),
+    ).not.toBeNull();
+  });
+
+  it('should reject invalid snapshot and keep data intact', async () => {
+    const { repositoryModule } = await loadModules();
+
+    await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    const before = await repositoryModule.indexedDbBudgetRepository.exportDatabase();
+
+    const invalidSnapshot = {
+      ...before,
+      meta: {
+        ...before.meta,
+        schemaVersion: 999,
+      },
+    };
+
+    await expect(
+      repositoryModule.indexedDbBudgetRepository.importDatabase(invalidSnapshot),
+    ).rejects.toThrow('Invalid snapshot: unsupported schema version 999');
+
+    expect(
+      await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2026),
+    ).not.toBeNull();
+  });
+
+  it('should import manual snapshot including recurring rules and categories', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [
+          {
+            id: 'year-1',
+            monthly_income: 100000,
+            year: 2026,
+            currency: 'USD',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_months: [
+          {
+            id: 'month-1',
+            budget_year_id: 'year-1',
+            month: 1,
+            year: 2026,
+            monthly_income: 100000,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_allocations: [
+          {
+            id: 'allocation-1',
+            budget_month_id: 'month-1',
+            group: 'needs',
+            allocated: 50000,
+            spent: 1000,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        budget_expenses: [
+          {
+            id: 'expense-1',
+            budget_month_id: 'month-1',
+            group: 'needs',
+            category_id: 'housing',
+            amount: 1000,
+            description: 'Sample expense',
+            recurring_rule_id: 'rule-1',
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        recurring_expense_rules: [
+          {
+            id: 'rule-1',
+            budget_year_id: 'year-1',
+            group: 'needs',
+            category_id: 'housing',
+            amount: 1000,
+            description: 'Sample recurring rule',
+            start_year: 2026,
+            start_month: 1,
+            end_year: null,
+            end_month: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+        expense_categories: [
+          {
+            id: 'housing',
+            group: 'needs',
+            order: 0,
+            name: 'Housing',
+            is_default: true,
+            is_active: true,
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await repositoryModule.indexedDbBudgetRepository.importDatabase(snapshot);
+    const exported = await repositoryModule.indexedDbBudgetRepository.exportDatabase();
+
+    expect(exported.data.recurring_expense_rules).toHaveLength(1);
+    expect(exported.data.expense_categories).toHaveLength(1);
   });
 });

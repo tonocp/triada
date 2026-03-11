@@ -20,6 +20,7 @@ import type {
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
 import { Capacitor } from '@capacitor/core';
 import { indexedDbBudgetRepository } from './BudgetRepository.indexeddb';
+import type { BudgetDatabaseSnapshot } from './BudgetRepository.snapshot';
 import { sqliteBudgetRepository } from './BudgetRepository.sqlite';
 import type { BudgetRepository } from './BudgetRepository.types';
 
@@ -132,4 +133,12 @@ export async function createYearWithAllocations(
   currency: SupportedCurrency,
 ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }> {
   return getRepository().createYearWithAllocations(monthlyIncome, year, currency);
+}
+
+export async function exportDatabase(): Promise<BudgetDatabaseSnapshot> {
+  return getRepository().exportDatabase();
+}
+
+export async function importDatabase(snapshot: unknown): Promise<void> {
+  return getRepository().importDatabase(snapshot);
 }

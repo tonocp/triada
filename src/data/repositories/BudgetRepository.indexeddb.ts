@@ -32,7 +32,15 @@ import {
   type GroupType,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
+import {
+  assertValidBudgetDatabaseSnapshot,
+  createBudgetDatabaseSnapshot,
+  type BudgetDatabaseSnapshot,
+  type BudgetDatabaseSnapshotData,
+} from './BudgetRepository.snapshot';
 import type { BudgetRepository } from './BudgetRepository.types';
+
+const APP_VERSION = '0.0.1';
 
 interface BudgetYearRow {
   id: string;
@@ -376,6 +384,89 @@ async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
   )) as BudgetMonthRow[];
   await transactionDone(tx);
   return rows;
+}
+
+async function readAllBudgetAllocations(): Promise<BudgetAllocationRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetAllocations, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetAllocations).getAll(),
+  )) as BudgetAllocationRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function readAllBudgetExpenses(): Promise<ExpenseRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.budgetExpenses, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.budgetExpenses).getAll(),
+  )) as ExpenseRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function readAllRecurringExpenseRules(): Promise<RecurringExpenseRuleRow[]> {
+  const db = await getIndexedDb();
+  const tx = db.transaction(indexedDbStores.recurringExpenseRules, 'readonly');
+  const rows = (await requestToPromise(
+    tx.objectStore(indexedDbStores.recurringExpenseRules).getAll(),
+  )) as RecurringExpenseRuleRow[];
+  await transactionDone(tx);
+  return rows;
+}
+
+async function replaceAllData(snapshotData: BudgetDatabaseSnapshotData): Promise<void> {
+  const db = await getIndexedDb();
+  const stores = [
+    indexedDbStores.budgetYears,
+    indexedDbStores.budgetMonths,
+    indexedDbStores.budgetAllocations,
+    indexedDbStores.budgetExpenses,
+    indexedDbStores.recurringExpenseRules,
+    indexedDbStores.expenseCategories,
+  ];
+  const tx = db.transaction(stores, 'readwrite');
+
+  const budgetYearsStore = tx.objectStore(indexedDbStores.budgetYears);
+  const budgetMonthsStore = tx.objectStore(indexedDbStores.budgetMonths);
+  const budgetAllocationsStore = tx.objectStore(indexedDbStores.budgetAllocations);
+  const budgetExpensesStore = tx.objectStore(indexedDbStores.budgetExpenses);
+  const recurringRulesStore = tx.objectStore(indexedDbStores.recurringExpenseRules);
+  const categoriesStore = tx.objectStore(indexedDbStores.expenseCategories);
+
+  budgetYearsStore.clear();
+  budgetMonthsStore.clear();
+  budgetAllocationsStore.clear();
+  budgetExpensesStore.clear();
+  recurringRulesStore.clear();
+  categoriesStore.clear();
+
+  for (const row of snapshotData.budget_years) {
+    budgetYearsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_months) {
+    budgetMonthsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_allocations) {
+    budgetAllocationsStore.put(row);
+  }
+
+  for (const row of snapshotData.budget_expenses) {
+    budgetExpensesStore.put(row);
+  }
+
+  for (const row of snapshotData.recurring_expense_rules) {
+    recurringRulesStore.put(row);
+  }
+
+  for (const row of snapshotData.expense_categories) {
+    categoriesStore.put(row);
+  }
+
+  await transactionDone(tx);
 }
 
 async function hasBudgetMonthsForYear(budgetYearId: string): Promise<boolean> {
@@ -1204,5 +1295,37 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     }
 
     return { budgetYear, months };
+  },
+
+  async exportDatabase(): Promise<BudgetDatabaseSnapshot> {
+    await initIndexedDb();
+
+    const [budgetYears, budgetMonths, budgetAllocations, budgetExpenses, recurringExpenseRules] =
+      await Promise.all([
+        readAllBudgetYears(),
+        readAllBudgetMonths(),
+        readAllBudgetAllocations(),
+        readAllBudgetExpenses(),
+        readAllRecurringExpenseRules(),
+      ]);
+    const expenseCategories = await readAllCategoryRows();
+
+    return createBudgetDatabaseSnapshot(
+      {
+        budget_years: budgetYears,
+        budget_months: budgetMonths,
+        budget_allocations: budgetAllocations,
+        budget_expenses: budgetExpenses,
+        recurring_expense_rules: recurringExpenseRules,
+        expense_categories: expenseCategories,
+      },
+      APP_VERSION,
+    );
+  },
+
+  async importDatabase(snapshot: unknown): Promise<void> {
+    await initIndexedDb();
+    assertValidBudgetDatabaseSnapshot(snapshot);
+    await replaceAllData(snapshot.data);
   },
 };

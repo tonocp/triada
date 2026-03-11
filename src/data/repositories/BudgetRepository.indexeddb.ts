@@ -110,6 +110,39 @@ interface CategoryRow {
   updated_at: string;
 }
 
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  return false;
+}
+
+function normalizeCategorySnapshotRow(row: Record<string, unknown>): CategoryRow {
+  const id = String(row.id ?? '') as CategoryId;
+  const group = String(row.group ?? row.group_name ?? 'needs') as GroupType;
+  const orderValue = row.order ?? row.order_index;
+  const order = typeof orderValue === 'number' && Number.isFinite(orderValue) ? orderValue : 0;
+  const createdAt = String(row.created_at ?? getCurrentTimestamp());
+  const updatedAt = String(row.updated_at ?? createdAt);
+
+  return {
+    id,
+    group,
+    order,
+    name: typeof row.name === 'string' ? row.name : undefined,
+    is_default: toBoolean(row.is_default),
+    is_active: toBoolean(row.is_active),
+    deleted_at: typeof row.deleted_at === 'string' ? row.deleted_at : null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
+
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
@@ -463,7 +496,7 @@ async function replaceAllData(snapshotData: BudgetDatabaseSnapshotData): Promise
   }
 
   for (const row of snapshotData.expense_categories) {
-    categoriesStore.put(row);
+    categoriesStore.put(normalizeCategorySnapshotRow(row as Record<string, unknown>));
   }
 
   await transactionDone(tx);

@@ -38,6 +38,50 @@ import type { BudgetRepository } from './BudgetRepository.types';
 
 const APP_VERSION = '0.0.1';
 
+function toBoolean(value: unknown): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+
+  return false;
+}
+
+function normalizeCategorySnapshotRow(row: Record<string, unknown>): {
+  id: string;
+  group_name: string;
+  order_index: number;
+  name: string | null;
+  is_default: number;
+  is_active: number;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+} {
+  const id = String(row.id ?? '');
+  const groupName = String(row.group_name ?? row.group ?? '');
+  const orderIndexRaw = row.order_index ?? row.order;
+  const orderIndex =
+    typeof orderIndexRaw === 'number' && Number.isFinite(orderIndexRaw) ? orderIndexRaw : 0;
+  const createdAt = String(row.created_at ?? getCurrentTimestamp());
+  const updatedAt = String(row.updated_at ?? createdAt);
+
+  return {
+    id,
+    group_name: groupName,
+    order_index: orderIndex,
+    name: typeof row.name === 'string' ? row.name : null,
+    is_default: toBoolean(row.is_default) ? 1 : 0,
+    is_active: toBoolean(row.is_active) ? 1 : 0,
+    deleted_at: typeof row.deleted_at === 'string' ? row.deleted_at : null,
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
+
 function getPreviousMonth(year: number, month: number): { year: number; month: number } {
   if (month > 1) {
     return { year, month: month - 1 };
@@ -1056,7 +1100,32 @@ export const sqliteBudgetRepository: BudgetRepository = {
         query(`SELECT * FROM budget_expenses`),
         query(`SELECT * FROM recurring_expense_rules`),
       ]);
-    const expenseCategories = await query(`SELECT * FROM expense_categories`);
+    const expenseCategoriesRows = await query(`SELECT * FROM expense_categories`);
+    const expenseCategories = expenseCategoriesRows.map((row) => {
+      const categoryRow = row as {
+        id: string;
+        group_name: string;
+        order_index: number;
+        name: string | null;
+        is_default: number;
+        is_active: number;
+        deleted_at: string | null;
+        created_at: string;
+        updated_at: string;
+      };
+
+      return {
+        id: categoryRow.id,
+        group: categoryRow.group_name,
+        order: categoryRow.order_index,
+        name: categoryRow.name,
+        is_default: categoryRow.is_default === 1,
+        is_active: categoryRow.is_active === 1,
+        deleted_at: categoryRow.deleted_at,
+        created_at: categoryRow.created_at,
+        updated_at: categoryRow.updated_at,
+      };
+    });
 
     return createBudgetDatabaseSnapshot(
       {
@@ -1224,17 +1293,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       }
 
       for (const row of snapshot.data.expense_categories) {
-        const category = row as {
-          id: string;
-          group_name: string;
-          order_index: number;
-          name: string | null;
-          is_default: number;
-          is_active: number;
-          deleted_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+        const category = normalizeCategorySnapshotRow(row as Record<string, unknown>);
         await run(
           `INSERT INTO expense_categories
            (id, group_name, order_index, name, is_default, is_active, deleted_at, created_at, updated_at)

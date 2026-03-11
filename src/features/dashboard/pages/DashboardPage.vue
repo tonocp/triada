@@ -1153,34 +1153,50 @@ function toggleMoreActionsMenu(event: Event): void {
 type MoreActionId = 'editMonthlyIncome' | 'exportDatabase' | 'importDatabase';
 
 function runMoreAction(actionId: MoreActionId): void {
-  showMoreActionsSheet.value = false;
-
   if (actionId === 'editMonthlyIncome') {
+    showMoreActionsSheet.value = false;
     openEditMonthlyIncome();
     return;
   }
 
   if (actionId === 'exportDatabase') {
+    showMoreActionsSheet.value = false;
     void exportDatabaseToJson();
     return;
   }
 
   openImportDatabasePicker();
+  showMoreActionsSheet.value = false;
 }
 
 async function exportDatabaseToJson(): Promise<void> {
   try {
     const snapshot = await exportDatabaseSnapshot();
     const payload = JSON.stringify(snapshot, null, 2);
-    const blob = new Blob([payload], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = buildBackupFileName();
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+
+    const fileName = buildBackupFileName();
+    const backupFile = new File([payload], fileName, { type: 'application/json' });
+    const supportsFileShare =
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [backupFile] });
+
+    if (supportsFileShare) {
+      await navigator.share({
+        title: fileName,
+        files: [backupFile],
+      });
+    } else {
+      const blob = new Blob([payload], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
 
     toast.add({
       severity: 'success',
@@ -1189,6 +1205,10 @@ async function exportDatabaseToJson(): Promise<void> {
       life: 3000,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return;
+    }
+
     console.error('Failed to export database snapshot', { error });
     toast.add({
       severity: 'error',

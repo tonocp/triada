@@ -1246,7 +1246,19 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       .mockResolvedValueOnce([{ id: 'allocation-1' }])
       .mockResolvedValueOnce([{ id: 'expense-1' }])
       .mockResolvedValueOnce([{ id: 'rule-1' }])
-      .mockResolvedValueOnce([{ id: 'category-1' }]);
+      .mockResolvedValueOnce([
+        {
+          id: 'category-1',
+          group_name: 'needs',
+          order_index: 0,
+          name: null,
+          is_default: 1,
+          is_active: 1,
+          deleted_at: null,
+          created_at: '2026-01-01T00:00:00.000Z',
+          updated_at: '2026-01-01T00:00:00.000Z',
+        },
+      ]);
 
     const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
     const snapshot = await sqliteBudgetRepository.exportDatabase();
@@ -1254,7 +1266,19 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     expect(snapshot.meta.format).toBe('triada-db-export');
     expect(snapshot.meta.schemaVersion).toBe(1);
     expect(snapshot.data.budget_years).toEqual([{ id: 'year-1' }]);
-    expect(snapshot.data.expense_categories).toEqual([{ id: 'category-1' }]);
+    expect(snapshot.data.expense_categories).toEqual([
+      {
+        id: 'category-1',
+        group: 'needs',
+        order: 0,
+        name: null,
+        is_default: true,
+        is_active: true,
+        deleted_at: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
   });
 
   it('should import valid snapshot inside transaction', async () => {
@@ -1332,11 +1356,11 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         expense_categories: [
           {
             id: 'housing',
-            group_name: 'needs',
-            order_index: 0,
+            group: 'needs',
+            order: 0,
             name: null,
-            is_default: 1,
-            is_active: 1,
+            is_default: true,
+            is_active: true,
             deleted_at: null,
             created_at: '2026-01-01T00:00:00.000Z',
             updated_at: '2026-01-01T00:00:00.000Z',
@@ -1389,5 +1413,55 @@ describe('data/repositories BudgetRepository.sqlite', () => {
 
     await expect(sqliteBudgetRepository.importDatabase(snapshot)).rejects.toThrow('insert failed');
     expect(runMock).toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  it('should normalize mixed category flag formats on import', async () => {
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [],
+        budget_months: [],
+        budget_allocations: [],
+        budget_expenses: [],
+        recurring_expense_rules: [],
+        expense_categories: [
+          {
+            id: 'housing',
+            group: 'needs',
+            order: 0,
+            name: null,
+            is_default: 1,
+            is_active: 'unexpected',
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await sqliteBudgetRepository.importDatabase(snapshot);
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO expense_categories'),
+      [
+        'housing',
+        'needs',
+        0,
+        null,
+        1,
+        0,
+        null,
+        '2026-01-01T00:00:00.000Z',
+        '2026-01-01T00:00:00.000Z',
+      ],
+    );
   });
 });

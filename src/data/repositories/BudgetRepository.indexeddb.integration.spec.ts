@@ -1530,4 +1530,93 @@ describe('data/repositories IndexedDB integration', () => {
     expect(exported.data.recurring_expense_rules).toHaveLength(1);
     expect(exported.data.expense_categories).toHaveLength(1);
   });
+
+  it('should import sqlite category snapshot shape and normalize fields', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [],
+        budget_months: [],
+        budget_allocations: [],
+        budget_expenses: [],
+        recurring_expense_rules: [],
+        expense_categories: [
+          {
+            id: 'housing',
+            group_name: 'needs',
+            order_index: 0,
+            name: null,
+            is_default: 1,
+            is_active: 1,
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await repositoryModule.indexedDbBudgetRepository.importDatabase(snapshot);
+    const exported = await repositoryModule.indexedDbBudgetRepository.exportDatabase();
+
+    expect(exported.data.expense_categories).toEqual([
+      expect.objectContaining({
+        id: 'housing',
+        group: 'needs',
+        order: 0,
+        is_default: true,
+        is_active: true,
+      }),
+    ]);
+  });
+
+  it('should fallback category flags to false for unsupported values', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const snapshot = {
+      meta: {
+        format: 'triada-db-export',
+        schemaVersion: 1,
+        exportedAt: '2026-01-01T00:00:00.000Z',
+        appVersion: '0.0.1',
+      },
+      data: {
+        budget_years: [],
+        budget_months: [],
+        budget_allocations: [],
+        budget_expenses: [],
+        recurring_expense_rules: [],
+        expense_categories: [
+          {
+            id: 'housing',
+            group: 'needs',
+            order: 0,
+            name: null,
+            is_default: 'x',
+            is_active: undefined,
+            deleted_at: null,
+            created_at: '2026-01-01T00:00:00.000Z',
+            updated_at: '2026-01-01T00:00:00.000Z',
+          },
+        ],
+      },
+    };
+
+    await repositoryModule.indexedDbBudgetRepository.importDatabase(snapshot);
+    const exported = await repositoryModule.indexedDbBudgetRepository.exportDatabase();
+
+    expect(exported.data.expense_categories).toEqual([
+      expect.objectContaining({
+        is_default: false,
+        is_active: false,
+      }),
+    ]);
+  });
 });

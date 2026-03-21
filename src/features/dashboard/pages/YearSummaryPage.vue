@@ -1,0 +1,336 @@
+<template>
+  <div class="page-container year-summary-page">
+    <header class="year-summary-header">
+      <Button
+        id="year-summary-back-to-month"
+        :label="t('dashboard.viewMonthly')"
+        icon="pi pi-arrow-left"
+        severity="secondary"
+        outlined
+        @click="openMonthlyDashboard(activeMonth)"
+      />
+      <h1>{{ t('dashboard.yearSummaryTitle') }}</h1>
+    </header>
+
+    <section class="year-switcher" :aria-label="t('dashboard.yearSummaryTitle')">
+      <Button
+        id="year-summary-previous-year"
+        icon="pi pi-chevron-left"
+        severity="secondary"
+        text
+        @click="changeYear(-1)"
+      />
+      <span class="year-label">{{ activeYear }}</span>
+      <Button
+        id="year-summary-next-year"
+        icon="pi pi-chevron-right"
+        severity="secondary"
+        text
+        @click="changeYear(1)"
+      />
+    </section>
+
+    <div v-if="loading" class="year-summary-state">
+      <p>{{ t('common.loading') }}</p>
+    </div>
+
+    <div v-else-if="hasError" class="year-summary-state">
+      <p>{{ t('dashboard.yearSummaryLoadError') }}</p>
+    </div>
+
+    <template v-else>
+      <section class="budget-summary">
+        <div class="summary-card">
+          <span class="summary-label">{{ t('dashboard.annualPlannedIncome') }}</span>
+          <span class="summary-value">{{ formatCurrencyValue(annualIncomePlanned) }}</span>
+        </div>
+      </section>
+
+      <section class="groups-section" aria-label="annual-bucket-totals">
+        <div
+          v-for="bucket in summary.totalsByGroup"
+          :key="`annual-total-${bucket.group}`"
+          :data-testid="`annual-group-${bucket.group}`"
+        >
+          <GroupDisplay
+            :group="bucket.group"
+            :allocated="bucket.allocated"
+            :spent="bucket.spent"
+            :interactive="false"
+          />
+        </div>
+      </section>
+
+      <section class="months-grid" aria-label="year-month-grid">
+        <button
+          v-for="month in summary.months"
+          :key="`month-${activeYear}-${month.month}`"
+          class="month-card"
+          type="button"
+          :data-testid="`year-month-card-${month.month}`"
+          @click="openMonthlyDashboard(month.month)"
+        >
+          <div class="month-card-header">
+            <span class="month-card-title">{{ monthLabel(month.month) }}</span>
+            <span class="month-card-income">{{ formatCurrencyValue(month.monthlyIncome) }}</span>
+          </div>
+
+          <p v-if="!month.hasBudget" class="month-empty">{{ t('dashboard.noBudgetForPeriod') }}</p>
+
+          <div v-else class="month-buckets">
+            <div
+              v-for="group in groups"
+              :key="`month-${month.month}-${group}`"
+              class="month-bucket-row"
+            >
+              <span>{{ t(`groups.${group}`) }}</span>
+              <span>{{ formatCurrencyValue(month.buckets[group].spent) }}</span>
+            </div>
+          </div>
+        </button>
+      </section>
+    </template>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { initDatabase } from '@/data/database';
+import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
+import { GROUP_ORDER } from '@/domain/entities';
+import { GroupDisplay } from '@/shared/components/molecules';
+import { useCurrency } from '@/shared/composables/useCurrency';
+import Button from 'primevue/button';
+import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
+import { buildYearSummary } from '../utils/yearSummary';
+
+const route = useRoute();
+const router = useRouter();
+const { t, tm } = useI18n();
+const { formatCurrency: formatCurrencyValue } = useCurrency();
+
+const groups = GROUP_ORDER;
+const activeMonth = ref(new Date().getMonth() + 1);
+const activeYear = ref(new Date().getFullYear());
+const loading = ref(false);
+const hasError = ref(false);
+const summary = ref(buildYearSummary([], activeYear.value));
+
+const monthNames = computed<string[]>(() => {
+  const localized = tm('dashboard.monthNames');
+
+  if (!Array.isArray(localized)) {
+    return [];
+  }
+
+  return localized.map((month) => String(month));
+});
+
+const annualIncomePlanned = computed(() => {
+  return summary.value.months.reduce((total, month) => total + month.monthlyIncome, 0);
+});
+
+function toInteger(value: unknown): number | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function monthLabel(month: number): string {
+  const index = month - 1;
+  return monthNames.value[index] ?? String(month);
+}
+
+function resolveRoutePeriod(defaultYear: number): { year: number; month: number } {
+  const routeYear = toInteger(route.query.year);
+  const routeMonth = toInteger(route.query.month);
+  const year = routeYear ?? defaultYear;
+  const month = routeMonth && routeMonth >= 1 && routeMonth <= 12 ? routeMonth : activeMonth.value;
+
+  return { year, month };
+}
+
+async function loadYearSummary(year: number): Promise<void> {
+  loading.value = true;
+  hasError.value = false;
+
+  try {
+    const budgetYear = await getBudgetYearByYear(year);
+    if (!budgetYear) {
+      summary.value = buildYearSummary([], year);
+      return;
+    }
+
+    const months = await Promise.all(
+      Array.from({ length: 12 }, (_, index) => getBudgetMonth(budgetYear.id, index + 1)),
+    );
+    summary.value = buildYearSummary(months, year);
+  } catch (error) {
+    console.error('Failed to load annual summary', { error, year });
+    hasError.value = true;
+  } finally {
+    loading.value = false;
+  }
+}
+
+function openMonthlyDashboard(month: number): void {
+  void router.push({
+    name: 'dashboard',
+    query: {
+      year: String(activeYear.value),
+      month: String(month),
+    },
+  });
+}
+
+function changeYear(delta: number): void {
+  activeYear.value += delta;
+  void loadYearSummary(activeYear.value);
+}
+
+onMounted(async () => {
+  await initDatabase();
+
+  const latestYear = await getLatestBudgetYear();
+  const fallbackYear = latestYear?.year ?? activeYear.value;
+  const period = resolveRoutePeriod(fallbackYear);
+
+  activeYear.value = period.year;
+  activeMonth.value = period.month;
+
+  await loadYearSummary(activeYear.value);
+});
+</script>
+
+<style scoped>
+.year-summary-page {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.year-summary-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.year-summary-header h1 {
+  font-size: 1.35rem;
+}
+
+.year-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--p-input-border-color);
+  border-radius: 12px;
+  background: var(--p-content-background);
+}
+
+.year-label {
+  font-weight: 700;
+  min-width: 90px;
+  text-align: center;
+}
+
+.budget-summary {
+  margin-bottom: 1rem;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.1rem 1rem;
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
+  border-radius: 12px;
+}
+
+.summary-label {
+  font-size: 0.875rem;
+  opacity: 0.9;
+}
+
+.summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.groups-section {
+  margin-bottom: 1rem;
+}
+
+.months-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.month-card {
+  width: 100%;
+  border: 1px solid var(--p-input-border-color);
+  border-radius: 12px;
+  background: var(--p-content-background);
+  text-align: left;
+  padding: 0.85rem;
+}
+
+.month-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.month-card-title {
+  font-weight: 700;
+}
+
+.month-card-income {
+  color: var(--p-primary-color);
+  font-weight: 600;
+}
+
+.month-empty {
+  color: var(--p-text-muted-color);
+  font-size: 0.85rem;
+}
+
+.month-buckets {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.month-bucket-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.year-summary-state {
+  text-align: center;
+  color: var(--p-text-muted-color);
+  padding: 2rem 0;
+}
+
+@media (min-width: 768px) {
+  .months-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .months-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+</style>

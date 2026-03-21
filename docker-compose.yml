@@ -1,9 +1,7 @@
 services:
   triada-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${IMAGE_NAME:-ghcr.io/tonocp/triada:latest}
     container_name: triada-web
     ports:
-      - '8081:80'
+      - '${APP_PORT:-8081}:80'
     restart: unless-stopped

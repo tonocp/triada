@@ -17,6 +17,11 @@ export const routes = [
     component: () => import('@/features/dashboard/pages/DashboardPage.vue'),
   },
   {
+    path: '/dashboard/year',
+    name: 'year-summary',
+    component: () => import('@/features/dashboard/pages/YearSummaryPage.vue'),
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'notfound',
     component: () => import('@/views/NotFoundPage.vue'),

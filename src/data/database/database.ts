@@ -76,6 +76,7 @@ export async function initDatabase(): Promise<void> {
           monthly_income INTEGER NOT NULL,
           year INTEGER NOT NULL,
           currency TEXT NOT NULL DEFAULT 'USD',
+          split TEXT NOT NULL DEFAULT '{"needs":50,"wants":30,"savings":20}',
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
@@ -150,6 +151,16 @@ export async function initDatabase(): Promise<void> {
       // noinspection SqlNoDataSourceInspection
       await db.execute(
         `ALTER TABLE budget_months ADD COLUMN monthly_income INTEGER NOT NULL DEFAULT 0;`,
+        false,
+      );
+    } catch {
+      // ignore if column already exists
+    }
+
+    try {
+      // noinspection SqlNoDataSourceInspection
+      await db.execute(
+        `ALTER TABLE budget_years ADD COLUMN split TEXT NOT NULL DEFAULT '{"needs":50,"wants":30,"savings":20}';`,
         false,
       );
     } catch {

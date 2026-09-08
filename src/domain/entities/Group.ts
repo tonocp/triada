@@ -6,12 +6,6 @@ export const GroupType = {
 
 export type GroupType = (typeof GroupType)[keyof typeof GroupType];
 
-export const GROUP_PERCENTAGES: Record<GroupType, number> = {
-  needs: 50,
-  wants: 30,
-  savings: 20,
-};
-
 export const GROUP_ORDER: readonly GroupType[] = [
   GroupType.NEEDS,
   GroupType.WANTS,

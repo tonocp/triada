@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { GROUP_ORDER, GROUP_PERCENTAGES, type GroupType } from '@/domain/entities';
+import { GROUP_ORDER, groupShares, type GroupType } from '@/domain/entities';
 import { computed } from 'vue';
 
 interface RingBucket {
@@ -47,10 +47,16 @@ const GAP = 0.6;
 
 const conicGradient = computed(() => {
   const byGroup = new Map(props.buckets.map((b) => [b.group, b]));
+
+  // Segment widths follow the actual allocation split for this budget, which is
+  // configurable. Fall back to equal thirds when nothing is allocated yet.
+  const shares = groupShares(props.buckets);
+  const spanFor = (group: GroupType): number => (shares ? shares[group] : 100 / GROUP_ORDER.length);
+
   let cursor = 0;
 
   const stops = GROUP_ORDER.flatMap((group, index) => {
-    const span = GROUP_PERCENTAGES[group];
+    const span = spanFor(group);
     const last = index === GROUP_ORDER.length - 1;
     const bucket = byGroup.get(group);
     const spentFraction =

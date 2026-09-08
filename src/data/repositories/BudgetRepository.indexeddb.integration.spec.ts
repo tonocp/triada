@@ -8,11 +8,13 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split?: { needs: number; wants: number; savings: number };
     }) => Promise<{
       id: string;
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     }>;
@@ -21,6 +23,7 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     } | null>;
@@ -29,9 +32,14 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     } | null>;
+    updateBudgetSplitForYear: (input: {
+      budgetYearId: string;
+      split: { needs: number; wants: number; savings: number };
+    }) => Promise<void>;
     createBudgetMonth: (input: {
       budgetYearId: string;
       month: number;
@@ -68,6 +76,7 @@ interface IndexedDbRepositoryModule {
       budgetYearId: string;
       fromMonth: number;
       monthlyIncome: number;
+      split: { needs: number; wants: number; savings: number };
     }) => Promise<void>;
     createBudgetAllocation: (input: {
       budgetMonthId: string;
@@ -188,12 +197,14 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number,
       year: number,
       currency: 'USD' | 'EUR',
+      split?: { needs: number; wants: number; savings: number },
     ) => Promise<{
       budgetYear: {
         id: string;
         monthlyIncome: number;
         year: number;
         currency: 'USD' | 'EUR';
+        split: { needs: number; wants: number; savings: number };
       };
       months: Array<{
         id: string;
@@ -1053,6 +1064,7 @@ describe('data/repositories IndexedDB integration', () => {
       budgetYearId: result.budgetYear.id,
       fromMonth: 6,
       monthlyIncome: 120_000,
+      split: result.budgetYear.split,
     });
 
     const month5 = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
@@ -1075,6 +1087,46 @@ describe('data/repositories IndexedDB integration', () => {
     expect(
       month6?.allocations.find((allocation) => allocation.group === 'savings')?.allocated,
     ).toBe(24_000);
+  });
+
+  it('should default the split when creating a year without one, then persist a custom split', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    expect(created.budgetYear.split).toEqual({ needs: 50, wants: 30, savings: 20 });
+
+    await repositoryModule.indexedDbBudgetRepository.updateBudgetSplitForYear({
+      budgetYearId: created.budgetYear.id,
+      split: { needs: 60, wants: 25, savings: 15 },
+    });
+
+    const reloaded = await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2026);
+    expect(reloaded?.split).toEqual({ needs: 60, wants: 25, savings: 15 });
+
+    const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      created.budgetYear.id,
+      1,
+    );
+    expect(month?.allocations.find((a) => a.group === 'needs')?.allocated).toBe(60_000);
+    expect(month?.allocations.find((a) => a.group === 'wants')?.allocated).toBe(25_000);
+    expect(month?.allocations.find((a) => a.group === 'savings')?.allocated).toBe(15_000);
+  });
+
+  it('should build a year with a custom split from creation', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2027,
+      'EUR',
+      { needs: 40, wants: 40, savings: 20 },
+    );
+
+    expect(created.months[0]?.allocations.find((a) => a.group === 'wants')?.allocated).toBe(40_000);
   });
 
   it('should expose default categories by group', async () => {

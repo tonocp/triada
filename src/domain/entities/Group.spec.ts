@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GROUP_ORDER, GROUP_PERCENTAGES, GroupType, compareGroups } from './Group';
+import { GROUP_ORDER, GroupType, compareGroups } from './Group';
 
 describe('domain/entities - Group', () => {
   describe('GroupType', () => {
@@ -7,22 +7,6 @@ describe('domain/entities - Group', () => {
       expect(GroupType.NEEDS).toBe('needs');
       expect(GroupType.WANTS).toBe('wants');
       expect(GroupType.SAVINGS).toBe('savings');
-    });
-  });
-
-  describe('GROUP_PERCENTAGES', () => {
-    it('should have correct percentages for 50/30/20 rule', () => {
-      expect(GROUP_PERCENTAGES[GroupType.NEEDS]).toBe(50);
-      expect(GROUP_PERCENTAGES[GroupType.WANTS]).toBe(30);
-      expect(GROUP_PERCENTAGES[GroupType.SAVINGS]).toBe(20);
-    });
-
-    it('should total 100', () => {
-      const total =
-        GROUP_PERCENTAGES[GroupType.NEEDS] +
-        GROUP_PERCENTAGES[GroupType.WANTS] +
-        GROUP_PERCENTAGES[GroupType.SAVINGS];
-      expect(total).toBe(100);
     });
   });
 

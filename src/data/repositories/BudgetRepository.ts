@@ -2,6 +2,7 @@ import type {
   AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
+  BudgetSplit,
   BudgetYear,
   Category,
   CategoryId,
@@ -13,6 +14,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   GroupType,
+  UpdateBudgetSplitInput,
   UpdateCategoryNameInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
@@ -93,6 +95,10 @@ export async function updateMonthlyIncomeFromMonth(
   return getRepository().updateMonthlyIncomeFromMonth(input);
 }
 
+export async function updateBudgetSplitForYear(input: UpdateBudgetSplitInput): Promise<void> {
+  return getRepository().updateBudgetSplitForYear(input);
+}
+
 export async function getExpensesByMonthAndGroup(
   budgetMonthId: string,
   group: GroupType,
@@ -131,8 +137,9 @@ export async function createYearWithAllocations(
   monthlyIncome: number,
   year: number,
   currency: SupportedCurrency,
+  split?: BudgetSplit,
 ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }> {
-  return getRepository().createYearWithAllocations(monthlyIncome, year, currency);
+  return getRepository().createYearWithAllocations(monthlyIncome, year, currency, split);
 }
 
 /**

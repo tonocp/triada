@@ -371,7 +371,7 @@ import {
 } from '@/data/repositories';
 import {
   GROUP_ORDER,
-  GROUP_PERCENTAGES,
+  allocateBudget,
   compareGroups,
   type BudgetAllocation,
   type BudgetMonth,
@@ -624,6 +624,7 @@ async function loadMonthData(): Promise<void> {
         resolvedBudgetYear.monthlyIncome,
         resolvedBudgetYear.year,
         resolvedBudgetYear.currency,
+        resolvedBudgetYear.split,
       );
 
       budgetYear.value = rebuilt.budgetYear;
@@ -658,6 +659,8 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
     return;
   }
 
+  const allocatedByGroup = allocateBudget(year.monthlyIncome, year.split);
+
   for (let month = 1; month <= 12; month++) {
     let existingMonth = await getBudgetMonth(year.id, month);
 
@@ -690,19 +693,16 @@ async function repairMissingMonths(year: BudgetYear): Promise<void> {
     }
 
     for (const group of GROUP_ORDER) {
-      const percentage = GROUP_PERCENTAGES[group];
       const hasAllocation = existingMonth.allocations.some((item) => item.group === group);
       if (hasAllocation) {
         continue;
       }
 
-      const allocated = Math.floor((year.monthlyIncome * percentage) / 100);
-
       try {
         await createBudgetAllocation({
           budgetMonthId: existingMonth.id,
           group,
-          allocated,
+          allocated: allocatedByGroup[group],
         });
       } catch (error) {
         console.warn('Failed to create missing allocation, continuing', {
@@ -740,6 +740,7 @@ async function saveMonthlyIncome(): Promise<void> {
       budgetYearId: budgetYear.value.id,
       fromMonth: budgetMonth.value.month,
       monthlyIncome: amount,
+      split: budgetYear.value.split,
     });
 
     await refreshMonthData();

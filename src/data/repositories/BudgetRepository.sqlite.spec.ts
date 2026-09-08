@@ -47,6 +47,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       monthlyIncome: 100_000,
       year: 2026,
       currency: 'USD',
+      split: { needs: 50, wants: 30, savings: 20 },
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
@@ -96,6 +97,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
         monthly_income: 110_000,
         year: 2026,
         currency: 'USD',
+        split: '{"needs":60,"wants":25,"savings":15}',
         created_at: '2026-01-01T00:00:00.000Z',
         updated_at: '2026-01-01T00:00:00.000Z',
       },
@@ -109,9 +111,28 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       monthlyIncome: 110_000,
       year: 2026,
       currency: 'USD',
+      split: { needs: 60, wants: 25, savings: 15 },
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     });
+  });
+
+  it('should default the split when a legacy budget year row lacks it', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'year-id',
+        monthly_income: 110_000,
+        year: 2026,
+        currency: 'USD',
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]);
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.getBudgetYearByYear(2026);
+
+    expect(result?.split).toEqual({ needs: 50, wants: 30, savings: 20 });
   });
 
   it('should return null when budget year query returns undefined row', async () => {
@@ -225,6 +246,7 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       budgetYearId: 'year-id',
       fromMonth: 6,
       monthlyIncome: 120_000,
+      split: { needs: 50, wants: 30, savings: 20 },
     });
 
     expect(runMock).toHaveBeenCalledTimes(8);
@@ -237,6 +259,37 @@ describe('data/repositories BudgetRepository.sqlite', () => {
       '2026-01-01T00:00:00.000Z',
       'month-6',
       'needs',
+    ]);
+  });
+
+  it('should update the year split and re-allocate every month by its own income', async () => {
+    queryMock.mockResolvedValueOnce([
+      { id: 'month-1', monthly_income: 100_000 },
+      { id: 'month-2', monthly_income: 200_000 },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    await sqliteBudgetRepository.updateBudgetSplitForYear({
+      budgetYearId: 'year-id',
+      split: { needs: 60, wants: 25, savings: 15 },
+    });
+
+    expect(runMock).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE budget_years SET split = ?'),
+      ['{"needs":60,"wants":25,"savings":15}', '2026-01-01T00:00:00.000Z', 'year-id'],
+    );
+    expect(runMock).toHaveBeenCalledWith(expect.stringContaining('SET allocated = ?'), [
+      60_000,
+      '2026-01-01T00:00:00.000Z',
+      'month-1',
+      'needs',
+    ]);
+    expect(runMock).toHaveBeenCalledWith(expect.stringContaining('SET allocated = ?'), [
+      30_000,
+      '2026-01-01T00:00:00.000Z',
+      'month-2',
+      'savings',
     ]);
   });
 

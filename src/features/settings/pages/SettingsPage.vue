@@ -30,20 +30,18 @@
       <h2 class="settings-heading">{{ t('settings.budgetSplit') }}</h2>
       <Card>
         <template #content>
-          <div class="split-bar">
-            <span
-              v-for="group in groups"
-              :key="`bar-${group}`"
-              class="split-bar-segment"
-              :data-group="group"
-              :style="{ width: `${percentages[group]}%` }"
-            ></span>
-          </div>
-          <div v-for="group in groups" :key="`row-${group}`" class="split-row" :data-group="group">
-            <span class="split-dot"></span>
-            <span class="split-label">{{ t(`groups.${group}`) }}</span>
-            <span class="split-value">{{ percentages[group] }}%</span>
-          </div>
+          <BudgetSplitEditor v-model="splitDraft" />
+          <p v-if="budgetYear" class="help-text">
+            {{ t('settings.budgetSplitScope', { year: budgetYear.year }) }}
+          </p>
+          <Button
+            id="settings-split-save"
+            :label="t('common.save')"
+            icon="pi pi-check"
+            class="w-full settings-split-save"
+            :disabled="!canSaveSplit"
+            @click="saveSplit"
+          />
         </template>
       </Card>
     </section>
@@ -110,10 +108,19 @@
 <script setup lang="ts">
 import {
   exportDatabase as exportDatabaseSnapshot,
+  getLatestBudgetYear,
   importDatabase as importDatabaseSnapshot,
+  updateBudgetSplitForYear,
 } from '@/data/repositories';
-import { GROUP_ORDER, GROUP_PERCENTAGES } from '@/domain/entities';
+import {
+  DEFAULT_GROUP_SPLIT,
+  GROUP_ORDER,
+  isValidBudgetSplit,
+  type BudgetSplit,
+  type BudgetYear,
+} from '@/domain/entities';
 import { Button, Card } from '@/shared/components/atoms';
+import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import { Capacitor } from '@capacitor/core';
@@ -121,7 +128,7 @@ import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
-import { ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -130,16 +137,63 @@ const toast = useToast();
 const { t } = useI18n();
 const { currency, setCurrency, supportedCurrencies } = useCurrency();
 
-const groups = GROUP_ORDER;
-const percentages = GROUP_PERCENTAGES;
-
 const selectedLocale = ref<SupportedLocale>(getLocale());
 const selectedCurrency = ref<SupportedCurrency>(currency.value);
 const importFileInput = ref<HTMLInputElement | null>(null);
 const showImportConfirm = ref(false);
 const pendingImportFile = ref<File | null>(null);
 
+const budgetYear = ref<BudgetYear | null>(null);
+const splitDraft = ref<BudgetSplit>({ ...DEFAULT_GROUP_SPLIT });
+const isSavingSplit = ref(false);
+
+const splitChanged = computed(
+  () =>
+    !!budgetYear.value &&
+    GROUP_ORDER.some((group) => splitDraft.value[group] !== budgetYear.value?.split[group]),
+);
+const canSaveSplit = computed(
+  () => splitChanged.value && isValidBudgetSplit(splitDraft.value) && !isSavingSplit.value,
+);
+
 const isNative = Capacitor.isNativePlatform();
+
+onMounted(async () => {
+  budgetYear.value = await getLatestBudgetYear();
+  if (budgetYear.value) {
+    splitDraft.value = { ...budgetYear.value.split };
+  }
+});
+
+async function saveSplit(): Promise<void> {
+  if (!budgetYear.value || !canSaveSplit.value) {
+    return;
+  }
+
+  isSavingSplit.value = true;
+  try {
+    await updateBudgetSplitForYear({
+      budgetYearId: budgetYear.value.id,
+      split: splitDraft.value,
+    });
+    budgetYear.value.split = { ...splitDraft.value };
+    toast.add({
+      severity: 'success',
+      summary: t('settings.budgetSplitUpdated'),
+      life: 3000,
+    });
+  } catch (error) {
+    console.error('Failed to update budget split', { error });
+    toast.add({
+      severity: 'error',
+      summary: t('setup.error'),
+      detail: t('settings.budgetSplitError'),
+      life: 3000,
+    });
+  } finally {
+    isSavingSplit.value = false;
+  }
+}
 
 watch(selectedLocale, (next) => {
   setLocale(next);
@@ -370,41 +424,8 @@ async function confirmImport(): Promise<void> {
   font: inherit;
 }
 
-.split-bar {
-  display: flex;
-  height: 0.75rem;
-  border-radius: var(--t-r-pill);
-  overflow: hidden;
-  margin-bottom: 1rem;
-}
-
-.split-bar-segment {
-  background: var(--group-color);
-}
-
-.split-row {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 0.375rem 0;
-}
-
-.split-dot {
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 3px;
-  flex-shrink: 0;
-  background: var(--group-color);
-}
-
-.split-label {
-  flex: 1;
-  font-size: 0.9rem;
-}
-
-.split-value {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.settings-split-save {
+  margin-top: 0.85rem;
 }
 
 .settings-actions {

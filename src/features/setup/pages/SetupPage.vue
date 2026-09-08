@@ -39,19 +39,16 @@
           <p class="help-text">{{ t('setup.incomeHelp') }}</p>
         </div>
 
+        <div class="form-group">
+          <label>{{ t('settings.budgetSplit') }}</label>
+          <BudgetSplitEditor v-model="split" />
+        </div>
+
         <div class="preview-section" v-if="monthlyIncomeNumber > 0">
           <h3 class="preview-title">{{ t('setup.previewBreakdown') }}</h3>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.needs') }} (50%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(needsAmount) }}</span>
-          </div>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.wants') }} (30%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(wantsAmount) }}</span>
-          </div>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.savings') }} (20%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(savingsAmount) }}</span>
+          <div v-for="group in groups" :key="`preview-${group}`" class="preview-row">
+            <span class="preview-label">{{ t(`groups.${group}`) }} ({{ split[group] }}%)</span>
+            <span class="preview-value">{{ formatCurrencyValue(previewAllocations[group]) }}</span>
           </div>
         </div>
       </template>
@@ -92,7 +89,15 @@ import {
   createYearWithAllocations,
   importDatabase as importDatabaseSnapshot,
 } from '@/data/repositories';
+import {
+  DEFAULT_GROUP_SPLIT,
+  GROUP_ORDER,
+  allocateBudget,
+  isValidBudgetSplit,
+  type BudgetSplit,
+} from '@/domain/entities';
 import { Button, Card, Input } from '@/shared/components/atoms';
+import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import { useToast } from 'primevue/usetoast';
@@ -125,16 +130,17 @@ watch(selectedCurrency, (newVal) => {
   setCurrency(newVal);
 });
 
+const groups = GROUP_ORDER;
+const split = ref<BudgetSplit>({ ...DEFAULT_GROUP_SPLIT });
+
 const monthlyIncomeNumber = computed(() => {
   const num = parseFloat(monthlyIncome.value);
   return isNaN(num) ? 0 : num * 100;
 });
 
-const needsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.5));
-const wantsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.3));
-const savingsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.2));
+const previewAllocations = computed(() => allocateBudget(monthlyIncomeNumber.value, split.value));
 
-const isValid = computed(() => monthlyIncomeNumber.value > 0);
+const isValid = computed(() => monthlyIncomeNumber.value > 0 && isValidBudgetSplit(split.value));
 
 async function createBudget(): Promise<void> {
   if (!isValid.value) return;
@@ -147,7 +153,12 @@ async function createBudget(): Promise<void> {
     // The router guard keeps this screen unreachable once a budget exists, so
     // this always creates a fresh one.
     const currentYear = new Date().getFullYear();
-    await createYearWithAllocations(monthlyIncomeNumber.value, currentYear, selectedCurrency.value);
+    await createYearWithAllocations(
+      monthlyIncomeNumber.value,
+      currentYear,
+      selectedCurrency.value,
+      split.value,
+    );
 
     toast.add({
       severity: 'success',

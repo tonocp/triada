@@ -250,10 +250,26 @@ describe('Budget flow', () => {
     cy.get('#income').clear();
     cy.get('#income').type('1000.55');
 
-    cy.contains('Desglose 50/30/20').should('be.visible');
+    cy.contains('Desglose del presupuesto').should('be.visible');
     cy.contains('500,27 €').should('be.visible');
     cy.contains('300,16 €').should('be.visible');
     cy.contains('200,11 €').should('be.visible');
+  });
+
+  it('should re-allocate the preview when the split is edited', () => {
+    cy.get('#income').clear();
+    cy.get('#income').type('1000');
+
+    cy.get('#split-needs').clear();
+    cy.get('#split-needs').type('60');
+    cy.get('#split-wants').clear();
+    cy.get('#split-wants').type('25');
+    cy.get('#split-savings').clear();
+    cy.get('#split-savings').type('15');
+
+    cy.contains('600,00 €').should('be.visible');
+    cy.contains('250,00 €').should('be.visible');
+    cy.contains('150,00 €').should('be.visible');
   });
 
   it('should persist selected locale after reload', () => {

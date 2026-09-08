@@ -25,7 +25,9 @@
         <span class="budget-hero-legend-dot"></span>
         <span class="budget-hero-legend-name">
           {{ t(`groups.${bucket.group}`) }}
-          <span class="budget-hero-legend-pct">· {{ GROUP_PERCENTAGES[bucket.group] }}%</span>
+          <span v-if="sharePercent" class="budget-hero-legend-pct">
+            · {{ sharePercent[bucket.group] }}%
+          </span>
         </span>
         <span class="budget-hero-legend-amount">
           {{ formatCurrencyValue(bucket.spent)
@@ -37,8 +39,9 @@
 </template>
 
 <script setup lang="ts">
-import { GROUP_PERCENTAGES, type GroupType } from '@/domain/entities';
+import { groupShares, type GroupType } from '@/domain/entities';
 import { useCurrency } from '@/shared/composables/useCurrency';
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import TriadaRing from './TriadaRing.vue';
 
@@ -48,7 +51,7 @@ interface HeroBucket {
   allocated: number;
 }
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     label: string;
     income: number;
@@ -64,6 +67,19 @@ withDefaults(
 
 const { t } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
+
+// Each bucket's rounded share of the total allocation — reflects the (configurable) split.
+const sharePercent = computed<Record<GroupType, number> | null>(() => {
+  const shares = groupShares(props.buckets);
+  if (!shares) {
+    return null;
+  }
+  return {
+    needs: Math.round(shares.needs),
+    wants: Math.round(shares.wants),
+    savings: Math.round(shares.savings),
+  };
+});
 </script>
 
 <style scoped>

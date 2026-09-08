@@ -6,6 +6,7 @@ import type {
   AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
+  BudgetSplit,
   BudgetYear,
   Category,
   CategoryId,
@@ -15,17 +16,20 @@ import type {
   CreateExpenseInput,
   DeleteExpenseInput,
   Expense,
+  UpdateBudgetSplitInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_CATEGORIES_BY_GROUP,
+  DEFAULT_GROUP_SPLIT,
   GROUP_ORDER,
-  GROUP_PERCENTAGES,
+  allocateBudget,
   compareGroups,
   isDefaultCategoryId,
   isValidCategoryForGroup,
+  parseBudgetSplit,
   type GroupType,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
@@ -90,9 +94,45 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   return { year: year - 1, month: 12 };
 }
 
-function allocationForGroup(monthlyIncome: number, group: GroupType): number {
-  const percentage = GROUP_PERCENTAGES[group];
-  return Math.floor((monthlyIncome * percentage) / 100);
+interface BudgetYearRow {
+  id: string;
+  monthly_income: number;
+  year: number;
+  currency: string;
+  split?: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+function toBudgetYear(row: BudgetYearRow): BudgetYear {
+  return {
+    id: row.id,
+    monthlyIncome: Number(row.monthly_income),
+    year: Number(row.year),
+    currency: row.currency as SupportedCurrency,
+    split: parseBudgetSplit(row.split),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** Recompute and persist `allocated` for the given months from their own income. */
+async function writeAllocations(
+  months: { id: string; monthly_income: number }[],
+  split: BudgetSplit,
+  now: string,
+): Promise<void> {
+  for (const month of months) {
+    const allocated = allocateBudget(Number(month.monthly_income), split);
+    for (const group of GROUP_ORDER) {
+      await run(
+        `UPDATE budget_allocations
+         SET allocated = ?, updated_at = ?
+         WHERE budget_month_id = ? AND "group" = ?`,
+        [allocated[group], now, month.id, group],
+      );
+    }
+  }
 }
 
 function normalizeCategoryName(name: string): string {
@@ -144,12 +184,14 @@ export const sqliteBudgetRepository: BudgetRepository = {
   async createBudgetYear(input: CreateBudgetYearInput): Promise<BudgetYear> {
     const id = generateUUID();
     const now = getCurrentTimestamp();
+    const split = input.split ?? DEFAULT_GROUP_SPLIT;
 
     // noinspection SqlNoDataSourceInspection
     await run(
-      `INSERT INTO budget_years (id, monthly_income, year, currency, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, input.monthlyIncome, input.year, input.currency, now, now],
+      `INSERT INTO budget_years
+        (id, monthly_income, year, currency, split, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, input.monthlyIncome, input.year, input.currency, JSON.stringify(split), now, now],
     );
 
     return {
@@ -157,6 +199,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
       monthlyIncome: input.monthlyIncome,
       year: input.year,
       currency: input.currency,
+      split,
       createdAt: now,
       updatedAt: now,
     };
@@ -164,14 +207,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
   async getLatestBudgetYear(): Promise<BudgetYear | null> {
     // noinspection SqlNoDataSourceInspection
-    const result = await query<{
-      id: string;
-      monthly_income: number;
-      year: number;
-      currency: string;
-      created_at: string;
-      updated_at: string;
-    }>(
+    const result = await query<BudgetYearRow>(
       `SELECT * FROM budget_years
        WHERE EXISTS (
          SELECT 1 FROM budget_months
@@ -182,31 +218,13 @@ export const sqliteBudgetRepository: BudgetRepository = {
       [],
     );
 
-    if (result.length === 0) return null;
-
     const [row] = result;
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      monthlyIncome: Number(row.monthly_income),
-      year: Number(row.year),
-      currency: row.currency as SupportedCurrency,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return row ? toBudgetYear(row) : null;
   },
 
   async getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
     // noinspection SqlNoDataSourceInspection
-    const result = await query<{
-      id: string;
-      monthly_income: number;
-      year: number;
-      currency: string;
-      created_at: string;
-      updated_at: string;
-    }>(
+    const result = await query<BudgetYearRow>(
       `SELECT * FROM budget_years
        WHERE year = ?
          AND EXISTS (
@@ -218,19 +236,8 @@ export const sqliteBudgetRepository: BudgetRepository = {
       [year],
     );
 
-    if (result.length === 0) return null;
-
     const [row] = result;
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      monthlyIncome: Number(row.monthly_income),
-      year: Number(row.year),
-      currency: row.currency as SupportedCurrency,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    };
+    return row ? toBudgetYear(row) : null;
   },
 
   async createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
@@ -1024,7 +1031,7 @@ export const sqliteBudgetRepository: BudgetRepository = {
   async updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void> {
     const now = getCurrentTimestamp();
 
-    const months = await query<{ id: string }>(
+    const months = await query<{ id: string; monthly_income: number }>(
       `SELECT id FROM budget_months
        WHERE budget_year_id = ? AND month >= ?
        ORDER BY month ASC`,
@@ -1037,28 +1044,45 @@ export const sqliteBudgetRepository: BudgetRepository = {
         now,
         month.id,
       ]);
-
-      for (const group of GROUP_ORDER) {
-        await run(
-          `UPDATE budget_allocations
-           SET allocated = ?, updated_at = ?
-           WHERE budget_month_id = ? AND "group" = ?`,
-          [allocationForGroup(input.monthlyIncome, group), now, month.id, group],
-        );
-      }
     }
+
+    await writeAllocations(
+      months.map((month) => ({ id: month.id, monthly_income: input.monthlyIncome })),
+      input.split,
+      now,
+    );
+  },
+
+  async updateBudgetSplitForYear(input: UpdateBudgetSplitInput): Promise<void> {
+    const now = getCurrentTimestamp();
+
+    await run(`UPDATE budget_years SET split = ?, updated_at = ? WHERE id = ?`, [
+      JSON.stringify(input.split),
+      now,
+      input.budgetYearId,
+    ]);
+
+    const months = await query<{ id: string; monthly_income: number }>(
+      `SELECT id, monthly_income FROM budget_months WHERE budget_year_id = ?`,
+      [input.budgetYearId],
+    );
+
+    await writeAllocations(months, input.split, now);
   },
 
   async createYearWithAllocations(
     monthlyIncome: number,
     year: number,
     currency: SupportedCurrency,
+    split?: BudgetSplit,
   ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }> {
     const budgetYear = await sqliteBudgetRepository.createBudgetYear({
       monthlyIncome,
       year,
       currency,
+      split,
     });
+    const allocatedByGroup = allocateBudget(monthlyIncome, budgetYear.split);
     const months: BudgetMonth[] = [];
 
     for (let month = 1; month <= 12; month++) {
@@ -1072,12 +1096,10 @@ export const sqliteBudgetRepository: BudgetRepository = {
       const allocations: BudgetAllocation[] = [];
 
       for (const group of GROUP_ORDER) {
-        const percentage = GROUP_PERCENTAGES[group];
-        const allocated = Math.floor((monthlyIncome * percentage) / 100);
         const allocation = await sqliteBudgetRepository.createBudgetAllocation({
           budgetMonthId: budgetMonth.id,
           group,
-          allocated,
+          allocated: allocatedByGroup[group],
         });
         allocations.push(allocation);
       }
@@ -1154,22 +1176,17 @@ export const sqliteBudgetRepository: BudgetRepository = {
       await run('DELETE FROM expense_categories');
 
       for (const row of snapshot.data.budget_years) {
-        const budgetYear = row as {
-          id: string;
-          monthly_income: number;
-          year: number;
-          currency: string;
-          created_at: string;
-          updated_at: string;
-        };
+        const budgetYear = row as BudgetYearRow;
         await run(
-          `INSERT INTO budget_years (id, monthly_income, year, currency, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO budget_years
+            (id, monthly_income, year, currency, split, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
             budgetYear.id,
             budgetYear.monthly_income,
             budgetYear.year,
             budgetYear.currency,
+            JSON.stringify(parseBudgetSplit(budgetYear.split)),
             budgetYear.created_at,
             budgetYear.updated_at,
           ],

@@ -12,6 +12,7 @@ const indexedDbRepositoryMock = {
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   updateMonthlyIncomeFromMonth: vi.fn(),
+  updateBudgetSplitForYear: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
   getCategoriesByGroup: vi.fn(),
   createCategory: vi.fn(),
@@ -35,6 +36,7 @@ const sqliteRepositoryMock = {
   updateExpense: vi.fn(),
   deleteExpense: vi.fn(),
   updateMonthlyIncomeFromMonth: vi.fn(),
+  updateBudgetSplitForYear: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
   getCategoriesByGroup: vi.fn(),
   createCategory: vi.fn(),
@@ -181,6 +183,7 @@ describe('data/repositories BudgetRepository facade', () => {
       budgetYearId: 'year-1',
       fromMonth: 4,
       monthlyIncome: 120_000,
+      split: { needs: 50, wants: 30, savings: 20 },
     });
     await repository.getExpensesByMonthAndGroup('month-1', 'needs');
     await repository.getCategoriesByGroup('needs');
@@ -199,7 +202,15 @@ describe('data/repositories BudgetRepository facade', () => {
       replacementCategoryId: 'housing',
     });
     await repository.getAllocationsByMonth('month-1');
-    await repository.createYearWithAllocations(100_000, 2026, 'USD');
+    await repository.createYearWithAllocations(100_000, 2026, 'USD', {
+      needs: 50,
+      wants: 30,
+      savings: 20,
+    });
+    await repository.updateBudgetSplitForYear({
+      budgetYearId: 'year-1',
+      split: { needs: 60, wants: 25, savings: 15 },
+    });
     await repository.exportDatabase();
     await repository.importDatabase({});
 
@@ -219,6 +230,7 @@ describe('data/repositories BudgetRepository facade', () => {
       budgetYearId: 'year-1',
       fromMonth: 4,
       monthlyIncome: 120_000,
+      split: { needs: 50, wants: 30, savings: 20 },
     });
     expect(indexedDbRepositoryMock.getExpensesByMonthAndGroup).toHaveBeenCalledWith(
       'month-1',
@@ -244,7 +256,16 @@ describe('data/repositories BudgetRepository facade', () => {
       100_000,
       2026,
       'USD',
+      {
+        needs: 50,
+        wants: 30,
+        savings: 20,
+      },
     );
+    expect(indexedDbRepositoryMock.updateBudgetSplitForYear).toHaveBeenCalledWith({
+      budgetYearId: 'year-1',
+      split: { needs: 60, wants: 25, savings: 15 },
+    });
     expect(indexedDbRepositoryMock.exportDatabase).toHaveBeenCalledWith();
     expect(indexedDbRepositoryMock.importDatabase).toHaveBeenCalledWith({});
   });

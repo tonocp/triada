@@ -170,7 +170,7 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('€1000.00').should('be.visible');
+    cy.contains('1.000,00 €').should('be.visible');
     cy.contains('Necesidades').should('be.visible');
     cy.contains('Gastos personales').should('be.visible');
     cy.contains('Ahorro e inversión').should('be.visible');
@@ -184,7 +184,7 @@ describe('Budget flow', () => {
 
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('€2500.00').should('be.visible');
+    cy.contains('2.500,00 €').should('be.visible');
   });
 
   it('should redirect from setup to dashboard when a budget already exists', () => {
@@ -194,7 +194,7 @@ describe('Budget flow', () => {
     cy.visit('/setup');
 
     cy.url().should('include', '/dashboard');
-    cy.contains('€1750.00').should('be.visible');
+    cy.contains('1.750,00 €').should('be.visible');
   });
 
   it('should keep create action disabled for invalid income values', () => {
@@ -219,9 +219,9 @@ describe('Budget flow', () => {
     cy.get('#income').type('1000.55');
 
     cy.contains('Desglose 50/30/20').should('be.visible');
-    cy.contains('€500.27').should('be.visible');
-    cy.contains('€300.16').should('be.visible');
-    cy.contains('€200.11').should('be.visible');
+    cy.contains('500,27 €').should('be.visible');
+    cy.contains('300,16 €').should('be.visible');
+    cy.contains('200,11 €').should('be.visible');
   });
 
   it('should persist selected locale after reload', () => {
@@ -241,7 +241,7 @@ describe('Budget flow', () => {
     createBudget('1000');
 
     cy.url().should('include', '/dashboard');
-    cy.contains('€1000.00').should('be.visible');
+    cy.contains('1.000,00 €').should('be.visible');
   });
 
   it('should add expense from dashboard form and persist after reload', () => {
@@ -250,7 +250,7 @@ describe('Budget flow', () => {
     cy.url().should('include', '/dashboard');
 
     cy.contains('Necesidades').should('be.visible');
-    cy.contains('€0.00').should('be.visible');
+    cy.contains('0,00 €').should('be.visible');
 
     cy.get('.actions-section .p-button').first().scrollIntoView();
     cy.get('.actions-section .p-button').first().click({ force: true });
@@ -261,11 +261,11 @@ describe('Budget flow', () => {
     cy.get('input[placeholder="Describe este gasto"]').type('Supermercado semanal');
     submitAddExpense();
 
-    cy.contains('€100.50').should('be.visible');
+    cy.contains('100,50 €').should('be.visible');
 
     cy.reload();
 
-    cy.contains('€100.50').should('be.visible');
+    cy.contains('100,50 €').should('be.visible');
   });
 
   it('should apply recurring expense from current month to future months', () => {
@@ -294,11 +294,11 @@ describe('Budget flow', () => {
     cy.get('#monthly-income-edit-input').type('1200');
     cy.contains('.p-dialog:visible button', 'Guardar').click();
 
-    cy.contains('€1200.00').should('be.visible');
-    cy.contains('€600.00').should('be.visible');
+    cy.contains('1.200,00 €').should('be.visible');
+    cy.contains('600,00 €').should('be.visible');
 
     cy.get('.month-selector .p-button').eq(0).click({ force: true });
-    cy.contains('€1000.00').should('be.visible');
+    cy.contains('1.000,00 €').should('be.visible');
   });
 
   it('should open annual summary with 12 months and navigate back to selected month', () => {
@@ -310,17 +310,17 @@ describe('Budget flow', () => {
     cy.url().should('include', '/dashboard/year');
     cy.contains('Resumen anual').should('be.visible');
     cy.contains('Ingreso anual planificado').should('be.visible');
-    cy.contains('€12000.00').should('be.visible');
+    cy.contains('12.000,00 €').should('be.visible');
 
     cy.get('[data-testid^="year-month-card-"]').should('have.length', 12);
-    cy.get('[data-testid="annual-group-needs"]').should('contain', '€6000.00');
-    cy.get('[data-testid="annual-group-wants"]').should('contain', '€3600.00');
-    cy.get('[data-testid="annual-group-savings"]').should('contain', '€2400.00');
+    cy.get('[data-testid="annual-group-needs"]').should('contain', '6.000,00 €');
+    cy.get('[data-testid="annual-group-wants"]').should('contain', '3.600,00 €');
+    cy.get('[data-testid="annual-group-savings"]').should('contain', '2.400,00 €');
 
     cy.get(`[data-testid="year-month-card-${currentMonth}"]`).click();
     cy.url().should('include', '/dashboard?');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('€1000.00').should('be.visible');
+    cy.contains('1.000,00 €').should('be.visible');
   });
 
   it('should render dashboard while offline after service worker activation', () => {
@@ -336,7 +336,7 @@ describe('Budget flow', () => {
     cy.visit('/dashboard');
     cy.url().should('include', '/dashboard');
     cy.contains('Ingreso Mensual').should('be.visible');
-    cy.contains('€1300.00').should('be.visible');
+    cy.contains('1.300,00 €').should('be.visible');
   });
 
   it('should create, edit, and delete a custom category from category manager', () => {
@@ -420,7 +420,7 @@ describe('Budget flow', () => {
     );
 
     cy.contains('Respaldo importado correctamente.').should('be.visible');
-    cy.contains('€900.00').should('be.visible');
-    cy.contains('€1000.00').should('not.exist');
+    cy.contains('900,00 €').should('be.visible');
+    cy.contains('1.000,00 €').should('not.exist');
   });
 });

@@ -1,0 +1,74 @@
+/**
+ * TRIADA design tokens — single source of truth for the visual system.
+ *
+ * Direction: neo-brutalist surface (paper, 1.5px ink border, hard offset
+ * shadow, Space Grotesk) with coloured 50/30/20 bucket graphics.
+ *
+ * Only the light theme is defined for now. A future dark theme redefines the
+ * same custom properties under:
+ *   @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { ... } }
+ *   :root[data-theme='dark'] { ... }
+ * so nothing here should hardcode a colour that a dark theme would need to
+ * override anywhere but in this file.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Typography */
+  --t-font:
+    'Space Grotesk Variable', 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', sans-serif;
+
+  /* Surface & ink.
+     --t-bg is mirrored (static, can't read CSS vars) in index.html
+     (theme-color, msapplication-TileColor) and public/manifest.webmanifest
+     (theme_color, background_color) — keep those in sync on change. */
+  --t-bg: #f2f0ea;
+  --t-surface: #ffffff;
+  --t-ink: #14140f;
+  --t-ink-muted: #6b6a5f;
+  --t-ink-faint: #9a988b;
+  --t-hairline: #e2dfd4;
+  --t-border: #14140f;
+
+  /* 50/30/20 buckets. `--t-needs` is the brand indigo — its single source is
+     the PrimeVue preset in main.ts, which emits `--p-primary-500`; alias it
+     here so the "needs" bucket and PrimeVue components never drift. */
+  --t-needs: var(--p-primary-500);
+  --t-needs-tint: #e9e8fb;
+  --t-wants: #f0663d;
+  --t-wants-tint: #fbe4da;
+  --t-savings: #1fa971;
+  --t-savings-tint: #dcf0e8;
+
+  /* Status / semaphore */
+  --t-ok: #157a54;
+  --t-warn: #e8a33d;
+  --t-over: #e5484d;
+
+  /* Accent — same hue as the "needs" bucket / brand primary. */
+  --t-accent: var(--t-needs);
+  --t-accent-contrast: #ffffff;
+  --t-accent-yellow: #ffe14d;
+
+  /* Radii */
+  --t-r-sm: 8px;
+  --t-r-md: 10px;
+  --t-r-lg: 12px;
+  --t-r-pill: 999px;
+
+  /* Spacing scale */
+  --t-s-1: 4px;
+  --t-s-2: 8px;
+  --t-s-3: 12px;
+  --t-s-4: 16px;
+  --t-s-5: 20px;
+  --t-s-6: 24px;
+  --t-s-7: 32px;
+  --t-s-8: 40px;
+
+  /* Hard offset shadow (neo-brutalist) */
+  --t-shadow-hard: 4px 4px 0 var(--t-border);
+  --t-shadow-hard-sm: 3px 3px 0 var(--t-border);
+}

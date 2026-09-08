@@ -594,6 +594,7 @@ import {
 import { Input } from '@/shared/components/atoms';
 import { GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
+import { getIntlLocale, getLocale } from '@/shared/i18n';
 import { Capacitor } from '@capacitor/core';
 import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
@@ -612,7 +613,7 @@ import { useRoute, useRouter } from 'vue-router';
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
-const { t, te, locale } = useI18n();
+const { t, te } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const budgetYear = ref<BudgetYear | null>(null);
@@ -1392,7 +1393,7 @@ function formatExpenseDate(value: string): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat(locale.value === 'es' ? 'es-ES' : 'en-US', {
+  return new Intl.DateTimeFormat(getIntlLocale(getLocale()), {
     dateStyle: 'medium',
   }).format(parsed);
 }
@@ -1992,18 +1993,6 @@ onMounted(() => {
     background: linear-gradient(to top, rgba(255, 255, 255, 0.9) 68%, rgba(255, 255, 255, 0));
     backdrop-filter: blur(1px);
   }
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 .expense-form {

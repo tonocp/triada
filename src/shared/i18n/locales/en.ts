@@ -135,5 +135,8 @@ export default {
     confirm: 'Confirm',
     loading: 'Loading...',
     comingSoon: 'Coming Soon',
+    notFoundTitle: 'Page not found',
+    notFoundBody: "The page you're looking for doesn't exist.",
+    goHome: 'Back to start',
   },
 };

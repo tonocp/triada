@@ -1,14 +1,6 @@
 <template>
-  <div class="page-container year-summary-page">
+  <div class="page-container">
     <header class="year-summary-header">
-      <Button
-        id="year-summary-back-to-month"
-        :label="t('dashboard.viewMonthly')"
-        icon="pi pi-arrow-left"
-        severity="secondary"
-        outlined
-        @click="openMonthlyDashboard(activeMonth)"
-      />
       <h1>{{ t('dashboard.yearSummaryTitle') }}</h1>
     </header>
 
@@ -111,7 +103,6 @@ const { t, tm } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
 const groups = GROUP_ORDER;
-const activeMonth = ref(new Date().getMonth() + 1);
 const activeYear = ref(new Date().getFullYear());
 const loading = ref(false);
 const hasError = ref(false);
@@ -145,13 +136,8 @@ function monthLabel(month: number): string {
   return monthNames.value[index] ?? String(month);
 }
 
-function resolveRoutePeriod(defaultYear: number): { year: number; month: number } {
-  const routeYear = toInteger(route.query.year);
-  const routeMonth = toInteger(route.query.month);
-  const year = routeYear ?? defaultYear;
-  const month = routeMonth && routeMonth >= 1 && routeMonth <= 12 ? routeMonth : activeMonth.value;
-
-  return { year, month };
+function resolveRouteYear(defaultYear: number): number {
+  return toInteger(route.query.year) ?? defaultYear;
 }
 
 async function loadYearSummary(year: number): Promise<void> {
@@ -179,7 +165,7 @@ async function loadYearSummary(year: number): Promise<void> {
 
 function openMonthlyDashboard(month: number): void {
   void router.push({
-    name: 'dashboard',
+    name: 'month',
     query: {
       year: String(activeYear.value),
       month: String(month),
@@ -196,25 +182,14 @@ onMounted(async () => {
   await initDatabase();
 
   const latestYear = await getLatestBudgetYear();
-  const fallbackYear = latestYear?.year ?? activeYear.value;
-  const period = resolveRoutePeriod(fallbackYear);
-
-  activeYear.value = period.year;
-  activeMonth.value = period.month;
+  activeYear.value = resolveRouteYear(latestYear?.year ?? activeYear.value);
 
   await loadYearSummary(activeYear.value);
 });
 </script>
 
 <style scoped>
-.year-summary-page {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-}
-
 .year-summary-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 

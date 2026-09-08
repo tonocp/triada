@@ -135,6 +135,15 @@ export async function createYearWithAllocations(
   return getRepository().createYearWithAllocations(monthlyIncome, year, currency);
 }
 
+/**
+ * Whether a usable budget already exists. `getLatestBudgetYear()` only resolves
+ * a year that has at least one month, so its presence is the full answer. Used
+ * by the router first-run guard and to skip the setup screen.
+ */
+export async function budgetExists(): Promise<boolean> {
+  return (await getLatestBudgetYear()) !== null;
+}
+
 export async function exportDatabase(): Promise<BudgetDatabaseSnapshot> {
   return getRepository().exportDatabase();
 }

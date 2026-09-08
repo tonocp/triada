@@ -90,15 +90,13 @@
 import { initDatabase } from '@/data/database';
 import {
   createYearWithAllocations,
-  getBudgetMonth,
-  getLatestBudgetYear,
   importDatabase as importDatabaseSnapshot,
 } from '@/data/repositories';
 import { Button, Card, Input } from '@/shared/components/atoms';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
@@ -138,17 +136,6 @@ const savingsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.2)
 
 const isValid = computed(() => monthlyIncomeNumber.value > 0);
 
-async function hasAnyMonthForYear(budgetYearId: string): Promise<boolean> {
-  for (let month = 1; month <= 12; month++) {
-    const budgetMonth = await getBudgetMonth(budgetYearId, month);
-    if (budgetMonth) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 async function createBudget(): Promise<void> {
   if (!isValid.value) return;
 
@@ -157,20 +144,9 @@ async function createBudget(): Promise<void> {
   try {
     await initDatabase();
 
-    const existing = await getLatestBudgetYear();
+    // The router guard keeps this screen unreachable once a budget exists, so
+    // this always creates a fresh one.
     const currentYear = new Date().getFullYear();
-
-    if (existing && existing.year === currentYear && (await hasAnyMonthForYear(existing.id))) {
-      toast.add({
-        severity: 'warn',
-        summary: t('setup.budgetExists'),
-        detail: `${currentYear}`,
-        life: 3000,
-      });
-      router.push('/dashboard');
-      return;
-    }
-
     await createYearWithAllocations(monthlyIncomeNumber.value, currentYear, selectedCurrency.value);
 
     toast.add({
@@ -180,7 +156,7 @@ async function createBudget(): Promise<void> {
       life: 3000,
     });
 
-    router.push('/dashboard');
+    router.push({ name: 'year' });
   } catch (error) {
     console.error('Failed to create budget:', error);
     toast.add({
@@ -191,18 +167,6 @@ async function createBudget(): Promise<void> {
     });
   } finally {
     isLoading.value = false;
-  }
-}
-
-async function checkExistingBudget(): Promise<void> {
-  try {
-    await initDatabase();
-    const existing = await getLatestBudgetYear();
-    if (existing && (await hasAnyMonthForYear(existing.id))) {
-      router.replace('/dashboard');
-    }
-  } catch (error) {
-    console.error('Failed to check existing budget on setup page:', error);
   }
 }
 
@@ -239,7 +203,7 @@ async function onImportFileSelected(event: Event): Promise<void> {
       life: 3000,
     });
 
-    router.push('/dashboard');
+    router.push({ name: 'year' });
   } catch (error) {
     const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
     console.error('Failed to import database snapshot from setup page', { error });
@@ -254,10 +218,6 @@ async function onImportFileSelected(event: Event): Promise<void> {
     resetImportInput();
   }
 }
-
-onMounted(() => {
-  checkExistingBudget();
-});
 </script>
 
 <style scoped>

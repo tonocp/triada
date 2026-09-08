@@ -1,54 +1,35 @@
 <template>
-  <div class="page-container">
+  <div ref="swipeEl" class="page-container">
     <div class="dashboard-header">
-      <div class="dashboard-toolbar">
-        <div class="month-selector">
-          <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
-          <DatePicker
-            :model-value="selectedPeriod"
-            view="month"
-            date-format="MM yy"
-            :manual-input="false"
-            update-model-type="date"
-            class="month-picker"
-            @update:model-value="onPeriodChange"
-          />
-          <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
-        </div>
-        <Button
-          id="open-year-summary"
-          :label="t('dashboard.viewYearSummary')"
-          icon="pi pi-calendar"
-          severity="secondary"
-          outlined
-          class="year-summary-trigger"
-          @click="goToYearSummary"
+      <div class="month-selector">
+        <Button icon="pi pi-chevron-left" severity="secondary" outlined @click="previousMonth" />
+        <DatePicker
+          :model-value="selectedPeriod"
+          view="month"
+          date-format="MM yy"
+          :manual-input="false"
+          update-model-type="date"
+          class="month-picker"
+          @update:model-value="onPeriodChange"
         />
-        <Button
-          id="more-actions-menu-trigger"
-          icon="pi pi-ellipsis-h"
-          rounded
-          text
-          severity="secondary"
-          class="dashboard-menu-trigger"
-          :aria-label="t('dashboard.moreActionsMenu')"
-          aria-haspopup="true"
-          aria-controls="more-actions-menu"
-          @click="toggleMoreActionsMenu"
-        />
+        <Button icon="pi pi-chevron-right" severity="secondary" outlined @click="nextMonth" />
       </div>
-      <Menu
-        id="more-actions-menu"
-        ref="moreActionsMenuRef"
-        :model="moreActionsMenuItems"
-        popup
-        class="more-actions-menu-popup"
-      />
     </div>
 
     <div class="budget-summary" v-if="budgetMonth && budgetYear">
       <div class="summary-card">
-        <span class="summary-label">{{ t('dashboard.monthlyIncome') }}</span>
+        <div class="summary-card-head">
+          <span class="summary-label">{{ t('dashboard.monthlyIncome') }}</span>
+          <Button
+            id="edit-monthly-income"
+            :label="t('dashboard.editMonthlyIncome')"
+            icon="pi pi-pencil"
+            text
+            size="small"
+            class="edit-income-button"
+            @click="openEditMonthlyIncome"
+          />
+        </div>
         <span class="summary-value">{{ formatCurrencyValue(budgetMonth.monthlyIncome) }}</span>
       </div>
     </div>
@@ -68,59 +49,6 @@
     <div v-else class="empty-state">
       <p>{{ t('dashboard.noBudgetForPeriod') }}</p>
     </div>
-
-    <div v-if="budgetMonth && budgetYear" class="actions-section">
-      <Button
-        :label="t('dashboard.addExpense')"
-        icon="pi pi-plus"
-        class="w-full"
-        @click="openAddExpenseDialog"
-      />
-      <input
-        ref="importFileInput"
-        type="file"
-        accept="application/json,.json"
-        class="visually-hidden"
-        @change="onImportFileSelected"
-      />
-    </div>
-
-    <Dialog
-      v-model:visible="showMoreActionsSheet"
-      modal
-      :header="t('dashboard.moreActionsMenu')"
-      :draggable="false"
-      :dismissable-mask="true"
-      position="bottom"
-      class="more-actions-sheet"
-    >
-      <div class="more-actions-sheet-list">
-        <Button
-          data-testid="more-actions-edit-monthly-income"
-          :label="t('dashboard.editMonthlyIncome')"
-          icon="pi pi-pencil"
-          text
-          class="more-actions-sheet-item"
-          @click="runMoreAction('editMonthlyIncome')"
-        />
-        <Button
-          data-testid="more-actions-export-database"
-          :label="t('dashboard.exportDatabase')"
-          icon="pi pi-download"
-          text
-          class="more-actions-sheet-item"
-          @click="runMoreAction('exportDatabase')"
-        />
-        <Button
-          data-testid="more-actions-import-database"
-          :label="t('dashboard.importDatabase')"
-          icon="pi pi-upload"
-          text
-          class="more-actions-sheet-item"
-          @click="runMoreAction('importDatabase')"
-        />
-      </div>
-    </Dialog>
 
     <Dialog
       v-model:visible="showAddExpense"
@@ -567,13 +495,11 @@ import {
   addExpense as createExpenseRecord,
   createYearWithAllocations,
   deleteExpense as deleteExpenseRecord,
-  exportDatabase as exportDatabaseSnapshot,
   getBudgetMonth,
   getBudgetYearByYear,
   getCategoriesByGroup,
   getExpensesByMonthAndGroup,
   getLatestBudgetYear,
-  importDatabase as importDatabaseSnapshot,
   softDeleteCategoryAndReassign,
   updateCategoryName as updateCategoryNameRecord,
   updateExpense as updateExpenseRecord,
@@ -595,14 +521,11 @@ import { Input } from '@/shared/components/atoms';
 import { GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { getIntlLocale, getLocale } from '@/shared/i18n';
-import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
+import { useSwipe } from '@vueuse/core';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
-import Menu from 'primevue/menu';
 import RadioButton from 'primevue/radiobutton';
 import SelectButton from 'primevue/selectbutton';
 import { useToast } from 'primevue/usetoast';
@@ -624,8 +547,8 @@ const selectedPeriod = ref<Date>(new Date(activeYear.value, activeMonth.value - 
 let isRepairingYear = false;
 let isRebuildingYear = false;
 
+const swipeEl = ref<HTMLElement | null>(null);
 const showAddExpense = ref(false);
-const showMoreActionsSheet = ref(false);
 const showExpenseHistory = ref(false);
 const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
@@ -657,9 +580,6 @@ const categoryPendingEdit = ref<Category | null>(null);
 const replacementCategoryId = ref<CategoryId | ''>('');
 const newCategoryName = ref('');
 const editCategoryName = ref('');
-const importFileInput = ref<HTMLInputElement | null>(null);
-const moreActionsMenuRef = ref<{ toggle: (event: Event) => void } | null>(null);
-const useNativeActionsSheet = ref(false);
 const categoriesByGroup = ref<Record<GroupType, Category[]>>({
   needs: [],
   wants: [],
@@ -766,33 +686,6 @@ const expenseHistoryTitle = computed(() => {
   return `${title} (${selectedGroupExpenses.value.length})`;
 });
 
-const moreActionsMenuItems = computed(() => [
-  {
-    label: t('dashboard.editMonthlyIncome'),
-    icon: 'pi pi-pencil',
-    command: (): void => {
-      openEditMonthlyIncome();
-    },
-  },
-  {
-    separator: true,
-  },
-  {
-    label: t('dashboard.exportDatabase'),
-    icon: 'pi pi-download',
-    command: (): void => {
-      void exportDatabaseToJson();
-    },
-  },
-  {
-    label: t('dashboard.importDatabase'),
-    icon: 'pi pi-upload',
-    command: (): void => {
-      openImportDatabasePicker();
-    },
-  },
-]);
-
 function setActivePeriod(year: number, month: number): void {
   const normalizedYear = Number(year);
   const normalizedMonth = Number(month);
@@ -825,16 +718,6 @@ function resolveInitialPeriod(defaultYear: number): { year: number; month: numbe
   const month = queryMonth && queryMonth >= 1 && queryMonth <= 12 ? queryMonth : activeMonth.value;
 
   return { year, month };
-}
-
-function goToYearSummary(): void {
-  void router.push({
-    name: 'year-summary',
-    query: {
-      year: String(activeYear.value),
-      month: String(activeMonth.value),
-    },
-  });
 }
 
 function previousMonth(): void {
@@ -1174,206 +1057,6 @@ async function addExpense(): Promise<void> {
   }
 }
 
-function buildBackupFileName(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `triada-backup-${year}-${month}-${day}.json`;
-}
-
-function toggleMoreActionsMenu(event: Event): void {
-  if (useNativeActionsSheet.value) {
-    showMoreActionsSheet.value = true;
-    return;
-  }
-
-  moreActionsMenuRef.value?.toggle(event);
-}
-
-type MoreActionId = 'editMonthlyIncome' | 'exportDatabase' | 'importDatabase';
-
-function runMoreAction(actionId: MoreActionId): void {
-  if (actionId === 'editMonthlyIncome') {
-    showMoreActionsSheet.value = false;
-    openEditMonthlyIncome();
-    return;
-  }
-
-  if (actionId === 'exportDatabase') {
-    showMoreActionsSheet.value = false;
-    void exportDatabaseToJson();
-    return;
-  }
-
-  openImportDatabasePicker();
-}
-
-async function exportDatabaseToJson(): Promise<void> {
-  try {
-    const snapshot = await exportDatabaseSnapshot();
-    const payload = JSON.stringify(snapshot, null, 2);
-
-    const fileName = buildBackupFileName();
-    let exported = false;
-    let successDetail = t('dashboard.databaseExported');
-
-    const isAndroidNative = useNativeActionsSheet.value && Capacitor.getPlatform() === 'android';
-
-    if (isAndroidNative) {
-      try {
-        await Filesystem.requestPermissions();
-      } catch (permissionError) {
-        console.error('Failed to request Android filesystem permissions', {
-          error: permissionError,
-        });
-      }
-
-      try {
-        await Filesystem.writeFile({
-          path: `Download/${fileName}`,
-          data: payload,
-          directory: Directory.ExternalStorage,
-          encoding: Encoding.UTF8,
-          recursive: true,
-        });
-        exported = true;
-        successDetail = t('dashboard.databaseExportedToDownloads', { fileName });
-      } catch (writeError) {
-        console.error('Failed to save backup file in Android downloads directory', {
-          error: writeError,
-          fileName,
-        });
-      }
-    }
-
-    if (!exported && useNativeActionsSheet.value) {
-      try {
-        const writeResult = await Filesystem.writeFile({
-          path: fileName,
-          data: payload,
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        });
-
-        await Share.share({
-          title: fileName,
-          url: writeResult.uri,
-          dialogTitle: t('dashboard.exportDatabase'),
-        });
-        exported = true;
-        successDetail = t('dashboard.databaseExportedSharedFallback', { fileName });
-      } catch (shareError) {
-        if (shareError instanceof Error && shareError.name === 'AbortError') {
-          return;
-        }
-
-        console.error('Failed to share native backup file', {
-          error: shareError,
-        });
-      }
-    }
-
-    if (!exported && typeof navigator.share === 'function') {
-      try {
-        const backupFile = new File([payload], fileName, { type: 'application/json' });
-        await navigator.share({ files: [backupFile] });
-        exported = true;
-      } catch (shareError) {
-        if (shareError instanceof Error && shareError.name === 'AbortError') {
-          return;
-        }
-
-        console.error('Failed web share fallback for backup file', { error: shareError });
-      }
-    }
-
-    if (!exported) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseExported'),
-      detail: successDetail,
-      life: 3000,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return;
-    }
-
-    console.error('Failed to export database snapshot', { error });
-    toast.add({
-      severity: 'error',
-      summary: t('setup.error'),
-      detail: t('dashboard.databaseExportError'),
-      life: 3000,
-    });
-  }
-}
-
-function openImportDatabasePicker(): void {
-  importFileInput.value?.click();
-}
-
-function resetImportInput(): void {
-  if (importFileInput.value) {
-    importFileInput.value.value = '';
-  }
-}
-
-async function onImportFileSelected(event: Event): Promise<void> {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-
-  if (!file) {
-    showMoreActionsSheet.value = false;
-    resetImportInput();
-    return;
-  }
-
-  if (!window.confirm(t('dashboard.databaseImportConfirm'))) {
-    showMoreActionsSheet.value = false;
-    resetImportInput();
-    return;
-  }
-
-  try {
-    const fileContents = await file.text();
-    const parsedSnapshot = JSON.parse(fileContents) as unknown;
-    await importDatabaseSnapshot(parsedSnapshot);
-    await loadData();
-
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseImported'),
-      detail: t('dashboard.databaseImported'),
-      life: 3000,
-    });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
-    console.error('Failed to import database snapshot', { error });
-    toast.add({
-      severity: 'error',
-      summary: t('setup.error'),
-      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
-      life: 5000,
-    });
-  } finally {
-    showMoreActionsSheet.value = false;
-    resetImportInput();
-  }
-}
-
 function openAddExpenseDialog(): void {
   const selectedGroup: GroupType = expenseGroup.value === '' ? 'needs' : expenseGroup.value;
   expenseGroup.value = selectedGroup;
@@ -1551,7 +1234,7 @@ async function loadData(): Promise<void> {
 
     const year = await getLatestBudgetYear();
     if (!year) {
-      router.replace('/setup');
+      void router.replace({ name: 'setup' });
       return;
     }
 
@@ -1870,26 +1553,52 @@ watch(showEditCategoryDialog, (isVisible) => {
   }
 });
 
-onMounted(() => {
-  useNativeActionsSheet.value = Capacitor.isNativePlatform();
-  loadData();
+useSwipe(swipeEl, {
+  threshold: 60,
+  onSwipeEnd(_event, direction) {
+    if (direction === 'left') {
+      shiftMonth(1);
+    } else if (direction === 'right') {
+      shiftMonth(-1);
+    }
+  },
+});
+
+function consumeAddExpenseIntent(): void {
+  if (route.query.action !== 'add' || !budgetMonth.value) {
+    return;
+  }
+
+  openAddExpenseDialog();
+
+  const { action: _action, ...rest } = route.query;
+  void router.replace({ query: rest });
+}
+
+// The month view stays mounted across `/month?...` navigations (e.g. the FAB
+// jumping to the current month), so react to query changes, not just onMounted.
+watch(
+  () => route.query,
+  () => {
+    const { year, month } = resolveInitialPeriod(activeYear.value);
+    if (year !== activeYear.value || month !== activeMonth.value) {
+      setActivePeriod(year, month);
+      void refreshMonthData().then(consumeAddExpenseIntent);
+    } else {
+      consumeAddExpenseIntent();
+    }
+  },
+);
+
+onMounted(async () => {
+  await loadData();
+  consumeAddExpenseIntent();
 });
 </script>
 
 <style scoped>
-.page-container {
-  padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
-}
-
 .dashboard-header {
   margin-bottom: 1.5rem;
-}
-
-.dashboard-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
 }
 
 .month-selector {
@@ -1897,48 +1606,10 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  flex: 1;
 }
 
 .month-picker {
   min-width: 160px;
-}
-
-.dashboard-menu-trigger {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-.year-summary-trigger {
-  white-space: nowrap;
-}
-
-@media (max-width: 768px) {
-  .year-summary-trigger {
-    min-width: 2.5rem;
-    padding-inline: 0.5rem;
-  }
-}
-
-.more-actions-sheet-list {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.more-actions-sheet-item {
-  justify-content: flex-start;
-}
-
-/*noinspection CssUnusedSymbol */
-:global(.more-actions-sheet.p-dialog) {
-  margin: 0;
-  border-radius: 16px 16px 0 0;
-}
-
-/*noinspection CssUnusedSymbol */
-:global(.more-actions-sheet .p-dialog-content) {
-  padding-top: 0.5rem;
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
 }
 
 .empty-state {
@@ -1961,6 +1632,16 @@ onMounted(() => {
   border-radius: 12px;
 }
 
+.summary-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-income-button {
+  color: inherit;
+}
+
 .summary-label {
   font-size: 0.875rem;
   opacity: 0.9;
@@ -1973,26 +1654,6 @@ onMounted(() => {
 
 .groups-section {
   margin-bottom: 2.5rem;
-}
-
-.actions-section {
-  margin-top: 0;
-  padding-top: 0.75rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (max-width: 768px) {
-  .actions-section {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-    background: linear-gradient(to top, rgba(255, 255, 255, 0.9) 68%, rgba(255, 255, 255, 0));
-    backdrop-filter: blur(1px);
-  }
 }
 
 .expense-form {

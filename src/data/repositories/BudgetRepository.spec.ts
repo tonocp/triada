@@ -116,6 +116,28 @@ describe('data/repositories BudgetRepository facade', () => {
     expect(sqliteRepositoryMock.getBudgetYearByYear).toHaveBeenCalledWith(2026);
   });
 
+  describe('budgetExists', () => {
+    beforeEach(() => {
+      getPlatformMock.mockReturnValue('web');
+    });
+
+    it('should be false when getLatestBudgetYear resolves null', async () => {
+      indexedDbRepositoryMock.getLatestBudgetYear.mockResolvedValue(null);
+
+      const repository = await import('./BudgetRepository');
+
+      expect(await repository.budgetExists()).toBe(false);
+    });
+
+    it('should be true when getLatestBudgetYear resolves a year', async () => {
+      indexedDbRepositoryMock.getLatestBudgetYear.mockResolvedValue({ id: 'year-1', year: 2026 });
+
+      const repository = await import('./BudgetRepository');
+
+      expect(await repository.budgetExists()).toBe(true);
+    });
+  });
+
   it('should delegate all facade operations with same arguments', async () => {
     getPlatformMock.mockReturnValue('web');
 

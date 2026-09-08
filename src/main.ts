@@ -13,6 +13,8 @@ import App from './App.vue';
 import './assets/primevue-variables.css';
 import './assets/style.css';
 import './assets/tokens.css';
+import { initDatabase } from './data/database';
+import { budgetExists } from './data/repositories';
 import router from './router';
 import { getLocale, i18n, onLocaleChange } from './shared/i18n';
 import { getPrimeVueLocale } from './shared/i18n/primevueLocale';
@@ -81,8 +83,21 @@ onLocaleChange((locale) => {
   }
 });
 
-router.beforeEach(async (_to, _from, next) => {
-  next();
+// First-run guard: in-app routes bounce to /setup until a budget exists;
+// /setup bounces to /year once one does.
+router.beforeEach(async (to) => {
+  const guarded = to.meta.app === true || to.name === 'setup';
+  if (!guarded) {
+    return;
+  }
+
+  await initDatabase();
+  const hasBudget = await budgetExists();
+
+  if (to.name === 'setup') {
+    return hasBudget ? { name: 'year' } : undefined;
+  }
+  return hasBudget ? undefined : { name: 'setup' };
 });
 
 app.mount('#app');

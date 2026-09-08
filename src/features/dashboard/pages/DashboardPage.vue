@@ -56,87 +56,16 @@
       <p>{{ t('dashboard.noBudgetForPeriod') }}</p>
     </div>
 
-    <Dialog
-      v-model:visible="showAddExpense"
-      modal
-      :header="t('dashboard.addExpense')"
-      :style="{ width: '90vw' }"
-    >
-      <div class="expense-form">
-        <div class="form-group">
-          <label>{{ t('dashboard.group') }}</label>
-          <SelectButton
-            v-model="expenseGroup"
-            id="expense-group-select"
-            data-testid="add-expense-group-selector"
-            :options="groupOptions"
-            option-label="label"
-            option-value="value"
-            class="group-selector"
-          />
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.category') }}</label>
-          <Button
-            id="manage-categories"
-            data-testid="open-manage-categories"
-            :label="t('dashboard.manageCategories')"
-            text
-            size="small"
-            class="manage-categories-action"
-            @click="openManageCategories"
-          />
-          <div class="category-selector-list" data-testid="add-expense-category-list">
-            <Button
-              v-for="category in expenseCategories"
-              :key="`add-category-${category.id}`"
-              :label="categoryLabel(category)"
-              class="category-selector-item"
-              :severity="expenseCategoryId === category.id ? 'primary' : 'secondary'"
-              :outlined="expenseCategoryId !== category.id"
-              :disabled="expenseGroup === ''"
-              @click="expenseCategoryId = category.id"
-            />
-          </div>
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.amount') }}</label>
-          <Input
-            v-model="expenseAmount"
-            id="expense-amount"
-            type="number"
-            inputmode="decimal"
-            :placeholder="t('setup.incomePlaceholder')"
-            :disabled="expenseCategoryId === ''"
-            input-class="w-full"
-          />
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.description') }}</label>
-          <Input
-            v-model="expenseDescription"
-            :placeholder="t('dashboard.descriptionPlaceholder')"
-            :disabled="expenseCategoryId === ''"
-            input-class="w-full"
-          />
-        </div>
-        <div class="form-group recurring-toggle">
-          <Checkbox v-model="isRecurringExpense" binary input-id="expense-recurring" />
-          <label for="expense-recurring">{{ t('dashboard.recurringExpense') }}</label>
-        </div>
-      </div>
-      <template #footer>
-        <Button :label="t('common.cancel')" severity="secondary" @click="showAddExpense = false" />
-        <Button
-          id="add-expense-submit"
-          :label="t('common.add')"
-          icon="pi pi-check"
-          :disabled="!isExpenseValid"
-          :pt="{ root: { 'data-testid': 'add-expense-submit' } }"
-          @click="addExpense"
-        />
-      </template>
-    </Dialog>
+    <ExpenseSheet
+      v-model:visible="showExpenseSheet"
+      :mode="sheetMode"
+      :expense="editingExpense"
+      :categories-by-group="categoriesByGroup"
+      :category-label="categoryLabel"
+      :month-label="sheetMonthLabel"
+      @submit="handleExpenseSubmit"
+      @manage-categories="openManageCategories"
+    />
 
     <Dialog
       v-model:visible="showManageCategories"
@@ -360,77 +289,6 @@
     </Dialog>
 
     <Dialog
-      v-model:visible="showEditExpense"
-      modal
-      :header="t('dashboard.editExpense')"
-      :style="{ width: '90vw' }"
-    >
-      <div class="expense-form">
-        <div class="form-group">
-          <label>{{ t('dashboard.group') }}</label>
-          <SelectButton
-            v-model="editExpenseGroup"
-            id="edit-expense-group"
-            data-testid="edit-expense-group-selector"
-            :options="groupOptions"
-            option-label="label"
-            option-value="value"
-            class="group-selector"
-          />
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.category') }}</label>
-          <div class="category-selector-list" data-testid="edit-expense-category-list">
-            <Button
-              v-for="category in editExpenseCategories"
-              :key="`edit-category-${category.id}`"
-              :label="categoryLabel(category)"
-              class="category-selector-item"
-              :severity="editExpenseCategoryId === category.id ? 'primary' : 'secondary'"
-              :outlined="editExpenseCategoryId !== category.id"
-              :disabled="editExpenseGroup === ''"
-              @click="editExpenseCategoryId = category.id"
-            />
-          </div>
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.amount') }}</label>
-          <Input
-            v-model="editExpenseAmount"
-            id="edit-expense-amount"
-            type="number"
-            inputmode="decimal"
-            :placeholder="t('setup.incomePlaceholder')"
-            input-class="w-full"
-          />
-        </div>
-        <div class="form-group">
-          <label>{{ t('dashboard.description') }}</label>
-          <Input
-            v-model="editExpenseDescription"
-            id="edit-expense-description"
-            :placeholder="t('dashboard.descriptionPlaceholder')"
-            input-class="w-full"
-          />
-        </div>
-        <div v-if="editingExpenseIsRecurring" class="form-group recurring-toggle">
-          <Checkbox v-model="editApplyToFuture" binary input-id="edit-apply-future" />
-          <label for="edit-apply-future">{{ t('dashboard.applyToFutureMonths') }}</label>
-        </div>
-      </div>
-      <template #footer>
-        <Button :label="t('common.cancel')" severity="secondary" @click="showEditExpense = false" />
-        <Button
-          id="save-expense-edit"
-          :label="t('common.save')"
-          icon="pi pi-check"
-          :disabled="!isEditExpenseValid"
-          @click="saveExpenseEdit"
-        />
-      </template>
-    </Dialog>
-
-    <Dialog
       v-model:visible="showDeleteExpenseConfirm"
       modal
       :header="t('dashboard.deleteExpense')"
@@ -527,17 +385,18 @@ import { Input } from '@/shared/components/atoms';
 import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { getIntlLocale, getLocale } from '@/shared/i18n';
+import { fromMinorUnits, toMinorUnits } from '@/shared/utils/money';
 import { useSwipe } from '@vueuse/core';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import RadioButton from 'primevue/radiobutton';
-import SelectButton from 'primevue/selectbutton';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import ExpenseSheet, { type ExpenseSheetSubmit } from '../components/ExpenseSheet.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -554,28 +413,17 @@ let isRepairingYear = false;
 let isRebuildingYear = false;
 
 const swipeEl = ref<HTMLElement | null>(null);
-const showAddExpense = ref(false);
+const showExpenseSheet = ref(false);
+const sheetMode = ref<'add' | 'edit'>('add');
+const editingExpense = ref<Expense | null>(null);
 const showExpenseHistory = ref(false);
-const showEditExpense = ref(false);
 const showDeleteExpenseConfirm = ref(false);
 const showEditMonthlyIncome = ref(false);
 const showManageCategories = ref(false);
 const showDeleteCategoryConfirm = ref(false);
 const showEditCategoryDialog = ref(false);
-const expenseAmount = ref('');
-const expenseGroup = ref<GroupType | ''>('');
-const expenseCategoryId = ref<CategoryId | ''>('');
-const expenseDescription = ref('');
-const isRecurringExpense = ref(false);
 const selectedHistoryGroup = ref<GroupType | null>(null);
 const selectedGroupExpenses = ref<Expense[]>([]);
-const editingExpenseId = ref<string | null>(null);
-const editExpenseAmount = ref('');
-const editExpenseDescription = ref('');
-const editExpenseGroup = ref<GroupType | ''>('');
-const editExpenseCategoryId = ref<CategoryId | ''>('');
-const editingExpenseIsRecurring = ref(false);
-const editApplyToFuture = ref(true);
 const expensePendingDelete = ref<Expense | null>(null);
 const deletingExpenseIsRecurring = ref(false);
 const deleteApplyToFuture = ref(true);
@@ -594,28 +442,17 @@ const categoriesByGroup = ref<Record<GroupType, Category[]>>({
 
 const groups = GROUP_ORDER;
 
-const groupOptions = computed(() => {
-  return groups.map((group) => ({
-    label: t(`groups.${group}`),
-    value: group,
-  }));
-});
-
-const expenseCategories = computed<Category[]>(() => {
-  if (expenseGroup.value === '') {
-    return [];
+function formatDate(value: Date | string, options: Intl.DateTimeFormatOptions): string {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
   }
+  return new Intl.DateTimeFormat(getIntlLocale(getLocale()), options).format(date);
+}
 
-  return categoriesByGroup.value[expenseGroup.value];
-});
-
-const editExpenseCategories = computed<Category[]>(() => {
-  if (editExpenseGroup.value === '') {
-    return [];
-  }
-
-  return categoriesByGroup.value[editExpenseGroup.value];
-});
+const sheetMonthLabel = computed(() =>
+  formatDate(selectedPeriod.value, { month: 'long', year: 'numeric' }),
+);
 
 const allocations = computed<BudgetAllocation[]>(() => {
   return [...(budgetMonth.value?.allocations ?? [])].sort((left, right) =>
@@ -646,30 +483,6 @@ const replacementCategories = computed<Category[]>(() => {
 
   return activeCategoriesByManagingGroup.value.filter(
     (category) => category.id !== categoryPendingDelete.value?.id,
-  );
-});
-
-const isExpenseValid = computed(() => {
-  const amount = parseFloat(expenseAmount.value);
-  const description = expenseDescription.value.trim();
-  return (
-    !Number.isNaN(amount) &&
-    amount > 0 &&
-    expenseGroup.value !== '' &&
-    description.length >= 3 &&
-    expenseCategoryId.value !== ''
-  );
-});
-
-const isEditExpenseValid = computed(() => {
-  const amount = parseFloat(editExpenseAmount.value);
-  const description = editExpenseDescription.value.trim();
-  return (
-    !Number.isNaN(amount) &&
-    amount > 0 &&
-    description.length >= 3 &&
-    editExpenseGroup.value !== '' &&
-    editExpenseCategoryId.value !== ''
   );
 });
 
@@ -917,7 +730,7 @@ async function saveMonthlyIncome(): Promise<void> {
     return;
   }
 
-  const amount = toMinorUnits(parseFloat(editMonthlyIncome.value));
+  const amount = toMinorUnits(editMonthlyIncome.value);
   if (amount <= 0) {
     return;
   }
@@ -1005,41 +818,31 @@ function onPeriodChange(value: unknown): void {
   void refreshMonthData();
 }
 
-function toMinorUnits(amount: number): number {
-  return Math.round(amount * 100);
-}
-
-function fromMinorUnits(amount: number): string {
-  return (amount / 100).toFixed(2);
-}
-
-async function addExpense(): Promise<void> {
-  if (!isExpenseValid.value || !budgetMonth.value) {
+async function handleExpenseSubmit(payload: ExpenseSheetSubmit): Promise<void> {
+  if (sheetMode.value === 'edit') {
+    await saveExpenseEdit(payload);
     return;
   }
+  await addExpense(payload);
+}
 
-  const normalizedAmount = parseFloat(expenseAmount.value);
-  const amount = toMinorUnits(normalizedAmount);
-  const selectedGroup = expenseGroup.value;
-  const selectedCategoryId = expenseCategoryId.value;
-  const description = expenseDescription.value.trim();
-
-  if (amount <= 0 || selectedGroup === '' || selectedCategoryId === '' || description.length < 3) {
+async function addExpense(payload: ExpenseSheetSubmit): Promise<void> {
+  if (!budgetMonth.value) {
     return;
   }
 
   try {
     await createExpenseRecord({
       budgetMonthId: budgetMonth.value.id,
-      group: selectedGroup,
-      categoryId: selectedCategoryId,
-      amount,
-      description,
-      isRecurring: isRecurringExpense.value,
+      group: payload.group,
+      categoryId: payload.categoryId,
+      amount: payload.amount,
+      description: payload.description,
+      isRecurring: payload.isRecurring,
     });
 
     await refreshMonthData();
-    if (showExpenseHistory.value && selectedHistoryGroup.value === selectedGroup) {
+    if (showExpenseHistory.value && selectedHistoryGroup.value === payload.group) {
       await refreshExpenseHistory();
     }
 
@@ -1050,20 +853,13 @@ async function addExpense(): Promise<void> {
       life: 3000,
     });
 
-    showAddExpense.value = false;
-    expenseAmount.value = '';
-    expenseGroup.value = '';
-    expenseCategoryId.value = '';
-    expenseDescription.value = '';
-    isRecurringExpense.value = false;
+    showExpenseSheet.value = false;
   } catch (error) {
     console.error('Failed to add expense to allocation', {
       error,
       budgetMonthId: budgetMonth.value.id,
-      group: expenseGroup.value,
-      categoryId: expenseCategoryId.value,
-      amount,
-      description,
+      group: payload.group,
+      categoryId: payload.categoryId,
     });
 
     toast.add({
@@ -1075,28 +871,14 @@ async function addExpense(): Promise<void> {
   }
 }
 
-function openAddExpenseDialog(): void {
-  const selectedGroup: GroupType = expenseGroup.value === '' ? 'needs' : expenseGroup.value;
-  expenseGroup.value = selectedGroup;
-
-  if (expenseCategoryId.value === '') {
-    const firstCategory = categoriesByGroup.value[selectedGroup][0];
-    expenseCategoryId.value = firstCategory ? firstCategory.id : '';
-  }
-
-  showAddExpense.value = true;
+function openAddExpense(): void {
+  sheetMode.value = 'add';
+  editingExpense.value = null;
+  showExpenseSheet.value = true;
 }
 
 function formatExpenseDate(value: string): string {
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat(getIntlLocale(getLocale()), {
-    dateStyle: 'medium',
-  }).format(parsed);
+  return formatDate(value, { dateStyle: 'medium' });
 }
 
 async function openExpenseHistory(group: GroupType): Promise<void> {
@@ -1138,50 +920,31 @@ async function refreshExpenseHistory(): Promise<void> {
 }
 
 function startExpenseEdit(expense: Expense): void {
-  editingExpenseId.value = expense.id;
-  editExpenseAmount.value = fromMinorUnits(expense.amount);
-  editExpenseDescription.value = expense.description;
-  editExpenseGroup.value = expense.group;
-  editExpenseCategoryId.value = expense.categoryId;
-  editingExpenseIsRecurring.value = expense.recurringRuleId !== null;
-  editApplyToFuture.value = true;
-  showEditExpense.value = true;
+  sheetMode.value = 'edit';
+  editingExpense.value = expense;
+  showExpenseSheet.value = true;
 }
 
-async function saveExpenseEdit(): Promise<void> {
-  if (!isEditExpenseValid.value || !editingExpenseId.value) {
-    return;
-  }
-
-  const amount = toMinorUnits(parseFloat(editExpenseAmount.value));
-  const description = editExpenseDescription.value.trim();
-
-  if (
-    amount <= 0 ||
-    description.length < 3 ||
-    editExpenseGroup.value === '' ||
-    editExpenseCategoryId.value === ''
-  ) {
+async function saveExpenseEdit(payload: ExpenseSheetSubmit): Promise<void> {
+  const target = editingExpense.value;
+  if (!target) {
     return;
   }
 
   try {
     await updateExpenseRecord({
-      expenseId: editingExpenseId.value,
-      amount,
-      description,
-      group: editExpenseGroup.value,
-      categoryId: editExpenseCategoryId.value,
-      applyToFuture: editingExpenseIsRecurring.value ? editApplyToFuture.value : false,
+      expenseId: target.id,
+      amount: payload.amount,
+      description: payload.description,
+      group: payload.group,
+      categoryId: payload.categoryId,
+      applyToFuture: target.recurringRuleId !== null ? payload.applyToFuture : false,
     });
 
     await refreshMonthData();
     await refreshExpenseHistory();
 
-    showEditExpense.value = false;
-    editingExpenseIsRecurring.value = false;
-    editExpenseGroup.value = '';
-    editExpenseCategoryId.value = '';
+    showExpenseSheet.value = false;
     toast.add({
       severity: 'success',
       summary: t('dashboard.expenseUpdated'),
@@ -1189,7 +952,7 @@ async function saveExpenseEdit(): Promise<void> {
       life: 3000,
     });
   } catch (error) {
-    console.error('Failed to update expense', { error, expenseId: editingExpenseId.value });
+    console.error('Failed to update expense', { error, expenseId: target.id });
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
@@ -1285,8 +1048,8 @@ async function loadCategories(): Promise<void> {
   };
 }
 
-function openManageCategories(): void {
-  managingGroup.value = expenseGroup.value || 'needs';
+function openManageCategories(group: GroupType | '' = ''): void {
+  managingGroup.value = group === '' ? 'needs' : group;
   newCategoryName.value = '';
   showManageCategories.value = true;
 }
@@ -1438,13 +1201,6 @@ async function confirmCategoryDelete(): Promise<void> {
 
     await loadCategories();
 
-    if (
-      expenseGroup.value === managingGroup.value &&
-      expenseCategoryId.value === pendingCategory.id
-    ) {
-      expenseCategoryId.value = replacementCategoryId.value;
-    }
-
     showDeleteCategoryConfirm.value = false;
     categoryPendingDelete.value = null;
     replacementCategoryId.value = '';
@@ -1469,94 +1225,6 @@ async function confirmCategoryDelete(): Promise<void> {
     });
   }
 }
-
-watch(expenseGroup, (nextGroup) => {
-  if (!nextGroup) {
-    expenseCategoryId.value = '';
-    return;
-  }
-
-  const categories = categoriesByGroup.value[nextGroup];
-  const hasCurrentCategory = categories.some((category) => category.id === expenseCategoryId.value);
-  if (hasCurrentCategory) {
-    return;
-  }
-
-  const firstCategory = categories[0];
-  expenseCategoryId.value = firstCategory ? firstCategory.id : '';
-});
-
-watch(expenseCategoryId, (nextCategoryId) => {
-  if (!nextCategoryId) {
-    return;
-  }
-
-  const matchedGroup = groups.find((group) =>
-    categoriesByGroup.value[group].some((category) => category.id === nextCategoryId),
-  );
-
-  if (matchedGroup) {
-    expenseGroup.value = matchedGroup;
-  }
-});
-
-watch(editExpenseGroup, (nextGroup) => {
-  if (!nextGroup) {
-    editExpenseCategoryId.value = '';
-    return;
-  }
-
-  const categories = categoriesByGroup.value[nextGroup];
-  const hasCurrentCategory = categories.some(
-    (category) => category.id === editExpenseCategoryId.value,
-  );
-  if (hasCurrentCategory) {
-    return;
-  }
-
-  const firstCategory = categories[0];
-  editExpenseCategoryId.value = firstCategory ? firstCategory.id : '';
-});
-
-watch(editExpenseCategoryId, (nextCategoryId) => {
-  if (!nextCategoryId) {
-    return;
-  }
-
-  const matchedGroup = groups.find((group) =>
-    categoriesByGroup.value[group].some((category) => category.id === nextCategoryId),
-  );
-
-  if (matchedGroup) {
-    editExpenseGroup.value = matchedGroup;
-  }
-});
-
-watch(showAddExpense, (isVisible) => {
-  if (isVisible) {
-    return;
-  }
-
-  expenseAmount.value = '';
-  expenseGroup.value = '';
-  expenseCategoryId.value = '';
-  expenseDescription.value = '';
-  isRecurringExpense.value = false;
-});
-
-watch(showEditExpense, (isVisible) => {
-  if (isVisible) {
-    return;
-  }
-
-  editingExpenseId.value = null;
-  editExpenseAmount.value = '';
-  editExpenseDescription.value = '';
-  editExpenseGroup.value = '';
-  editExpenseCategoryId.value = '';
-  editingExpenseIsRecurring.value = false;
-  editApplyToFuture.value = true;
-});
 
 watch(showManageCategories, (isVisible) => {
   if (!isVisible) {
@@ -1587,7 +1255,7 @@ function consumeAddExpenseIntent(): void {
     return;
   }
 
-  openAddExpenseDialog();
+  openAddExpense();
 
   const { action: _action, ...rest } = route.query;
   void router.replace({ query: rest });
@@ -1667,26 +1335,6 @@ onMounted(async () => {
 
 .form-group label {
   font-weight: 600;
-}
-
-.manage-categories-action {
-  width: fit-content;
-  margin: 0 0 0.5rem;
-}
-
-.group-selector {
-  width: 100%;
-}
-
-.category-selector-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.5rem;
-}
-
-.category-selector-item {
-  justify-content: flex-start;
-  min-height: 44px;
 }
 
 .category-form-row {

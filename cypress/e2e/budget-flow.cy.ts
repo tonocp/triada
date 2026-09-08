@@ -38,15 +38,12 @@ function goToMonth(): void {
 function openAddExpense(): void {
   cy.get('#bottom-nav-add').click({ force: true });
   cy.url().should('include', '/month');
-  cy.contains('.p-dialog-title', 'Agregar Gasto').should('be.visible');
+  cy.get('.expense-sheet:visible').should('be.visible');
 }
 
 function submitAddExpense(): void {
-  cy.contains('.p-dialog:visible .p-dialog-footer button', 'Agregar', { timeout: 10000 }).click({
-    force: true,
-  });
-
-  cy.contains('.p-dialog-title', 'Agregar Gasto').should('not.exist');
+  cy.get('#expense-submit', { timeout: 10000 }).click({ force: true });
+  cy.get('.expense-sheet').should('not.exist');
 }
 
 function buildImportSnapshot(): Record<string, unknown> {

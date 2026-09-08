@@ -36,6 +36,7 @@ export interface BudgetRepository {
   updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void>;
   updateBudgetSplitForYear(input: UpdateBudgetSplitInput): Promise<void>;
   getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]>;
+  getExpensesByYear(budgetYearId: string): Promise<Expense[]>;
   getCategoriesByGroup(
     group: GroupType,
     options?: { includeInactive?: boolean },

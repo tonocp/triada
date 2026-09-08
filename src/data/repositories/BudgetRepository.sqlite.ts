@@ -116,6 +116,32 @@ function toBudgetYear(row: BudgetYearRow): BudgetYear {
   };
 }
 
+interface ExpenseRow {
+  id: string;
+  budget_month_id: string;
+  group: string;
+  category_id: string;
+  amount: number;
+  description: string;
+  recurring_rule_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function toExpense(row: ExpenseRow): Expense {
+  return {
+    id: row.id,
+    budgetMonthId: row.budget_month_id,
+    group: row.group as GroupType,
+    categoryId: row.category_id as CategoryId,
+    amount: Number(row.amount),
+    description: row.description,
+    recurringRuleId: row.recurring_rule_id ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 /** Recompute and persist `allocated` for the given months from their own income. */
 async function writeAllocations(
   months: { id: string; monthly_income: number }[],
@@ -512,34 +538,26 @@ export const sqliteBudgetRepository: BudgetRepository = {
 
   async getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]> {
     // noinspection SqlNoDataSourceInspection
-    const result = await query<{
-      id: string;
-      budget_month_id: string;
-      group: string;
-      category_id: string;
-      amount: number;
-      description: string;
-      recurring_rule_id: string | null;
-      created_at: string;
-      updated_at: string;
-    }>(
+    const result = await query<ExpenseRow>(
       `SELECT * FROM budget_expenses
        WHERE budget_month_id = ? AND "group" = ?
        ORDER BY created_at DESC`,
       [budgetMonthId, group],
     );
 
-    return result.map((row) => ({
-      id: row.id,
-      budgetMonthId: row.budget_month_id,
-      group: row.group as GroupType,
-      categoryId: row.category_id as CategoryId,
-      amount: Number(row.amount),
-      description: row.description,
-      recurringRuleId: row.recurring_rule_id ?? null,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
+    return result.map(toExpense);
+  },
+
+  async getExpensesByYear(budgetYearId: string): Promise<Expense[]> {
+    // noinspection SqlNoDataSourceInspection
+    const result = await query<ExpenseRow>(
+      `SELECT e.* FROM budget_expenses e
+       JOIN budget_months m ON m.id = e.budget_month_id
+       WHERE m.budget_year_id = ?`,
+      [budgetYearId],
+    );
+
+    return result.map(toExpense);
   },
 
   async updateExpense(input: UpdateExpenseInput): Promise<Expense> {

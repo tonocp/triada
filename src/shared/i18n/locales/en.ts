@@ -84,6 +84,10 @@ export default {
     annualTotals: 'Year totals',
     annualTotalSpentOfAllocated: '{spent} of {allocated}',
     yearSummaryLoadError: 'Could not load annual summary. Please try again.',
+    insightsTrend: 'Spending by month',
+    insightsTrendPeak: 'Highest month: {amount}',
+    insightsTopCategories: 'Top spending categories',
+    insightsNoData: 'No expenses recorded yet this year.',
     monthNames: [
       'January',
       'February',

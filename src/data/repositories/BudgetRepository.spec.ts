@@ -14,6 +14,7 @@ const indexedDbRepositoryMock = {
   updateMonthlyIncomeFromMonth: vi.fn(),
   updateBudgetSplitForYear: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
+  getExpensesByYear: vi.fn(),
   getCategoriesByGroup: vi.fn(),
   createCategory: vi.fn(),
   updateCategoryName: vi.fn(),
@@ -38,6 +39,7 @@ const sqliteRepositoryMock = {
   updateMonthlyIncomeFromMonth: vi.fn(),
   updateBudgetSplitForYear: vi.fn(),
   getExpensesByMonthAndGroup: vi.fn(),
+  getExpensesByYear: vi.fn(),
   getCategoriesByGroup: vi.fn(),
   createCategory: vi.fn(),
   updateCategoryName: vi.fn(),
@@ -186,6 +188,7 @@ describe('data/repositories BudgetRepository facade', () => {
       split: { needs: 50, wants: 30, savings: 20 },
     });
     await repository.getExpensesByMonthAndGroup('month-1', 'needs');
+    await repository.getExpensesByYear('year-1');
     await repository.getCategoriesByGroup('needs');
     await repository.createCategory({
       group: 'needs',
@@ -232,6 +235,7 @@ describe('data/repositories BudgetRepository facade', () => {
       monthlyIncome: 120_000,
       split: { needs: 50, wants: 30, savings: 20 },
     });
+    expect(indexedDbRepositoryMock.getExpensesByYear).toHaveBeenCalledWith('year-1');
     expect(indexedDbRepositoryMock.getExpensesByMonthAndGroup).toHaveBeenCalledWith(
       'month-1',
       'needs',

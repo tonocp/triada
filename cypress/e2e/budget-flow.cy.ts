@@ -365,6 +365,23 @@ describe('Budget flow', () => {
     cy.contains('Resumen anual').should('be.visible');
   });
 
+  it('should surface year insights once expenses exist', () => {
+    createBudget('1000');
+
+    openAddExpense();
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('120');
+    submitAddExpense();
+
+    navTo('Año');
+    cy.url().should('include', '/year');
+
+    cy.contains('Gasto por mes').should('be.visible');
+    cy.contains('Categorías con más gasto').should('be.visible');
+    cy.get('[aria-label="year-top-categories"]').should('contain', 'Vivienda');
+    cy.get('[aria-label="year-top-categories"]').should('contain', '120,00 €');
+  });
+
   it('should render the month view while offline after service worker activation', () => {
     createBudget('1300');
     goToMonth();

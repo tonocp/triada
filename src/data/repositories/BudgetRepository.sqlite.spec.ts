@@ -384,6 +384,42 @@ describe('data/repositories BudgetRepository.sqlite', () => {
     });
   });
 
+  it('should return every expense of a year through the month join', async () => {
+    queryMock.mockResolvedValueOnce([
+      {
+        id: 'expense-a',
+        budget_month_id: 'month-1',
+        group: 'needs',
+        category_id: 'housing',
+        amount: 30_000,
+        description: 'Alquiler',
+        created_at: '2026-02-01T10:00:00.000Z',
+        updated_at: '2026-02-01T10:00:00.000Z',
+      },
+      {
+        id: 'expense-b',
+        budget_month_id: 'month-3',
+        group: 'wants',
+        category_id: 'dining',
+        amount: 4_000,
+        description: 'Cena',
+        created_at: '2026-01-01T10:00:00.000Z',
+        updated_at: '2026-01-01T10:00:00.000Z',
+      },
+    ]);
+
+    const { sqliteBudgetRepository } = await import('./BudgetRepository.sqlite');
+
+    const result = await sqliteBudgetRepository.getExpensesByYear('year-id');
+
+    expect(queryMock).toHaveBeenCalledWith(
+      expect.stringContaining('JOIN budget_months m ON m.id = e.budget_month_id'),
+      ['year-id'],
+    );
+    expect(result.map((expense) => expense.id)).toEqual(['expense-a', 'expense-b']);
+    expect(result[0]).toMatchObject({ categoryId: 'housing', amount: 30_000 });
+  });
+
   it('should return month expenses by group with mapped fields', async () => {
     queryMock.mockResolvedValueOnce([
       {

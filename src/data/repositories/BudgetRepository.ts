@@ -106,6 +106,10 @@ export async function getExpensesByMonthAndGroup(
   return getRepository().getExpensesByMonthAndGroup(budgetMonthId, group);
 }
 
+export async function getExpensesByYear(budgetYearId: string): Promise<Expense[]> {
+  return getRepository().getExpensesByYear(budgetYearId);
+}
+
 export async function getCategoriesByGroup(
   group: GroupType,
   options?: { includeInactive?: boolean },

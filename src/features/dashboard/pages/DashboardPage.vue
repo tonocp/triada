@@ -397,12 +397,14 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import ExpenseSheet, { type ExpenseSheetSubmit } from '../components/ExpenseSheet.vue';
+import { categoryLabeller } from '../utils/categoryLabel';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const { t, te } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
+const resolveCategoryLabel = categoryLabeller(t, te);
 
 const budgetYear = ref<BudgetYear | null>(null);
 const budgetMonth = ref<BudgetMonth | null>(null);
@@ -1056,32 +1058,14 @@ function openManageCategories(group: GroupType | '' = ''): void {
 }
 
 function categoryLabel(category: Category): string {
-  if (category.name && category.name.trim().length > 0) {
-    return category.name;
-  }
-
-  const key = `categories.${category.id}`;
-  if (te(key)) {
-    return t(key);
-  }
-
-  return category.id;
+  return resolveCategoryLabel(category, category.id);
 }
 
 function expenseCategoryLabel(expense: Expense): string {
   const category = categoriesByGroup.value[expense.group].find(
     (item) => item.id === expense.categoryId,
   );
-  if (category) {
-    return categoryLabel(category);
-  }
-
-  const key = `categories.${expense.categoryId}`;
-  if (te(key)) {
-    return t(key);
-  }
-
-  return expense.categoryId;
+  return resolveCategoryLabel(category, expense.categoryId);
 }
 
 async function addCategory(): Promise<void> {

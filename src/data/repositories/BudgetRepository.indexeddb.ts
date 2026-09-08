@@ -848,6 +848,19 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt));
   },
 
+  async getExpensesByYear(budgetYearId: string): Promise<Expense[]> {
+    await initIndexedDb();
+
+    const monthIds = new Set(
+      (await readAllBudgetMonths())
+        .filter((month) => month.budget_year_id === budgetYearId)
+        .map((month) => month.id),
+    );
+    const rows = await readAllBudgetExpenses();
+
+    return rows.filter((row) => monthIds.has(row.budget_month_id)).map(mapExpenseRow);
+  },
+
   async updateExpense(input: UpdateExpenseInput): Promise<Expense> {
     await initIndexedDb();
 

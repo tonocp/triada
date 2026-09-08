@@ -57,6 +57,20 @@
         </div>
       </section>
 
+      <template v-if="yearExpenses.length > 0">
+        <section class="insights-section" aria-label="year-insights">
+          <h2 class="insights-heading">{{ t('dashboard.insightsTrend') }}</h2>
+          <SpendTrend :rows="trendRows" />
+        </section>
+
+        <section class="insights-section" aria-label="year-top-categories">
+          <h2 class="insights-heading">{{ t('dashboard.insightsTopCategories') }}</h2>
+          <TopCategories :entries="topEntries" />
+        </section>
+      </template>
+
+      <p v-else class="insights-empty">{{ t('dashboard.insightsNoData') }}</p>
+
       <section class="months-grid" aria-label="year-month-grid">
         <button
           v-for="month in summary.months"
@@ -91,26 +105,61 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
-import { GROUP_ORDER } from '@/domain/entities';
+import {
+  getBudgetMonth,
+  getBudgetYearByYear,
+  getCategoriesByGroup,
+  getExpensesByYear,
+  getLatestBudgetYear,
+} from '@/data/repositories';
+import { GROUP_ORDER, type Category, type CategoryId, type Expense } from '@/domain/entities';
 import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import SpendTrend, { type TrendRow } from '../components/SpendTrend.vue';
+import TopCategories, { type TopCategoryEntry } from '../components/TopCategories.vue';
+import { categoryLabeller } from '../utils/categoryLabel';
+import { topCategories } from '../utils/insights';
 import { buildYearSummary } from '../utils/yearSummary';
 
 const route = useRoute();
 const router = useRouter();
-const { t, tm } = useI18n();
+const { t, te, tm } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
+const resolveCategoryLabel = categoryLabeller(t, te);
 
 const groups = GROUP_ORDER;
 const activeYear = ref(new Date().getFullYear());
 const loading = ref(false);
 const hasError = ref(false);
 const summary = ref(buildYearSummary([], activeYear.value));
+const yearExpenses = ref<Expense[]>([]);
+const categoryById = ref(new Map<CategoryId, Category>());
+
+const TOP_CATEGORY_LIMIT = 5;
+
+const trendRows = computed<TrendRow[]>(() =>
+  summary.value.months.map((month) => {
+    const byGroup = {} as TrendRow['byGroup'];
+    let total = 0;
+    for (const group of groups) {
+      byGroup[group] = month.buckets[group].spent;
+      total += byGroup[group];
+    }
+    return { initial: monthLabel(month.month).charAt(0).toUpperCase(), byGroup, total };
+  }),
+);
+
+const topEntries = computed<TopCategoryEntry[]>(() =>
+  topCategories(yearExpenses.value, TOP_CATEGORY_LIMIT).map((entry) => ({
+    label: resolveCategoryLabel(categoryById.value.get(entry.categoryId), entry.categoryId),
+    group: entry.group,
+    spent: entry.spent,
+  })),
+);
 
 const monthNames = computed<string[]>(() => {
   const localized = tm('dashboard.monthNames');
@@ -159,13 +208,18 @@ async function loadYearSummary(year: number): Promise<void> {
     const budgetYear = await getBudgetYearByYear(year);
     if (!budgetYear) {
       summary.value = buildYearSummary([], year);
+      yearExpenses.value = [];
       return;
     }
 
-    const months = await Promise.all(
-      Array.from({ length: 12 }, (_, index) => getBudgetMonth(budgetYear.id, index + 1)),
-    );
+    const [months, expenses] = await Promise.all([
+      Promise.all(
+        Array.from({ length: 12 }, (_, index) => getBudgetMonth(budgetYear.id, index + 1)),
+      ),
+      getExpensesByYear(budgetYear.id),
+    ]);
     summary.value = buildYearSummary(months, year);
+    yearExpenses.value = expenses;
   } catch (error) {
     console.error('Failed to load annual summary', { error, year });
     hasError.value = true;
@@ -189,13 +243,20 @@ function changeYear(delta: number): void {
   void loadYearSummary(activeYear.value);
 }
 
+async function loadCategories(): Promise<void> {
+  const perGroup = await Promise.all(
+    groups.map((group) => getCategoriesByGroup(group, { includeInactive: true })),
+  );
+  categoryById.value = new Map(perGroup.flat().map((category) => [category.id, category]));
+}
+
 onMounted(async () => {
   await initDatabase();
 
   const latestYear = await getLatestBudgetYear();
   activeYear.value = resolveRouteYear(latestYear?.year ?? activeYear.value);
 
-  await loadYearSummary(activeYear.value);
+  await Promise.all([loadCategories(), loadYearSummary(activeYear.value)]);
 });
 </script>
 
@@ -233,6 +294,25 @@ onMounted(async () => {
 
 .groups-section {
   margin-bottom: 1rem;
+}
+
+.insights-section {
+  margin-bottom: 1rem;
+}
+
+.insights-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-ink-faint);
+  margin: 0 0 0.5rem;
+}
+
+.insights-empty {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--t-ink-faint);
 }
 
 .months-grid {

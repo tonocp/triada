@@ -84,6 +84,10 @@ export default {
     annualTotals: 'Totales del año',
     annualTotalSpentOfAllocated: '{spent} de {allocated}',
     yearSummaryLoadError: 'No se pudo cargar el resumen anual. Intenta de nuevo.',
+    insightsTrend: 'Gasto por mes',
+    insightsTrendPeak: 'Mes con más gasto: {amount}',
+    insightsTopCategories: 'Categorías con más gasto',
+    insightsNoData: 'Aún no hay gastos registrados este año.',
     monthNames: [
       'Enero',
       'Febrero',

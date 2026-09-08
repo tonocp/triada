@@ -153,6 +153,19 @@ interface IndexedDbRepositoryModule {
         updatedAt: string;
       }>
     >;
+    getExpensesByYear: (budgetYearId: string) => Promise<
+      Array<{
+        id: string;
+        budgetMonthId: string;
+        group: 'needs' | 'wants' | 'savings';
+        categoryId: string;
+        amount: number;
+        description: string;
+        recurringRuleId: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>
+    >;
     getCategoriesByGroup: (
       group: 'needs' | 'wants' | 'savings',
       options?: { includeInactive?: boolean },
@@ -615,6 +628,24 @@ describe('data/repositories IndexedDB integration', () => {
     expect(month?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
       5_000,
     );
+
+    const yearExpenses = await repositoryModule.indexedDbBudgetRepository.getExpensesByYear(
+      budgetYear.id,
+    );
+    expect(yearExpenses.map((expense) => expense.description).sort()).toEqual([
+      'Cine',
+      'Supermercado semanal',
+      'Transporte',
+    ]);
+
+    const otherYear = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2027,
+      'USD',
+    );
+    expect(
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByYear(otherYear.budgetYear.id),
+    ).toEqual([]);
   });
 
   it('should update and delete expense while keeping allocation spent in sync', async () => {

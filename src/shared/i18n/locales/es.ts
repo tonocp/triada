@@ -79,7 +79,7 @@ export default {
     allocated: 'Asignado',
     spent: 'Gastado',
     remaining: 'Restante',
-    spentOf: '% gastado',
+    ringSpentOf: 'de {total}',
     yearSummaryTitle: 'Resumen anual',
     annualPlannedIncome: 'Ingreso anual planificado',
     annualTotals: 'Totales del año',

@@ -10,6 +10,7 @@ import ToastService from 'primevue/toastservice';
 import { registerSW } from 'virtual:pwa-register';
 import { createApp } from 'vue';
 import App from './App.vue';
+import './assets/groups.css';
 import './assets/primevue-variables.css';
 import './assets/style.css';
 import './assets/tokens.css';

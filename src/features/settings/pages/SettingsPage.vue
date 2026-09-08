@@ -35,12 +35,12 @@
               v-for="group in groups"
               :key="`bar-${group}`"
               class="split-bar-segment"
-              :class="`split-bar-segment--${group}`"
+              :data-group="group"
               :style="{ width: `${percentages[group]}%` }"
             ></span>
           </div>
-          <div v-for="group in groups" :key="`row-${group}`" class="split-row">
-            <span class="split-dot" :class="`split-dot--${group}`"></span>
+          <div v-for="group in groups" :key="`row-${group}`" class="split-row" :data-group="group">
+            <span class="split-dot"></span>
             <span class="split-label">{{ t(`groups.${group}`) }}</span>
             <span class="split-value">{{ percentages[group] }}%</span>
           </div>
@@ -378,16 +378,8 @@ async function confirmImport(): Promise<void> {
   margin-bottom: 1rem;
 }
 
-.split-bar-segment--needs {
-  background: var(--t-needs);
-}
-
-.split-bar-segment--wants {
-  background: var(--t-wants);
-}
-
-.split-bar-segment--savings {
-  background: var(--t-savings);
+.split-bar-segment {
+  background: var(--group-color);
 }
 
 .split-row {
@@ -402,18 +394,7 @@ async function confirmImport(): Promise<void> {
   height: 0.625rem;
   border-radius: 3px;
   flex-shrink: 0;
-}
-
-.split-dot--needs {
-  background: var(--t-needs);
-}
-
-.split-dot--wants {
-  background: var(--t-wants);
-}
-
-.split-dot--savings {
-  background: var(--t-savings);
+  background: var(--group-color);
 }
 
 .split-label {

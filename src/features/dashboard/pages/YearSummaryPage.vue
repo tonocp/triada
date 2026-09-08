@@ -32,10 +32,14 @@
 
     <template v-else>
       <section class="budget-summary">
-        <div class="summary-card">
-          <span class="summary-label">{{ t('dashboard.annualPlannedIncome') }}</span>
-          <span class="summary-value">{{ formatCurrencyValue(annualIncomePlanned) }}</span>
-        </div>
+        <BudgetHero
+          :label="t('dashboard.annualPlannedIncome')"
+          :income="annualIncomePlanned"
+          :buckets="summary.totalsByGroup"
+          :ring-size="150"
+          :ring-caption="t('dashboard.spent')"
+          :ring-value="`${yearProgress}%`"
+        />
       </section>
 
       <section class="groups-section" aria-label="annual-bucket-totals">
@@ -89,7 +93,7 @@
 import { initDatabase } from '@/data/database';
 import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
 import { GROUP_ORDER } from '@/domain/entities';
-import { GroupDisplay } from '@/shared/components/molecules';
+import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import { computed, onMounted, ref } from 'vue';
@@ -120,6 +124,13 @@ const monthNames = computed<string[]>(() => {
 
 const annualIncomePlanned = computed(() => {
   return summary.value.months.reduce((total, month) => total + month.monthlyIncome, 0);
+});
+
+const yearProgress = computed(() => {
+  const planned = annualIncomePlanned.value;
+  if (planned === 0) return 0;
+  const spent = summary.value.totalsByGroup.reduce((total, bucket) => total + bucket.spent, 0);
+  return Math.round((spent / planned) * 100);
 });
 
 function toInteger(value: unknown): number | null {
@@ -203,39 +214,21 @@ onMounted(async () => {
   justify-content: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
-  border: 1px solid var(--p-input-border-color);
-  border-radius: 12px;
-  background: var(--p-content-background);
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-md);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-hard-sm);
 }
 
 .year-label {
   font-weight: 700;
   min-width: 90px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .budget-summary {
   margin-bottom: 1rem;
-}
-
-.summary-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1.1rem 1rem;
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  border-radius: 12px;
-}
-
-.summary-label {
-  font-size: 0.875rem;
-  opacity: 0.9;
-}
-
-.summary-value {
-  font-size: 1.5rem;
-  font-weight: 700;
 }
 
 .groups-section {
@@ -250,50 +243,57 @@ onMounted(async () => {
 
 .month-card {
   width: 100%;
-  border: 1px solid var(--p-input-border-color);
-  border-radius: 12px;
-  background: var(--p-content-background);
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-md);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-hard-sm);
   text-align: left;
-  padding: 0.85rem;
+  padding: 0.8rem;
 }
 
 .month-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
   gap: 0.75rem;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.55rem;
 }
 
 .month-card-title {
   font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .month-card-income {
-  color: var(--p-primary-color);
+  color: var(--t-ink-faint);
+  font-size: 0.72rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .month-empty {
-  color: var(--p-text-muted-color);
-  font-size: 0.85rem;
+  color: var(--t-ink-faint);
+  font-size: 0.78rem;
 }
 
 .month-buckets {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .month-bucket-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .year-summary-state {
   text-align: center;
-  color: var(--p-text-muted-color);
+  color: var(--t-ink-muted);
   padding: 2rem 0;
 }
 

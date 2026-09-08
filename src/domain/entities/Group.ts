@@ -24,12 +24,6 @@ const GROUP_ORDER_INDEX: Record<GroupType, number> = {
   savings: 2,
 };
 
-export const GROUP_ICONS: Record<GroupType, string> = {
-  needs: 'pi pi-home',
-  wants: 'pi pi-shopping-bag',
-  savings: 'pi pi-wallet',
-};
-
 export function compareGroups(left: GroupType, right: GroupType): number {
   return GROUP_ORDER_INDEX[left] - GROUP_ORDER_INDEX[right];
 }

@@ -17,9 +17,16 @@
     </div>
 
     <div class="budget-summary" v-if="budgetMonth && budgetYear">
-      <div class="summary-card">
-        <div class="summary-card-head">
-          <span class="summary-label">{{ t('dashboard.monthlyIncome') }}</span>
+      <BudgetHero
+        :label="t('dashboard.monthlyIncome')"
+        :income="budgetMonth.monthlyIncome"
+        :buckets="allocations"
+        :ring-caption="t('dashboard.spent')"
+        :ring-value="formatCurrencyValue(totalSpent)"
+        :ring-sub="ringSub"
+        show-allocated
+      >
+        <template #action>
           <Button
             id="edit-monthly-income"
             :label="t('dashboard.editMonthlyIncome')"
@@ -29,9 +36,8 @@
             class="edit-income-button"
             @click="openEditMonthlyIncome"
           />
-        </div>
-        <span class="summary-value">{{ formatCurrencyValue(budgetMonth.monthlyIncome) }}</span>
-      </div>
+        </template>
+      </BudgetHero>
     </div>
 
     <div v-if="budgetMonth" class="groups-section">
@@ -518,7 +524,7 @@ import {
   type GroupType,
 } from '@/domain/entities';
 import { Input } from '@/shared/components/atoms';
-import { GroupDisplay } from '@/shared/components/molecules';
+import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { getIntlLocale, getLocale } from '@/shared/i18n';
 import { useSwipe } from '@vueuse/core';
@@ -616,6 +622,18 @@ const allocations = computed<BudgetAllocation[]>(() => {
     compareGroups(left.group, right.group),
   );
 });
+
+const totalSpent = computed(() =>
+  allocations.value.reduce((total, allocation) => total + allocation.spent, 0),
+);
+
+const ringSub = computed(() =>
+  budgetMonth.value
+    ? t('dashboard.ringSpentOf', {
+        total: formatCurrencyValue(budgetMonth.value.monthlyIncome),
+      })
+    : '',
+);
 
 const activeCategoriesByManagingGroup = computed<Category[]>(() => {
   return categoriesByGroup.value[managingGroup.value].filter((category) => category.isActive);
@@ -1615,41 +1633,15 @@ onMounted(async () => {
 .empty-state {
   margin: 2rem 0;
   text-align: center;
-  color: var(--p-text-muted-color);
+  color: var(--t-ink-muted);
 }
 
 .budget-summary {
   margin-bottom: 1.5rem;
 }
 
-.summary-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1.1rem 1rem;
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  border-radius: 12px;
-}
-
-.summary-card-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .edit-income-button {
-  color: inherit;
-}
-
-.summary-label {
-  font-size: 0.875rem;
-  opacity: 0.9;
-}
-
-.summary-value {
-  font-size: 1.5rem;
-  font-weight: 700;
+  color: var(--t-accent);
 }
 
 .groups-section {

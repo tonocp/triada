@@ -103,7 +103,7 @@
 import type { Category, CategoryId, Expense, GroupType } from '@/domain/entities';
 import { GROUP_ORDER } from '@/domain/entities';
 import { useCurrency } from '@/shared/composables/useCurrency';
-import { fromMinorUnits, toMinorUnits } from '@/shared/utils/money';
+import { fromMinorUnits, isPositiveAmount, toMinorUnits } from '@/shared/utils/money';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import Dialog from 'primevue/dialog';
@@ -168,7 +168,7 @@ const showRecurringToggle = computed(
   () => props.mode === 'add' || props.expense?.recurringRuleId != null,
 );
 
-const isValid = computed(() => toMinorUnits(amount.value) > 0 && categoryId.value !== '');
+const isValid = computed(() => isPositiveAmount(amount.value) && categoryId.value !== '');
 
 function firstCategoryId(forGroup: GroupType): CategoryId | '' {
   return props.categoriesByGroup[forGroup][0]?.id ?? '';

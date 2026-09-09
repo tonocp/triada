@@ -33,6 +33,7 @@
             <Input
               id="income"
               v-model="monthlyIncome"
+              inputmode="decimal"
               :placeholder="t('setup.incomePlaceholder')"
             />
           </div>
@@ -44,7 +45,7 @@
           <BudgetSplitEditor v-model="split" />
         </div>
 
-        <div class="preview-section" v-if="monthlyIncomeNumber > 0">
+        <div class="preview-section" v-if="isIncomeValid">
           <h3 class="preview-title">{{ t('setup.previewBreakdown') }}</h3>
           <div v-for="group in groups" :key="`preview-${group}`" class="preview-row">
             <span class="preview-label">{{ t(`groups.${group}`) }} ({{ split[group] }}%)</span>
@@ -98,7 +99,7 @@ import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
-import { toMinorUnits } from '@/shared/utils/money';
+import { isPositiveAmount, toMinorUnits } from '@/shared/utils/money';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -134,10 +135,11 @@ const groups = GROUP_ORDER;
 const split = ref<BudgetSplit>({ ...DEFAULT_GROUP_SPLIT });
 
 const monthlyIncomeNumber = computed(() => toMinorUnits(monthlyIncome.value));
+const isIncomeValid = computed(() => isPositiveAmount(monthlyIncome.value));
 
 const previewAllocations = computed(() => allocateBudget(monthlyIncomeNumber.value, split.value));
 
-const isValid = computed(() => monthlyIncomeNumber.value > 0 && isValidBudgetSplit(split.value));
+const isValid = computed(() => isIncomeValid.value && isValidBudgetSplit(split.value));
 
 async function createBudget(): Promise<void> {
   if (!isValid.value) return;

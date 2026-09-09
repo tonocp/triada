@@ -229,16 +229,23 @@ describe('Budget flow', () => {
     cy.contains('21.000,00 €').should('be.visible');
   });
 
+  it('should request a numeric keypad for the income field', () => {
+    cy.get('#income').should('have.attr', 'inputmode', 'decimal');
+    cy.get('#income').should('not.have.attr', 'type', 'number');
+  });
+
   it('should keep create action disabled for invalid income values', () => {
     cy.contains('button', 'Crear Presupuesto').should('be.disabled');
 
-    cy.get('#income').clear();
-    cy.get('#income').type('0');
-    cy.contains('button', 'Crear Presupuesto').should('be.disabled');
+    for (const value of ['0', '-1', 'abc', '12abc', '.', '1e5']) {
+      cy.get('#income').clear();
+      cy.get('#income').type(value);
+      cy.contains('button', 'Crear Presupuesto').should('be.disabled');
+    }
 
     cy.get('#income').clear();
-    cy.get('#income').type('-1');
-    cy.contains('button', 'Crear Presupuesto').should('be.disabled');
+    cy.get('#income').type('1500');
+    cy.contains('button', 'Crear Presupuesto').should('be.enabled');
   });
 
   it('should default setup selectors to Spanish and Euro', () => {
@@ -321,6 +328,25 @@ describe('Budget flow', () => {
     cy.get('#expense-recurring').check({ force: true });
     cy.get('#expense-recurring').should('be.checked');
     submitAddExpense();
+  });
+
+  it('should validate the edit-monthly-income field with a numeric keypad', () => {
+    createBudget('1000');
+    goToMonth();
+
+    cy.get('#edit-monthly-income').click();
+    cy.get('#monthly-income-edit-input').should('have.attr', 'inputmode', 'decimal');
+    cy.get('#monthly-income-edit-input').should('not.have.attr', 'type', 'number');
+
+    for (const value of ['0', 'abc', '-5']) {
+      cy.get('#monthly-income-edit-input').clear();
+      cy.get('#monthly-income-edit-input').type(value);
+      cy.contains('.p-dialog:visible button', 'Guardar').should('be.disabled');
+    }
+
+    cy.get('#monthly-income-edit-input').clear();
+    cy.get('#monthly-income-edit-input').type('1500,50');
+    cy.contains('.p-dialog:visible button', 'Guardar').should('be.enabled');
   });
 
   it('should update monthly income from selected month to future months only', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromMinorUnits, toMinorUnits } from './money';
+import { fromMinorUnits, isPositiveAmount, toMinorUnits } from './money';
 
 describe('toMinorUnits', () => {
   it('should parse a major-unit string to integer cents', () => {
@@ -31,6 +31,31 @@ describe('toMinorUnits', () => {
   it('should return 0 for input that is not a finite number', () => {
     expect(toMinorUnits('')).toBe(0);
     expect(toMinorUnits('abc')).toBe(0);
+  });
+});
+
+describe('isPositiveAmount', () => {
+  it('should accept a plain positive number in either separator style', () => {
+    expect(isPositiveAmount('1000')).toBe(true);
+    expect(isPositiveAmount('1000.55')).toBe(true);
+    expect(isPositiveAmount('0,01')).toBe(true);
+    expect(isPositiveAmount('1.234,56')).toBe(true);
+    expect(isPositiveAmount(' 1500 ')).toBe(true);
+  });
+
+  it('should reject zero, empty and whitespace-only input', () => {
+    expect(isPositiveAmount('')).toBe(false);
+    expect(isPositiveAmount('   ')).toBe(false);
+    expect(isPositiveAmount('0')).toBe(false);
+    expect(isPositiveAmount('0,00')).toBe(false);
+  });
+
+  it('should reject anything that is not just digits and separators', () => {
+    expect(isPositiveAmount('abc')).toBe(false);
+    expect(isPositiveAmount('12abc')).toBe(false);
+    expect(isPositiveAmount('-5')).toBe(false);
+    expect(isPositiveAmount('1e5')).toBe(false);
+    expect(isPositiveAmount('12,50 €')).toBe(false);
   });
 });
 

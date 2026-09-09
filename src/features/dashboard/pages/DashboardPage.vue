@@ -326,7 +326,6 @@
           <Input
             v-model="editMonthlyIncome"
             id="monthly-income-edit-input"
-            type="number"
             inputmode="decimal"
             :placeholder="t('setup.incomePlaceholder')"
             input-class="w-full"
@@ -385,7 +384,7 @@ import { Input } from '@/shared/components/atoms';
 import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { getIntlLocale, getLocale } from '@/shared/i18n';
-import { fromMinorUnits, toMinorUnits } from '@/shared/utils/money';
+import { fromMinorUnits, isPositiveAmount, toMinorUnits } from '@/shared/utils/money';
 import { useSwipe } from '@vueuse/core';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
@@ -488,10 +487,7 @@ const replacementCategories = computed<Category[]>(() => {
   );
 });
 
-const isMonthlyIncomeValid = computed(() => {
-  const amount = parseFloat(editMonthlyIncome.value);
-  return !Number.isNaN(amount) && amount > 0;
-});
+const isMonthlyIncomeValid = computed(() => isPositiveAmount(editMonthlyIncome.value));
 
 const canConfirmCategoryDelete = computed(() => {
   return categoryPendingDelete.value !== null && replacementCategoryId.value !== '';

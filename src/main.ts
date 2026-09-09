@@ -57,7 +57,7 @@ function renderStorageError(): void {
 }
 
 async function bootstrap(): Promise<void> {
-  const storageReady = initDatabase().then(() => budgetExists());
+  const dbReady = initDatabase();
 
   const app = createApp(App);
   app.use(createPinia());
@@ -84,13 +84,7 @@ async function bootstrap(): Promise<void> {
     }
   });
 
-  let budgetConfirmed: boolean;
-  try {
-    budgetConfirmed = await storageReady;
-  } catch {
-    renderStorageError();
-    return;
-  }
+  let budgetConfirmed = false;
 
   router.beforeEach(async (to) => {
     const guarded = to.meta.app === true || to.name === 'setup';
@@ -99,7 +93,11 @@ async function bootstrap(): Promise<void> {
     }
 
     if (!budgetConfirmed) {
-      budgetConfirmed = await budgetExists();
+      try {
+        budgetConfirmed = await budgetExists();
+      } catch {
+        return false;
+      }
     }
 
     if (to.name === 'setup') {
@@ -107,6 +105,13 @@ async function bootstrap(): Promise<void> {
     }
     return budgetConfirmed ? undefined : { name: 'setup' };
   });
+
+  try {
+    await dbReady;
+  } catch {
+    renderStorageError();
+    return;
+  }
 
   app.mount('#app');
 }

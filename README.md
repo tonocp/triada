@@ -5,7 +5,7 @@ necesidades (50 %), deseos (30 %) y ahorro (20 %), y seguir cómo va cada mes.
 Los datos se guardan solo en tu dispositivo —sin cuentas, sin servidor—. PWA
 instalable que funciona sin conexión, en el móvil o en el escritorio.
 
-Demo: <https://triada.netlify.app>
+Demo: <https://triada-tcp.netlify.app>
 
 ## Características
 

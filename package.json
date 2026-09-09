@@ -4,8 +4,8 @@
   "author": "Toño Carrascosa Prieto (https://tcarrascosa.dev)",
   "license": "MIT",
   "private": true,
-  "version": "0.0.2",
-  "homepage": "https://triada.netlify.app",
+  "version": "0.0.3",
+  "homepage": "https://triada-tcp.netlify.app",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tonocp/triada.git"

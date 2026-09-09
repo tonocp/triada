@@ -10,3 +10,7 @@ export function toMinorUnits(value: string): number {
 export function fromMinorUnits(minor: number): string {
   return (minor / 100).toFixed(2);
 }
+
+export function isPositiveAmount(value: string): boolean {
+  return /^[\d.,\s]+$/.test(value) && toMinorUnits(value) > 0;
+}

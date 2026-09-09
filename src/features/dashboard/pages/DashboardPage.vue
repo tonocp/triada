@@ -326,7 +326,6 @@
           <Input
             v-model="editMonthlyIncome"
             id="monthly-income-edit-input"
-            type="number"
             inputmode="decimal"
             :placeholder="t('setup.incomePlaceholder')"
             input-class="w-full"
@@ -385,7 +384,7 @@ import { Input } from '@/shared/components/atoms';
 import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { getIntlLocale, getLocale } from '@/shared/i18n';
-import { fromMinorUnits, toMinorUnits } from '@/shared/utils/money';
+import { fromMinorUnits, isPositiveAmount, toMinorUnits } from '@/shared/utils/money';
 import { useSwipe } from '@vueuse/core';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
@@ -488,10 +487,7 @@ const replacementCategories = computed<Category[]>(() => {
   );
 });
 
-const isMonthlyIncomeValid = computed(() => {
-  const amount = parseFloat(editMonthlyIncome.value);
-  return !Number.isNaN(amount) && amount > 0;
-});
+const isMonthlyIncomeValid = computed(() => isPositiveAmount(editMonthlyIncome.value));
 
 const canConfirmCategoryDelete = computed(() => {
   return categoryPendingDelete.value !== null && replacementCategoryId.value !== '';
@@ -777,12 +773,19 @@ async function refreshMonthData(): Promise<void> {
   }
 }
 
+function navigateToPeriod(year: number, month: number): void {
+  setActivePeriod(year, month);
+  void refreshMonthData();
+  void router.replace({
+    query: { ...route.query, year: String(activeYear.value), month: String(activeMonth.value) },
+  });
+}
+
 function shiftMonth(delta: number): void {
   const nextDate = new Date(activeYear.value, activeMonth.value - 1, 1);
   nextDate.setMonth(nextDate.getMonth() + delta);
 
-  setActivePeriod(nextDate.getFullYear(), nextDate.getMonth() + 1);
-  void refreshMonthData();
+  navigateToPeriod(nextDate.getFullYear(), nextDate.getMonth() + 1);
 }
 
 function toDate(value: unknown): Date | null {
@@ -817,8 +820,7 @@ function onPeriodChange(value: unknown): void {
     return;
   }
 
-  setActivePeriod(parsedDate.getFullYear(), parsedDate.getMonth() + 1);
-  void refreshMonthData();
+  navigateToPeriod(parsedDate.getFullYear(), parsedDate.getMonth() + 1);
 }
 
 async function handleExpenseSubmit(payload: ExpenseSheetSubmit): Promise<void> {

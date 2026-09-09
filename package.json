@@ -1,10 +1,15 @@
 {
   "name": "triada",
-  "description": "TRIADA - Fintech APP which follows the '50/30/20' rule",
-  "author": "tonocp - website: https://tcarrascosa.dev",
-  "url": "https://github.com/tonocp/triada",
+  "description": "Offline-first budgeting PWA that follows the 50/30/20 rule",
+  "author": "Toño Carrascosa Prieto (https://tcarrascosa.dev)",
+  "license": "MIT",
   "private": true,
   "version": "0.0.2",
+  "homepage": "https://triada.netlify.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tonocp/triada.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=24.19.0"

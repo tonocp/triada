@@ -1,10 +1,10 @@
 SHELL = /bin/bash
 .DEFAULT_GOAL := help
 
-# Node.js version requirements
-REQUIRED_NODE_MAJOR := 22
-REQUIRED_NODE_VERSION := 22.21.1
+# Node.js version requirements — .nvmrc is the single source of truth
 NVMRC_FILE := .nvmrc
+REQUIRED_NODE_VERSION := $(shell sed 's/^v//' $(NVMRC_FILE) 2>/dev/null)
+REQUIRED_NODE_MAJOR := $(firstword $(subst ., ,$(REQUIRED_NODE_VERSION)))
 
 # Auto-detect package manager (pnpm preferred, fallback to npm)
 PKG_MANAGER := $(shell command -v pnpm 2> /dev/null)
@@ -168,27 +168,10 @@ test-unit-watch: ## run unit tests in watch mode
 test-e2e: ## run end-to-end tests
 	@$(PKG_RUN) test:e2e
 
-##@ Docker & Deploy
-login: ## login to GitLab Registry
-	@docker login registry.gitlab.com
-
-build-docker: build ## build Docker image for production
-	@docker build --platform linux/amd64 -t template-front:latest .
-
-push-docker: build-docker ## push Docker image to registry
-	@docker push template-front:latest
-
-run-docker: build-docker ## run production Docker container (port 8081)
-	@docker run --platform linux/amd64 --name template-front -d -p 8081:80 template-front:latest
-
-stop-docker: ## stop and remove Docker container
-	@docker stop template-front && docker rm template-front
-
 ##@ Help
 .PHONY: help node-version setup-node install install-deps clean
 .PHONY: run dev build preview type-check
 .PHONY: lint lint-fix lint-quiet test-unit test-unit-watch test-e2e
-.PHONY: login build-docker push-docker run-docker stop-docker
 
 help: ## show this help message
 	@echo "Triada — Vue + Vite PWA"

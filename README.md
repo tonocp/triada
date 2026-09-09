@@ -2,6 +2,8 @@
 
 Offline-first budgeting PWA built with Vue 3, TypeScript, and Vite. 50/30/20 rule, data stays on the device.
 
+Live: <https://triada.netlify.app>
+
 ## Current stack
 
 - Vue 3 + Vite + TypeScript
@@ -40,27 +42,20 @@ pnpm preview
 
 Then open `http://localhost:4173`, verify installability in DevTools (`Application` -> `Manifest`) and test offline mode from DevTools (`Network` -> `Offline`).
 
-## Docker deployment
+## Deployment
 
-Build and run with Docker Compose:
+Deployed on [Netlify](https://www.netlify.com/) as a static site. Netlify
+auto-detects the Vite build (`pnpm build` -> `dist/`); `public/_redirects` sends
+every path to `index.html` for the vue-router history mode, and the Node version
+comes from `.nvmrc`. Any push to `main` triggers a production deploy; pull
+requests get deploy previews.
 
-```bash
-docker compose up --build -d
-```
+PWA verification (against `pnpm preview` or the live site):
 
-Open `http://localhost:8081`.
-
-Stop and remove containers:
-
-```bash
-docker compose down
-```
-
-PWA + Docker verification:
-
-- Open `http://localhost:8081` and install the app from the browser install UI.
+- Install the app from the browser install UI.
 - After the first load, reload once so the Service Worker controls the page.
-- Disconnect the network and reload `/year`; the app should still render the cached shell and data.
+- Disconnect the network and reload `/year`; the app should still render the
+  cached shell and data.
 
 Quality:
 
@@ -163,3 +158,7 @@ Before closing any significant task:
 pnpm build:check
 pnpm test:e2e
 ```
+
+## License
+
+[MIT](./LICENSE) © Toño Carrascosa Prieto

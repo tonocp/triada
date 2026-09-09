@@ -127,12 +127,10 @@ pnpm test:e2e
 pnpm test:e2e:dev
 ```
 
-Deploy/runtime checks:
-
-```bash
-docker compose up --build -d
-docker compose down
-```
+Deploy: static build on Netlify (auto-detected Vite build; `public/_redirects`
+for the SPA fallback). Any push to `main` ships a production deploy; pull requests
+get deploy previews. Locally, `pnpm build && pnpm preview` reproduces the deployed
+bundle.
 
 ## 6) Step completion rule
 

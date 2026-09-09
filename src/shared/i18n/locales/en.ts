@@ -57,6 +57,10 @@ export default {
     databaseImportError: 'Could not import database backup.',
     databaseImportErrorWithReason: 'Could not import backup: {reason}',
     databaseImportSafetyHint: 'Import replaces all current data.',
+    backupReminder:
+      "You haven't exported a backup in a while. Your data lives only on this device.",
+    backupExportNow: 'Export',
+    backupDismiss: 'Dismiss reminder',
     manageCategories: 'Manage categories',
     newCategory: 'New category',
     newCategoryPlaceholder: 'Type category name',
@@ -138,6 +142,10 @@ export default {
     year: 'Year',
     month: 'Month',
     settings: 'Settings',
+  },
+  pwa: {
+    updateAvailable: 'A new version is available.',
+    reload: 'Reload',
   },
   common: {
     cancel: 'Cancel',

@@ -1,13 +1,11 @@
 import '@fontsource-variable/space-grotesk/index.css';
 
-import { Capacitor } from '@capacitor/core';
 import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 import { createPinia } from 'pinia';
 import 'primeicons/primeicons.css';
 import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
-import { registerSW } from 'virtual:pwa-register';
 import { createApp } from 'vue';
 import App from './App.vue';
 import './assets/groups.css';
@@ -102,7 +100,3 @@ router.beforeEach(async (to) => {
 });
 
 app.mount('#app');
-
-if (Capacitor.getPlatform() === 'web') {
-  void registerSW({ immediate: true });
-}

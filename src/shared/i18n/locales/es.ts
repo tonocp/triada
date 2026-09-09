@@ -57,6 +57,10 @@ export default {
     databaseImportError: 'No se pudo importar el respaldo de datos.',
     databaseImportErrorWithReason: 'No se pudo importar el respaldo: {reason}',
     databaseImportSafetyHint: 'Importar reemplaza toda la informacion actual.',
+    backupReminder:
+      'Hace tiempo que no exportas un respaldo. Tus datos viven solo en este dispositivo.',
+    backupExportNow: 'Exportar',
+    backupDismiss: 'Descartar recordatorio',
     manageCategories: 'Gestionar categorías',
     newCategory: 'Nueva categoría',
     newCategoryPlaceholder: 'Escribe el nombre de la categoría',
@@ -138,6 +142,10 @@ export default {
     year: 'Año',
     month: 'Mes',
     settings: 'Ajustes',
+  },
+  pwa: {
+    updateAvailable: 'Hay una versión nueva disponible.',
+    reload: 'Recargar',
   },
   common: {
     cancel: 'Cancelar',

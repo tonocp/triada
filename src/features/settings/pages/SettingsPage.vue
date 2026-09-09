@@ -58,7 +58,7 @@
               severity="secondary"
               outlined
               class="w-full"
-              @click="exportBackup"
+              @click="runExport"
             />
             <Button
               id="settings-import"
@@ -106,12 +106,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  exportDatabase as exportDatabaseSnapshot,
-  getLatestBudgetYear,
-  importDatabase as importDatabaseSnapshot,
-  updateBudgetSplitForYear,
-} from '@/data/repositories';
+import { getLatestBudgetYear, updateBudgetSplitForYear } from '@/data/repositories';
 import {
   DEFAULT_GROUP_SPLIT,
   GROUP_ORDER,
@@ -122,10 +117,8 @@ import {
 import { Button, Card } from '@/shared/components/atoms';
 import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
+import { exportDetailKey, useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
-import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -136,6 +129,7 @@ const router = useRouter();
 const toast = useToast();
 const { t } = useI18n();
 const { currency, setCurrency, supportedCurrencies } = useCurrency();
+const { exportBackup, importBackup } = useDatabaseBackup();
 
 const selectedLocale = ref<SupportedLocale>(getLocale());
 const selectedCurrency = ref<SupportedCurrency>(currency.value);
@@ -155,8 +149,6 @@ const splitChanged = computed(
 const canSaveSplit = computed(
   () => splitChanged.value && isValidBudgetSplit(splitDraft.value) && !isSavingSplit.value,
 );
-
-const isNative = Capacitor.isNativePlatform();
 
 onMounted(async () => {
   budgetYear.value = await getLatestBudgetYear();
@@ -203,115 +195,30 @@ watch(selectedCurrency, (next) => {
   setCurrency(next);
 });
 
-function buildBackupFileName(): string {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `triada-backup-${year}-${month}-${day}.json`;
-}
-
-async function exportBackup(): Promise<void> {
-  try {
-    const snapshot = await exportDatabaseSnapshot();
-    const payload = JSON.stringify(snapshot, null, 2);
-    const fileName = buildBackupFileName();
-    let exported = false;
-    let successDetail = t('dashboard.databaseExported');
-
-    if (isNative && Capacitor.getPlatform() === 'android') {
-      try {
-        await Filesystem.requestPermissions();
-      } catch (permissionError) {
-        console.error('Failed to request Android filesystem permissions', {
-          error: permissionError,
-        });
-      }
-
-      try {
-        await Filesystem.writeFile({
-          path: `Download/${fileName}`,
-          data: payload,
-          directory: Directory.ExternalStorage,
-          encoding: Encoding.UTF8,
-          recursive: true,
-        });
-        exported = true;
-        successDetail = t('dashboard.databaseExportedToDownloads', { fileName });
-      } catch (writeError) {
-        console.error('Failed to save backup file in Android downloads directory', {
-          error: writeError,
-          fileName,
-        });
-      }
-    }
-
-    if (!exported && isNative) {
-      try {
-        const writeResult = await Filesystem.writeFile({
-          path: fileName,
-          data: payload,
-          directory: Directory.Cache,
-          encoding: Encoding.UTF8,
-        });
-        await Share.share({
-          title: fileName,
-          url: writeResult.uri,
-          dialogTitle: t('dashboard.exportDatabase'),
-        });
-        exported = true;
-        successDetail = t('dashboard.databaseExportedSharedFallback', { fileName });
-      } catch (shareError) {
-        if (shareError instanceof Error && shareError.name === 'AbortError') {
-          return;
-        }
-        console.error('Failed to share native backup file', { error: shareError });
-      }
-    }
-
-    if (!exported && typeof navigator.share === 'function') {
-      try {
-        const backupFile = new File([payload], fileName, { type: 'application/json' });
-        await navigator.share({ files: [backupFile] });
-        exported = true;
-      } catch (shareError) {
-        if (shareError instanceof Error && shareError.name === 'AbortError') {
-          return;
-        }
-        console.error('Failed web share fallback for backup file', { error: shareError });
-      }
-    }
-
-    if (!exported) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseExported'),
-      detail: successDetail,
-      life: 3000,
-    });
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return;
-    }
-    console.error('Failed to export database snapshot', { error });
+async function runExport(): Promise<void> {
+  const result = await exportBackup();
+  if (result.status === 'cancelled') {
+    return;
+  }
+  if (result.status === 'error') {
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
       detail: t('dashboard.databaseExportError'),
       life: 3000,
     });
+    return;
   }
+  const detailKey = exportDetailKey(result);
+  toast.add({
+    severity: 'success',
+    summary: t('dashboard.databaseExported'),
+    detail:
+      detailKey === 'dashboard.databaseExported'
+        ? undefined
+        : t(detailKey, { fileName: result.fileName }),
+    life: 3000,
+  });
 }
 
 function openImportPicker(): void {
@@ -351,32 +258,22 @@ async function confirmImport(): Promise<void> {
     return;
   }
 
-  try {
-    const fileContents = await file.text();
-    const parsedSnapshot = JSON.parse(fileContents) as unknown;
-    await importDatabaseSnapshot(parsedSnapshot);
+  const result = await importBackup(file);
+  pendingImportFile.value = null;
+  resetImportInput();
 
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseImported'),
-      detail: t('dashboard.databaseImported'),
-      life: 3000,
-    });
-
-    void router.push({ name: 'year' });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
-    console.error('Failed to import database snapshot from settings', { error });
+  if (result.status === 'error') {
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
-      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
+      detail: t('dashboard.databaseImportErrorWithReason', { reason: result.reason }),
       life: 5000,
     });
-  } finally {
-    pendingImportFile.value = null;
-    resetImportInput();
+    return;
   }
+
+  toast.add({ severity: 'success', summary: t('dashboard.databaseImported'), life: 3000 });
+  void router.push({ name: 'year' });
 }
 </script>
 

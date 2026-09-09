@@ -85,10 +85,7 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import {
-  createYearWithAllocations,
-  importDatabase as importDatabaseSnapshot,
-} from '@/data/repositories';
+import { createYearWithAllocations } from '@/data/repositories';
 import {
   DEFAULT_GROUP_SPLIT,
   GROUP_ORDER,
@@ -99,6 +96,7 @@ import {
 import { Button, Card, Input } from '@/shared/components/atoms';
 import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
+import { useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref, watch } from 'vue';
@@ -108,6 +106,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const toast = useToast();
 const { t } = useI18n();
+const { importBackup } = useDatabaseBackup();
 const {
   currency,
   currencyInfo,
@@ -201,33 +200,22 @@ async function onImportFileSelected(event: Event): Promise<void> {
   }
 
   isLoading.value = true;
+  const result = await importBackup(file);
+  isLoading.value = false;
+  resetImportInput();
 
-  try {
-    const fileContents = await file.text();
-    const parsedSnapshot = JSON.parse(fileContents) as unknown;
-    await importDatabaseSnapshot(parsedSnapshot);
-
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseImported'),
-      detail: t('dashboard.databaseImported'),
-      life: 3000,
-    });
-
-    router.push({ name: 'year' });
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
-    console.error('Failed to import database snapshot from setup page', { error });
+  if (result.status === 'error') {
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
-      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
+      detail: t('dashboard.databaseImportErrorWithReason', { reason: result.reason }),
       life: 5000,
     });
-  } finally {
-    isLoading.value = false;
-    resetImportInput();
+    return;
   }
+
+  toast.add({ severity: 'success', summary: t('dashboard.databaseImported'), life: 3000 });
+  router.push({ name: 'year' });
 }
 </script>
 

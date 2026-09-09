@@ -22,6 +22,17 @@
       />
     </section>
 
+    <AppBanner
+      v-if="reminderDue"
+      class="year-summary-backup"
+      :message="t('dashboard.backupReminder')"
+      :action-label="t('dashboard.backupExportNow')"
+      dismissible
+      :dismiss-label="t('dashboard.backupDismiss')"
+      @action="router.push({ name: 'settings' })"
+      @dismiss="snoozeReminder"
+    />
+
     <div v-if="loading" class="year-summary-state">
       <p>{{ t('common.loading') }}</p>
     </div>
@@ -113,7 +124,8 @@ import {
   getLatestBudgetYear,
 } from '@/data/repositories';
 import { GROUP_ORDER, type Category, type CategoryId, type Expense } from '@/domain/entities';
-import { BudgetHero, GroupDisplay } from '@/shared/components/molecules';
+import { AppBanner, BudgetHero, GroupDisplay } from '@/shared/components/molecules';
+import { useBackupReminder } from '@/shared/composables/useBackupReminder';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import { computed, onMounted, ref } from 'vue';
@@ -130,6 +142,7 @@ const router = useRouter();
 const { t, te, tm } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 const resolveCategoryLabel = categoryLabeller(t, te);
+const { reminderDue, snoozeReminder } = useBackupReminder();
 
 const groups = GROUP_ORDER;
 const activeYear = ref(new Date().getFullYear());
@@ -286,6 +299,10 @@ onMounted(async () => {
   min-width: 90px;
   text-align: center;
   font-variant-numeric: tabular-nums;
+}
+
+.year-summary-backup {
+  margin-bottom: 1rem;
 }
 
 .budget-summary {

@@ -42,14 +42,11 @@ const props = withDefaults(
   { size: 200 },
 );
 
-/** Black separator between segments, in % of the full circle. */
 const GAP = 0.6;
 
 const conicGradient = computed(() => {
   const byGroup = new Map(props.buckets.map((b) => [b.group, b]));
 
-  // Segment widths follow the actual allocation split for this budget, which is
-  // configurable. Fall back to equal thirds when nothing is allocated yet.
   const shares = groupShares(props.buckets);
   const spanFor = (group: GroupType): number => (shares ? shares[group] : 100 / GROUP_ORDER.length);
 

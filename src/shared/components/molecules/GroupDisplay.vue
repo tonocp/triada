@@ -47,7 +47,6 @@ import { useCurrency } from '@/shared/composables/useCurrency';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
-// Presentation-only: which glyph represents each bucket (was in domain/).
 const GROUP_ICONS: Record<GroupType, string> = {
   needs: 'pi pi-home',
   wants: 'pi pi-shopping-bag',
@@ -88,7 +87,6 @@ const progressPercent = computed(() => {
   return Math.min(100, Math.round((props.spent / props.allocated) * 100));
 });
 
-// For savings, "spent" is money contributed toward the goal — never an alarm.
 const progressState = computed<'ok' | 'warn' | 'over'>(() => {
   if (props.group === 'savings' || props.allocated <= 0) return 'ok';
   const ratio = props.spent / props.allocated;
@@ -106,7 +104,6 @@ const progressState = computed<'ok' | 'warn' | 'over'>(() => {
   border: 1.5px solid var(--t-border);
   box-shadow: var(--t-shadow-hard-sm);
   margin-bottom: 0.75rem;
-  /* Status colour: bucket colour normally, semaphore when tight/over. */
   --status: var(--group-color);
   --status-soft: var(--group-tint);
   --remaining-color: var(--t-ok);

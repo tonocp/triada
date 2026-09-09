@@ -8,8 +8,6 @@ vi.stubGlobal('localStorage', {
 });
 
 describe('useCurrency', () => {
-  // locale and the module-level currency ref are shared state — reset both
-  // before every test since individual tests switch them.
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(localStorage.getItem).mockReturnValue(null);

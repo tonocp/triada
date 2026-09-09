@@ -9,6 +9,7 @@ interface IndexedDbMockResult {
 function setupIndexedDbMock(options?: {
   failOpen?: boolean;
   failOpenWithoutError?: boolean;
+  failBlocked?: boolean;
   existingStores?: Array<
     | 'budget_years'
     | 'budget_months'
@@ -37,7 +38,7 @@ function setupIndexedDbMock(options?: {
     return {
       createIndex,
       indexNames: {
-        contains: vi.fn((indexName: string) => !!existingIndexes[storeName]?.includes(indexName)),
+        contains: vi.fn((indexName: string) => existingIndexes[storeName]?.includes(indexName)),
       },
     } as unknown as IDBObjectStore;
   };
@@ -66,9 +67,15 @@ function setupIndexedDbMock(options?: {
       onupgradeneeded: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
       onsuccess: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
       onerror: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
+      onblocked: null as ((this: IDBOpenDBRequest, ev: Event) => unknown) | null,
     } as unknown as IDBOpenDBRequest;
 
     queueMicrotask(() => {
+      if (options?.failBlocked) {
+        request.onblocked?.(new Event('blocked') as unknown as IDBVersionChangeEvent);
+        return;
+      }
+
       if (options?.failOpen || options?.failOpenWithoutError) {
         if (options.failOpenWithoutError) {
           (request as unknown as { error: null }).error = null;
@@ -266,6 +273,22 @@ describe('data/database indexeddb', () => {
     const indexedDbModule = await import('./indexeddb');
 
     await expect(indexedDbModule.initDatabase()).rejects.toThrow('Failed to open IndexedDB');
+    expect(indexedDbModule.isDatabaseReady()).toBe(false);
+  });
+
+  it('should reject when a version upgrade is blocked by another open tab', async () => {
+    setupIndexedDbMock({ failBlocked: true });
+    const indexedDbModule = await import('./indexeddb');
+
+    await expect(indexedDbModule.initDatabase()).rejects.toThrow('blocked');
+    expect(indexedDbModule.isDatabaseReady()).toBe(false);
+  });
+
+  it('should reject when IndexedDB is not available at all', async () => {
+    vi.stubGlobal('indexedDB', undefined);
+    const indexedDbModule = await import('./indexeddb');
+
+    await expect(indexedDbModule.initDatabase()).rejects.toThrow('not available');
     expect(indexedDbModule.isDatabaseReady()).toBe(false);
   });
 });

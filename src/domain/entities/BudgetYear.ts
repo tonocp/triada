@@ -15,7 +15,6 @@ export interface CreateBudgetYearInput {
   monthlyIncome: number;
   year: number;
   currency: SupportedCurrency;
-  /** Defaults to the 50/30/20 rule when omitted. */
   split?: BudgetSplit;
 }
 

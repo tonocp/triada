@@ -35,8 +35,6 @@ const { needRefresh, updateServiceWorker } = useRegisterSW();
 </script>
 
 <style>
-/* Route transition (declared by <Transition name="page"> above). Not scoped:
-   the classes land on the routed child component's root, out of scope reach. */
 .page-enter-active,
 .page-leave-active {
   transition: opacity 0.12s ease;
@@ -56,7 +54,6 @@ const { needRefresh, updateServiceWorker } = useRegisterSW();
 </style>
 
 <style scoped>
-/* Clearance for the fixed BottomNav (it carries its own safe-area inset). */
 .app-shell--nav {
   padding-bottom: 4.5rem;
 }

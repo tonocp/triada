@@ -6,10 +6,6 @@ export interface CategorySpend {
   spent: number;
 }
 
-/**
- * Total spend per category across the given expenses, highest first, capped at
- * `limit`. Categories with no spend are dropped.
- */
 export function topCategories(expenses: Expense[], limit: number): CategorySpend[] {
   const byCategory = new Map<CategoryId, CategorySpend>();
 

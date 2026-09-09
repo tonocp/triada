@@ -3,6 +3,10 @@ export default {
     name: 'Triada',
     welcome: 'Bienvenido a Triada',
     createBudgetSubtitle: 'Crea tu presupuesto anual en menos de 60 segundos',
+    storageError: {
+      title: 'Almacenamiento no disponible',
+      body: 'Triada guarda tu presupuesto en este dispositivo y necesita el almacenamiento local del navegador. Actívalo, cierra otras pestañas de Triada o sal del modo de navegación privada y vuelve a cargar la página.',
+    },
   },
   setup: {
     title: 'Bienvenido a Triada',

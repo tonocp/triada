@@ -281,7 +281,6 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   return rows;
 }
 
-/** Recompute and persist `allocated` for the given months from their own income. */
 async function writeAllocations(
   months: { id: string; monthly_income: number }[],
   split: BudgetSplit,
@@ -544,7 +543,6 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     const id = generateUUID();
     const now = getCurrentTimestamp();
-    // Normalise to a plain object — IndexedDB cannot structured-clone a proxy.
     const split = parseBudgetSplit(input.split ?? DEFAULT_GROUP_SPLIT);
 
     await insertBudgetYear({

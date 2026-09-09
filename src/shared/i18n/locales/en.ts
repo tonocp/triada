@@ -3,6 +3,10 @@ export default {
     name: 'Triada',
     welcome: 'Welcome to Triada',
     createBudgetSubtitle: 'Create your yearly budget in under 60 seconds',
+    storageError: {
+      title: 'Storage unavailable',
+      body: "Triada keeps your budget on this device and needs the browser's local storage. Enable it, close other Triada tabs or leave private browsing, then reload the page.",
+    },
   },
   setup: {
     title: 'Welcome to Triada',

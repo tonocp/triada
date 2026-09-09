@@ -16,7 +16,6 @@ const BCP47_TAG_BY_LOCALE: Record<SupportedLocale, string> = {
   en: 'en-US',
 };
 
-/** BCP-47 tag for the app locale — the single source for `Intl.*` consumers. */
 export function getIntlLocale(locale: SupportedLocale): string {
   return BCP47_TAG_BY_LOCALE[locale];
 }

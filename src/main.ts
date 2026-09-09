@@ -18,17 +18,6 @@ import router from './router';
 import { getLocale, i18n, onLocaleChange } from './shared/i18n';
 import { getPrimeVueLocale } from './shared/i18n/primevueLocale';
 
-/**
- * TRIADA preset: Aura with the primary ramp swapped to the brand indigo. This
- * is the single source for the brand hue — `tokens.css` aliases `--t-needs` /
- * `--t-accent` to the `--p-primary-500` this emits. Keeping it in the preset
- * means PrimeVue's own components render on-brand without per-token
- * `!important` overrides in CSS.
- *
- * Aura's `colorScheme.light.primary` already maps to `{primary.*}`, so
- * overriding the ramp is enough; only `highlight` needs a nudge (one step
- * darker than the default 50/100 for more contrast on the paper surface).
- */
 const TriadaPreset = definePreset(Aura, {
   semantic: {
     primary: {
@@ -55,48 +44,71 @@ const TriadaPreset = definePreset(Aura, {
   },
 });
 
-const pinia = createPinia();
-const app = createApp(App);
-
-app.use(pinia);
-app.use(router);
-app.use(i18n);
-app.use(PrimeVue, {
-  theme: {
-    preset: TriadaPreset,
-    options: {
-      darkModeSelector: '.dark',
-    },
-  },
-  locale: getPrimeVueLocale(getLocale()),
-});
-app.use(ToastService);
-
-onLocaleChange((locale) => {
-  const primeVue = app.config.globalProperties.$primevue as
-    | { config?: { locale?: unknown } }
-    | undefined;
-
-  if (primeVue?.config) {
-    primeVue.config.locale = getPrimeVueLocale(locale);
-  }
-});
-
-// First-run guard: in-app routes bounce to /setup until a budget exists;
-// /setup bounces to /year once one does.
-router.beforeEach(async (to) => {
-  const guarded = to.meta.app === true || to.name === 'setup';
-  if (!guarded) {
+function renderStorageError(): void {
+  const root = document.querySelector('#app');
+  if (!root) {
     return;
   }
 
-  await initDatabase();
-  const hasBudget = await budgetExists();
+  root.innerHTML = `<main style="max-width:26rem;margin:15vh auto;padding:0 1.5rem;text-align:center;font-family:system-ui,sans-serif">
+  <h1 style="font-size:1.2rem;margin-bottom:0.75rem">${i18n.global.t('app.storageError.title')}</h1>
+  <p style="line-height:1.55;color:#555">${i18n.global.t('app.storageError.body')}</p>
+</main>`;
+}
 
-  if (to.name === 'setup') {
-    return hasBudget ? { name: 'year' } : undefined;
+async function bootstrap(): Promise<void> {
+  const storageReady = initDatabase().then(() => budgetExists());
+
+  const app = createApp(App);
+  app.use(createPinia());
+  app.use(router);
+  app.use(i18n);
+  app.use(PrimeVue, {
+    theme: {
+      preset: TriadaPreset,
+      options: {
+        darkModeSelector: '.dark',
+      },
+    },
+    locale: getPrimeVueLocale(getLocale()),
+  });
+  app.use(ToastService);
+
+  onLocaleChange((locale) => {
+    const primeVue = app.config.globalProperties.$primevue as
+      | { config?: { locale?: unknown } }
+      | undefined;
+
+    if (primeVue?.config) {
+      primeVue.config.locale = getPrimeVueLocale(locale);
+    }
+  });
+
+  let budgetConfirmed: boolean;
+  try {
+    budgetConfirmed = await storageReady;
+  } catch {
+    renderStorageError();
+    return;
   }
-  return hasBudget ? undefined : { name: 'setup' };
-});
 
-app.mount('#app');
+  router.beforeEach(async (to) => {
+    const guarded = to.meta.app === true || to.name === 'setup';
+    if (!guarded) {
+      return;
+    }
+
+    if (!budgetConfirmed) {
+      budgetConfirmed = await budgetExists();
+    }
+
+    if (to.name === 'setup') {
+      return budgetConfirmed ? { name: 'year' } : undefined;
+    }
+    return budgetConfirmed ? undefined : { name: 'setup' };
+  });
+
+  app.mount('#app');
+}
+
+void bootstrap();

@@ -17,7 +17,6 @@
           <span v-if="monthLabel" class="expense-sheet-month">{{ monthLabel }}</span>
         </div>
 
-        <!-- Amount first -->
         <label class="expense-sheet-field-label" for="expense-amount">
           {{ t('dashboard.amount') }}
         </label>
@@ -33,7 +32,6 @@
           <span class="expense-amount-symbol">{{ currencyInfo.symbol }}</span>
         </div>
 
-        <!-- Group + category chips -->
         <span class="expense-sheet-field-label">{{ t('dashboard.category') }}</span>
         <div class="expense-chip-row" data-testid="expense-group-selector">
           <button
@@ -70,7 +68,6 @@
           </button>
         </div>
 
-        <!-- Description -->
         <span class="expense-sheet-field-label">
           {{ t('dashboard.description') }}
           <span class="expense-sheet-optional">· {{ t('common.optional') }}</span>
@@ -81,7 +78,6 @@
           :placeholder="t('dashboard.descriptionPlaceholder')"
         />
 
-        <!-- Recurring -->
         <label v-if="showRecurringToggle" class="expense-sheet-toggle">
           <Checkbox v-model="recurringFlag" binary input-id="expense-recurring" />
           <span>{{ labels.recurring }}</span>
@@ -168,13 +164,11 @@ const categoriesForGroup = computed<Category[]>(() =>
   group.value === '' ? [] : props.categoriesByGroup[group.value],
 );
 
-// Add: toggle is always available (means "recurring"). Edit: only when the
-// expense is already recurring (means "apply to future months").
 const showRecurringToggle = computed(
   () => props.mode === 'add' || props.expense?.recurringRuleId != null,
 );
 
-const isValid = computed(() => Number.parseFloat(amount.value) > 0 && categoryId.value !== '');
+const isValid = computed(() => toMinorUnits(amount.value) > 0 && categoryId.value !== '');
 
 function firstCategoryId(forGroup: GroupType): CategoryId | '' {
   return props.categoriesByGroup[forGroup][0]?.id ?? '';
@@ -210,9 +204,6 @@ watch(
   },
 );
 
-// Switching group drops a category the new group doesn't own. The chip list only
-// renders the current group's categories, so no reverse (category → group) sync
-// is needed.
 watch(group, (nextGroup) => {
   if (nextGroup === '') {
     return;

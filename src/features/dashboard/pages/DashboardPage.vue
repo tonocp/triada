@@ -1246,8 +1246,6 @@ function consumeAddExpenseIntent(): void {
   void router.replace({ query: rest });
 }
 
-// The month view stays mounted across `/month?...` navigations (e.g. the FAB
-// jumping to the current month), so react to query changes, not just onMounted.
 watch(
   () => route.query,
   () => {

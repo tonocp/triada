@@ -1,19 +1,13 @@
 import { GROUP_ORDER, type GroupType } from './Group';
 
-/** Percentage of monthly income allocated to each budget group. Shares sum to 100. */
 export type BudgetSplit = Record<GroupType, number>;
 
-/** The 50/30/20 rule — the split a new budget year starts from. */
 export const DEFAULT_GROUP_SPLIT: BudgetSplit = {
   needs: 50,
   wants: 30,
   savings: 20,
 };
 
-/**
- * A split is valid when every share is a whole number in [0, 100] and the three
- * shares sum to exactly 100.
- */
 export function isValidBudgetSplit(split: BudgetSplit): boolean {
   let total = 0;
   for (const group of GROUP_ORDER) {
@@ -26,11 +20,6 @@ export function isValidBudgetSplit(split: BudgetSplit): boolean {
   return total === 100;
 }
 
-/**
- * Coerce a stored value — a `BudgetSplit`-shaped object, a JSON string of one, or
- * anything missing/legacy — into a `BudgetSplit`, defaulting per group. Used when
- * reading a budget-year row from either backend.
- */
 export function parseBudgetSplit(raw: unknown): BudgetSplit {
   const source: unknown = typeof raw === 'string' ? safeParse(raw) : raw;
   const record = (source ?? {}) as Record<string, unknown>;
@@ -51,10 +40,6 @@ function safeParse(text: string): unknown {
   }
 }
 
-/**
- * Split monthly income (minor units) into per-group allocations, flooring each
- * share. The floored amounts can total slightly less than the income.
- */
 export function allocateBudget(
   monthlyIncome: number,
   split: BudgetSplit,
@@ -66,10 +51,6 @@ export function allocateBudget(
   return allocations;
 }
 
-/**
- * Each group's share of the total allocated amount, as a percentage — what the
- * ring and legend show. `null` when nothing is allocated yet.
- */
 export function groupShares(
   buckets: { group: GroupType; allocated: number }[],
 ): Record<GroupType, number> | null {

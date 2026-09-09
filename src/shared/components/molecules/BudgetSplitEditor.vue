@@ -62,8 +62,6 @@ function parseShare(text: string): number {
   return Math.min(Math.max(value, 0), 100);
 }
 
-// Keep the text fields in step with programmatic changes to the split (e.g. a
-// parent resetting it), but leave what the user is typing untouched.
 watch(
   () => props.modelValue,
   (next) => {
@@ -75,14 +73,10 @@ watch(
   },
 );
 
-// `commit` guarantees each share is already an integer in [0, 100], so a total
-// of exactly 100 is the only remaining validity condition.
 const total = computed(() => groups.reduce((sum, group) => sum + props.modelValue[group], 0));
 
 const isValid = computed(() => total.value === 100);
 
-// Build the whole split from the three drafts so editing several fields in one
-// tick stays consistent (a per-field merge would read a stale prop each time).
 function commit(): void {
   emit('update:modelValue', {
     needs: parseShare(drafts.needs),

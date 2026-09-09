@@ -24,26 +24,18 @@ function readNumber(key: string): number | null {
 function writeNumber(key: string, value: number): void {
   try {
     localStorage.setItem(key, String(value));
-  } catch {
-    // storage unavailable — the reminder just won't persist
-  }
+  } catch {}
 }
 
-// Module-level so every screen reads one value; changed by markBackedUp (after a
-// real export/import) and snoozeReminder (on dismiss).
 const lastBackupAt = ref<number | null>(readNumber(LAST_BACKUP_KEY));
 const snoozedUntil = ref<number>(readNumber(SNOOZE_KEY) ?? 0);
 
-// Anchor for "you've never backed up": first time a reminder-aware screen loaded.
-// For a new user that's the year view moments after the setup flow, so it tracks
-// close to when there's data worth saving.
 const storedFirstSeen = readNumber(FIRST_SEEN_KEY);
 const firstSeenAt = storedFirstSeen ?? Date.now();
 if (storedFirstSeen === null) {
   writeNumber(FIRST_SEEN_KEY, firstSeenAt);
 }
 
-/** Stale (no backup, or older than the threshold, measured from the anchor) and not snoozed. */
 export function isBackupReminderDue(params: {
   now: number;
   lastBackupAt: number | null;
@@ -57,7 +49,6 @@ export function isBackupReminderDue(params: {
   return params.now - reference > REMINDER_AFTER_DAYS * DAY_MS;
 }
 
-/** Record that the data is safe as of `at` (a real export ⇒ now; an import ⇒ the file's own date). */
 export function markBackedUp(at: number = Date.now()): void {
   lastBackupAt.value = at;
   writeNumber(LAST_BACKUP_KEY, at);
@@ -65,9 +56,6 @@ export function markBackedUp(at: number = Date.now()): void {
 
 export function useBackupReminder() {
   return {
-    // Re-evaluates when lastBackupAt / snoozedUntil change (export, import, dismiss).
-    // `Date.now()` isn't reactive, so it won't flip true while a screen stays open
-    // past the threshold — acceptable for a 30-day nudge.
     reminderDue: computed(() =>
       isBackupReminderDue({
         now: Date.now(),

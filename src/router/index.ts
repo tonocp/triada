@@ -2,10 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 
 declare module 'vue-router' {
   interface RouteMeta {
-    /**
-     * An in-app screen: shows the bottom navigation and requires a budget
-     * (redirect to /setup until one exists).
-     */
     app?: boolean;
   }
 }

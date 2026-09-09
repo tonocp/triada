@@ -68,7 +68,6 @@ const props = withDefaults(
 const { t } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
 
-// Each bucket's rounded share of the total allocation — reflects the (configurable) split.
 const sharePercent = computed<Record<GroupType, number> | null>(() => {
   const shares = groupShares(props.buckets);
   if (!shares) {

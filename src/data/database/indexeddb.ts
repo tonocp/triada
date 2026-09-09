@@ -23,6 +23,11 @@ function openDatabase(): Promise<IDBDatabase> {
   }
 
   dbPromise = new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new Error('IndexedDB is not available'));
+      return;
+    }
+
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onupgradeneeded = () => {
@@ -88,6 +93,10 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onerror = () => {
       reject(request.error ?? new Error('Failed to open IndexedDB'));
+    };
+
+    request.onblocked = () => {
+      reject(new Error('IndexedDB upgrade blocked by another open tab'));
     };
   });
 

@@ -19,9 +19,6 @@
     "baseUrl": "./",
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@Shared/*": [
-        "modules/shared/*"
-      ],
       "@/*": [
         "src/*"
       ]
@@ -30,9 +27,6 @@
   "exclude": [
     "node_modules",
     "dist"
-  ],
-  "files": [
-    "env.d.ts"
   ],
   "include": [
     "src/**/*.ts",

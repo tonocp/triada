@@ -1,10 +1,5 @@
 import type { Category, CategoryId } from '@/domain/entities';
 
-/**
- * Display name for a category: its custom name, else the localized default label,
- * else the raw id. `translate` returns the localized string or `null` when the
- * `categories.<id>` key is unknown (a user-created category).
- */
 export function categoryLabel(
   category: Category | undefined,
   categoryId: CategoryId,
@@ -17,10 +12,6 @@ export function categoryLabel(
   return translate(`categories.${categoryId}`) ?? categoryId;
 }
 
-/**
- * Bind `categoryLabel` to a vue-i18n instance's `t`/`te` — every view needs a
- * `(category, id) => label` and this is the one place that wraps the translator.
- */
 export function categoryLabeller(
   t: (key: string) => string,
   te: (key: string) => boolean,

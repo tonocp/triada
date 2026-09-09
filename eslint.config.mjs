@@ -99,17 +99,6 @@ export default [
       'vue/html-closing-bracket-spacing': 'off',
       'max-len': 'off',
     },
-    settings: {
-      'import/resolver': {
-        alias: {
-          map: [
-            ['@src', './src'],
-            ['@Shared', './src/modules/shared'],
-          ],
-          extensions: ['.js', '.jsx', '.ts', '.tsx', '.json', '.vue'],
-        },
-      },
-    },
   },
   {
     files: ['**/*.cjs'],

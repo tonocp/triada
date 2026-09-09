@@ -2,11 +2,6 @@ import { exportDatabase, importDatabase } from '@/data/repositories';
 import type { BudgetDatabaseSnapshot } from '@/data/repositories/BudgetRepository.snapshot';
 import { markBackedUp } from './useBackupReminder';
 
-/**
- * How the backup left the app. `'shared'` handed it to the Web Share sheet (the
- * user still picks where to save it — the toast says so); `'file'` downloaded it
- * outright.
- */
 export type ExportVia = 'shared' | 'file';
 
 export type ExportResult =
@@ -38,7 +33,6 @@ function triggerDownload(payload: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Prefer the Web Share sheet (mobile "Save to Files" etc.), fall back to a download. */
 async function sendBackup(payload: string, fileName: string): Promise<ExportResult> {
   if (typeof navigator.share === 'function') {
     try {
@@ -50,7 +44,6 @@ async function sendBackup(payload: string, fileName: string): Promise<ExportResu
       if (isAbort(error)) {
         return { status: 'cancelled' };
       }
-      // fall through to download
     }
   }
 
@@ -77,8 +70,6 @@ async function runImport(file: File): Promise<ImportResult> {
   try {
     const parsed = JSON.parse(await file.text()) as unknown;
     await importDatabase(parsed);
-    // importDatabase validated the snapshot: exportedAt is a real ISO date. Treat
-    // the file's own age as our last-backup point, not "now".
     const exportedAt = Date.parse((parsed as BudgetDatabaseSnapshot).meta.exportedAt);
     if (Number.isFinite(exportedAt)) {
       markBackedUp(exportedAt);

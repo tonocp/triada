@@ -13,8 +13,19 @@ describe('toMinorUnits', () => {
     expect(toMinorUnits('0.014')).toBe(1);
   });
 
+  it('should accept a comma as the decimal separator', () => {
+    expect(toMinorUnits('12,50')).toBe(1250);
+    expect(toMinorUnits('0,99')).toBe(99);
+    expect(toMinorUnits('1.234,56')).toBe(123456);
+  });
+
+  it('should strip a currency symbol or spaces around the amount', () => {
+    expect(toMinorUnits(' 12,50 €')).toBe(1250);
+  });
+
   it('should keep the sign of negative amounts', () => {
     expect(toMinorUnits('-5')).toBe(-500);
+    expect(toMinorUnits('-5,50')).toBe(-550);
   });
 
   it('should return 0 for input that is not a finite number', () => {

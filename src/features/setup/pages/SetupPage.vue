@@ -98,6 +98,7 @@ import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
 import { useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
+import { toMinorUnits } from '@/shared/utils/money';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -132,10 +133,7 @@ watch(selectedCurrency, (newVal) => {
 const groups = GROUP_ORDER;
 const split = ref<BudgetSplit>({ ...DEFAULT_GROUP_SPLIT });
 
-const monthlyIncomeNumber = computed(() => {
-  const num = parseFloat(monthlyIncome.value);
-  return isNaN(num) ? 0 : num * 100;
-});
+const monthlyIncomeNumber = computed(() => toMinorUnits(monthlyIncome.value));
 
 const previewAllocations = computed(() => allocateBudget(monthlyIncomeNumber.value, split.value));
 
@@ -149,8 +147,6 @@ async function createBudget(): Promise<void> {
   try {
     await initDatabase();
 
-    // The router guard keeps this screen unreachable once a budget exists, so
-    // this always creates a fresh one.
     const currentYear = new Date().getFullYear();
     await createYearWithAllocations(
       monthlyIncomeNumber.value,

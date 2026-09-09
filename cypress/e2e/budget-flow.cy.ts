@@ -203,6 +203,15 @@ describe('Budget flow', () => {
     cy.get('.bottom-nav').should('be.visible');
   });
 
+  it('should lock the viewport so an installed PWA cannot pinch-zoom', () => {
+    cy.document().then((doc) => {
+      const viewport = doc.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '';
+      expect(viewport).to.contain('user-scalable=no');
+      expect(viewport).to.contain('maximum-scale=1');
+    });
+    cy.get('html').should('have.css', 'touch-action', 'pan-x pan-y');
+  });
+
   it('should redirect / to the year view when a budget exists', () => {
     createBudget('1500');
 

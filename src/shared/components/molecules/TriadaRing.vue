@@ -42,7 +42,7 @@ const props = withDefaults(
   { size: 200 },
 );
 
-const GAP = 0.6;
+const GAP = 0.35;
 
 const conicGradient = computed(() => {
   const byGroup = new Map(props.buckets.map((b) => [b.group, b]));
@@ -52,23 +52,22 @@ const conicGradient = computed(() => {
 
   let cursor = 0;
 
-  const stops = GROUP_ORDER.flatMap((group, index) => {
+  const stops = GROUP_ORDER.flatMap((group) => {
     const span = spanFor(group);
-    const last = index === GROUP_ORDER.length - 1;
     const bucket = byGroup.get(group);
     const spentFraction =
       bucket && bucket.allocated > 0 ? Math.min(bucket.spent / bucket.allocated, 1) : 0;
 
     const start = cursor;
-    const visibleEnd = start + span - (last ? 0 : GAP);
+    const visibleEnd = start + span - GAP;
     const litEnd = start + (visibleEnd - start) * spentFraction;
     cursor += span;
 
     return [
       `var(--t-${group}) ${start}% ${litEnd}%`,
       `var(--t-${group}-tint) ${litEnd}% ${visibleEnd}%`,
-      last ? null : `var(--t-border) ${visibleEnd}% ${cursor}%`,
-    ].filter((stop): stop is string => stop !== null);
+      `var(--t-border) ${visibleEnd}% ${cursor}%`,
+    ];
   });
 
   return `conic-gradient(from -90deg, ${stops.join(', ')})`;

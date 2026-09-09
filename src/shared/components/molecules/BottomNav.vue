@@ -32,17 +32,27 @@
 <script setup lang="ts">
 import { currentPeriod } from '@/shared/utils/period';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
+
+function targetPeriod(): { year: string; month: string } {
+  if (
+    route.name === 'month' &&
+    typeof route.query.year === 'string' &&
+    typeof route.query.month === 'string'
+  ) {
+    return { year: route.query.year, month: route.query.month };
+  }
+
+  const { year, month } = currentPeriod();
+  return { year: String(year), month: String(month) };
+}
 
 function goAddExpense(): void {
-  const { year, month } = currentPeriod();
-  void router.push({
-    name: 'month',
-    query: { year: String(year), month: String(month), action: 'add' },
-  });
+  void router.push({ name: 'month', query: { ...targetPeriod(), action: 'add' } });
 }
 </script>
 

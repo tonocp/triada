@@ -330,6 +330,35 @@ describe('Budget flow', () => {
     submitAddExpense();
   });
 
+  it('should add an expense to the month in view and back-fill a recurring one from there', () => {
+    createBudget('1200');
+    goToMonth();
+
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+
+    cy.get('#bottom-nav-add').click({ force: true });
+    cy.get('.expense-sheet:visible').should('be.visible');
+
+    cy.get('#expense-amount').clear();
+    cy.get('#expense-amount').type('90');
+    cy.get('input[placeholder="Describe este gasto"]').type('Alquiler');
+    cy.get('#expense-recurring').check({ force: true });
+    submitAddExpense();
+
+    cy.contains('.group-display', '90,00 €').should('be.visible');
+
+    cy.get('.month-selector .p-button').last().click({ force: true });
+    cy.contains('.group-display', '90,00 €').should('be.visible');
+
+    cy.get('.month-selector .p-button').last().click({ force: true });
+    cy.contains('.group-display', '90,00 €').should('be.visible');
+
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+    cy.get('.month-selector .p-button').eq(0).click({ force: true });
+    cy.contains('.group-display', '90,00 €').should('not.exist');
+  });
+
   it('should validate the edit-monthly-income field with a numeric keypad', () => {
     createBudget('1000');
     goToMonth();

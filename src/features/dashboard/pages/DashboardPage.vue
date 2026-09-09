@@ -773,12 +773,19 @@ async function refreshMonthData(): Promise<void> {
   }
 }
 
+function navigateToPeriod(year: number, month: number): void {
+  setActivePeriod(year, month);
+  void refreshMonthData();
+  void router.replace({
+    query: { ...route.query, year: String(activeYear.value), month: String(activeMonth.value) },
+  });
+}
+
 function shiftMonth(delta: number): void {
   const nextDate = new Date(activeYear.value, activeMonth.value - 1, 1);
   nextDate.setMonth(nextDate.getMonth() + delta);
 
-  setActivePeriod(nextDate.getFullYear(), nextDate.getMonth() + 1);
-  void refreshMonthData();
+  navigateToPeriod(nextDate.getFullYear(), nextDate.getMonth() + 1);
 }
 
 function toDate(value: unknown): Date | null {
@@ -813,8 +820,7 @@ function onPeriodChange(value: unknown): void {
     return;
   }
 
-  setActivePeriod(parsedDate.getFullYear(), parsedDate.getMonth() + 1);
-  void refreshMonthData();
+  navigateToPeriod(parsedDate.getFullYear(), parsedDate.getMonth() + 1);
 }
 
 async function handleExpenseSubmit(payload: ExpenseSheetSubmit): Promise<void> {

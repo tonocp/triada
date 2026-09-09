@@ -1,39 +1,28 @@
 # Triada
 
-Hybrid mobile application (web + iOS + Android) built with Vue 3, TypeScript, and Capacitor.
+Offline-first budgeting PWA built with Vue 3, TypeScript, and Vite. 50/30/20 rule, data stays on the device.
+
+Live: <https://triada.netlify.app>
 
 ## Current stack
 
 - Vue 3 + Vite + TypeScript
-- Capacitor 7 (Android/iOS)
 - PrimeVue 4 + PrimeIcons + Aura
 - Pinia (state management)
 - Vue Router (navigation)
 - vue-i18n (`es` default, `en` fallback)
-- Offline-first PWA on web (Service Worker + installable manifest)
-- Platform-aware persistence:
-  - SQLite on native runtime
-  - IndexedDB on web runtime
+- Installable, offline-first PWA (`vite-plugin-pwa` / Workbox service worker + web manifest)
+- Persistence: IndexedDB (via a repository facade)
 
 ## Requirements
 
-- Node `v22.21.1` (aligned with Volta pin)
+- Node `>=24.19.0` (aligned with the Volta pin)
 - pnpm `10.30.3`
-- iOS: Xcode + CocoaPods
-- Android: Android Studio + Android SDK
-- Native E2E: Maestro CLI
 
 ## Installation
 
 ```bash
 pnpm install
-```
-
-Android local environment variables:
-
-```bash
-export ANDROID_HOME=~/Library/Android/sdk
-export PATH=$PATH:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools
 ```
 
 ## Main commands
@@ -42,9 +31,6 @@ Development:
 
 ```bash
 pnpm dev
-pnpm dev:server
-pnpm dev:android
-pnpm dev:ios
 ```
 
 Build and preview:
@@ -54,54 +40,22 @@ pnpm build
 pnpm preview
 ```
 
-PWA build verification:
-
-```bash
-pnpm build
-pnpm preview
-```
-
 Then open `http://localhost:4173`, verify installability in DevTools (`Application` -> `Manifest`) and test offline mode from DevTools (`Network` -> `Offline`).
 
-## Docker deployment
+## Deployment
 
-Build and run with Docker Compose:
+Deployed on [Netlify](https://www.netlify.com/) as a static site. Netlify
+auto-detects the Vite build (`pnpm build` -> `dist/`); `public/_redirects` sends
+every path to `index.html` for the vue-router history mode, and the Node version
+comes from `.nvmrc`. Any push to `main` triggers a production deploy; pull
+requests get deploy previews.
 
-```bash
-docker compose up --build -d
-```
+PWA verification (against `pnpm preview` or the live site):
 
-Open `http://localhost:8081`.
-
-Stop and remove containers:
-
-```bash
-docker compose down
-```
-
-PWA + Docker verification:
-
-```bash
-docker compose up --build -d
-```
-
-- Open `http://localhost:8081` and install the app from browser install UI.
-- After first dashboard load, reload once so the Service Worker controls the page.
-- Disconnect network and reload `/dashboard`; the app should still render cached shell and data.
-
-Capacitor:
-
-```bash
-pnpm cap:add:ios
-pnpm cap:add:android
-pnpm cap:sync
-pnpm cap:sync:ios
-pnpm cap:sync:android
-pnpm cap:open:ios
-pnpm cap:open:android
-pnpm cap:build:ios
-pnpm cap:build:android
-```
+- Install the app from the browser install UI.
+- After the first load, reload once so the Service Worker controls the page.
+- Disconnect the network and reload `/year`; the app should still render the
+  cached shell and data.
 
 Quality:
 
@@ -124,33 +78,14 @@ pnpm test:unit
 pnpm test:unit:coverage
 ```
 
-Web E2E (Cypress):
+E2E (Cypress):
 
 ```bash
 pnpm test:e2e
 pnpm test:e2e:dev
 ```
 
-Current Cypress coverage includes installability-related web behavior and an offline-first dashboard smoke flow after Service Worker activation.
-
-Native E2E (Maestro):
-
-```bash
-pnpm test:e2e:native:android
-pnpm test:e2e:native:ios
-pnpm test:e2e:native
-```
-
-Included Maestro flows:
-
-- `maestro/flows/android-smoke.yaml`
-- `maestro/flows/ios-smoke.yaml`
-
-If Maestro is not installed:
-
-```bash
-curl -Ls "https://get.maestro.mobile.dev" | bash
-```
+Cypress covers installability-related behavior and an offline-first smoke flow after Service Worker activation.
 
 ## Architecture best practices
 
@@ -161,16 +96,15 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 - `src/features` and `src/shared`: UI, composables, and components.
 - Do not place persistence logic directly in Vue pages/components.
 
-### 2) Platform persistence access
+### 2) Persistence access
 
 - Use `src/data/repositories/BudgetRepository.ts` as the single facade.
-- Do not import concrete SQLite or IndexedDB implementations from UI code.
-- Keep feature parity across `BudgetRepository.sqlite.ts` and `BudgetRepository.indexeddb.ts`.
+- Do not import the concrete IndexedDB implementation from UI code.
 
 ### 3) Stable contracts
 
 - Domain types are contracts (`BudgetYear`, `BudgetMonth`, `BudgetAllocation`).
-- Any contract change must update repositories, tests, and consumers.
+- Any contract change must update the repository, tests, and consumers.
 
 ### 4) Money precision model
 
@@ -193,9 +127,8 @@ curl -Ls "https://get.maestro.mobile.dev" | bash
 ### 7) Testing strategy
 
 - Unit: domain rules, utilities, i18n, and mapping logic.
-- Integration: repository behavior with real storage adapters (IndexedDB in web tests).
-- Web E2E: setup -> dashboard flow and persistence after reload.
-- Native E2E: iOS and Android smoke flows via Maestro.
+- Integration: repository behavior against a real IndexedDB adapter (`fake-indexeddb`).
+- E2E: setup -> year/month flow and persistence after reload.
 
 ## Directory structure
 
@@ -209,6 +142,7 @@ src/
   features/
     dashboard/pages/
     setup/pages/
+    settings/pages/
   shared/
     components/
     composables/
@@ -225,4 +159,6 @@ pnpm build:check
 pnpm test:e2e
 ```
 
-For native UX-impacting changes, also run native E2E on at least one device/emulator per platform.
+## License
+
+[MIT](./LICENSE) © Toño Carrascosa Prieto

@@ -77,6 +77,7 @@ describe('data/repositories IndexedDB transaction failures', () => {
         monthlyIncome: 100_000,
         year: 2026,
         currency: 'USD',
+        split: { needs: 50, wants: 30, savings: 20 },
       }),
     ).rejects.toThrow('tx failed');
   });

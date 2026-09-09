@@ -9,6 +9,7 @@ import type {
   AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
+  BudgetSplit,
   BudgetYear,
   Category,
   CategoryId,
@@ -18,17 +19,20 @@ import type {
   CreateExpenseInput,
   DeleteExpenseInput,
   Expense,
+  UpdateBudgetSplitInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
 } from '@/domain/entities';
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_CATEGORIES_BY_GROUP,
+  DEFAULT_GROUP_SPLIT,
   GROUP_ORDER,
-  GROUP_PERCENTAGES,
+  allocateBudget,
   compareGroups,
   isDefaultCategoryId,
   isValidCategoryForGroup,
+  parseBudgetSplit,
   type GroupType,
 } from '@/domain/entities';
 import type { SupportedCurrency } from '@/shared/composables/useCurrency';
@@ -47,8 +51,21 @@ interface BudgetYearRow {
   monthly_income: number;
   year: number;
   currency: SupportedCurrency;
+  split?: unknown;
   created_at: string;
   updated_at: string;
+}
+
+function toBudgetYear(row: BudgetYearRow): BudgetYear {
+  return {
+    id: row.id,
+    monthlyIncome: row.monthly_income,
+    year: row.year,
+    currency: row.currency,
+    split: parseBudgetSplit(row.split),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 interface BudgetMonthRow {
@@ -264,6 +281,24 @@ async function readAllocationRowsByMonth(budgetMonthId: string): Promise<BudgetA
   return rows;
 }
 
+async function writeAllocations(
+  months: { id: string; monthly_income: number }[],
+  split: BudgetSplit,
+  now: string,
+): Promise<void> {
+  for (const month of months) {
+    const allocated = allocateBudget(month.monthly_income, split);
+    const allocations = await readAllocationRowsByMonth(month.id);
+    for (const allocation of allocations) {
+      await insertBudgetAllocation({
+        ...allocation,
+        allocated: allocated[allocation.group],
+        updated_at: now,
+      });
+    }
+  }
+}
+
 async function readExpenseRowsByMonthAndGroup(
   budgetMonthId: string,
   group: GroupType,
@@ -404,11 +439,6 @@ function getPreviousMonth(year: number, month: number): { year: number; month: n
   return { year: year - 1, month: 12 };
 }
 
-function allocationForGroup(monthlyIncome: number, group: GroupType): number {
-  const percentage = GROUP_PERCENTAGES[group];
-  return Math.floor((monthlyIncome * percentage) / 100);
-}
-
 async function readAllBudgetMonths(): Promise<BudgetMonthRow[]> {
   const db = await getIndexedDb();
   const tx = db.transaction(indexedDbStores.budgetMonths, 'readonly');
@@ -513,12 +543,14 @@ export const indexedDbBudgetRepository: BudgetRepository = {
 
     const id = generateUUID();
     const now = getCurrentTimestamp();
+    const split = parseBudgetSplit(input.split ?? DEFAULT_GROUP_SPLIT);
 
     await insertBudgetYear({
       id,
       monthly_income: input.monthlyIncome,
       year: input.year,
       currency: input.currency,
+      split,
       created_at: now,
       updated_at: now,
     });
@@ -528,6 +560,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       monthlyIncome: input.monthlyIncome,
       year: input.year,
       currency: input.currency,
+      split,
       createdAt: now,
       updatedAt: now,
     };
@@ -562,14 +595,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       return null;
     }
 
-    return {
-      id: latest.id,
-      monthlyIncome: latest.monthly_income,
-      year: latest.year,
-      currency: latest.currency,
-      createdAt: latest.created_at,
-      updatedAt: latest.updated_at,
-    };
+    return toBudgetYear(latest);
   },
 
   async getBudgetYearByYear(year: number): Promise<BudgetYear | null> {
@@ -593,14 +619,7 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       return null;
     }
 
-    return {
-      id: found.id,
-      monthlyIncome: found.monthly_income,
-      year: found.year,
-      currency: found.currency,
-      createdAt: found.created_at,
-      updatedAt: found.updated_at,
-    };
+    return toBudgetYear(found);
   },
 
   async createBudgetMonth(input: CreateBudgetMonthInput): Promise<BudgetMonth> {
@@ -825,6 +844,19 @@ export const indexedDbBudgetRepository: BudgetRepository = {
     return rows
       .map(mapExpenseRow)
       .sort((left, right) => toTimestamp(right.createdAt) - toTimestamp(left.createdAt));
+  },
+
+  async getExpensesByYear(budgetYearId: string): Promise<Expense[]> {
+    await initIndexedDb();
+
+    const monthIds = new Set(
+      (await readAllBudgetMonths())
+        .filter((month) => month.budget_year_id === budgetYearId)
+        .map((month) => month.id),
+    );
+    const rows = await readAllBudgetExpenses();
+
+    return rows.filter((row) => monthIds.has(row.budget_month_id)).map(mapExpenseRow);
   },
 
   async updateExpense(input: UpdateExpenseInput): Promise<Expense> {
@@ -1276,28 +1308,45 @@ export const indexedDbBudgetRepository: BudgetRepository = {
         monthly_income: input.monthlyIncome,
         updated_at: now,
       });
-
-      const allocations = await readAllocationRowsByMonth(month.id);
-      for (const allocation of allocations) {
-        await insertBudgetAllocation({
-          ...allocation,
-          allocated: allocationForGroup(input.monthlyIncome, allocation.group),
-          updated_at: now,
-        });
-      }
     }
+
+    await writeAllocations(
+      targetMonths.map((month) => ({ id: month.id, monthly_income: input.monthlyIncome })),
+      input.split,
+      now,
+    );
+  },
+
+  async updateBudgetSplitForYear(input: UpdateBudgetSplitInput): Promise<void> {
+    await initIndexedDb();
+
+    const now = getCurrentTimestamp();
+    const split = parseBudgetSplit(input.split);
+    const yearRow = (await readAllBudgetYears()).find((year) => year.id === input.budgetYearId);
+    if (yearRow) {
+      await insertBudgetYear({ ...yearRow, split, updated_at: now });
+    }
+
+    const months = (await readAllBudgetMonths()).filter(
+      (month) => month.budget_year_id === input.budgetYearId,
+    );
+
+    await writeAllocations(months, split, now);
   },
 
   async createYearWithAllocations(
     monthlyIncome: number,
     year: number,
     currency: SupportedCurrency,
+    split?: BudgetSplit,
   ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }> {
     const budgetYear = await indexedDbBudgetRepository.createBudgetYear({
       monthlyIncome,
       year,
       currency,
+      split,
     });
+    const allocatedByGroup = allocateBudget(monthlyIncome, budgetYear.split);
     const months: BudgetMonth[] = [];
 
     for (let month = 1; month <= 12; month++) {
@@ -1311,12 +1360,10 @@ export const indexedDbBudgetRepository: BudgetRepository = {
       const allocations: BudgetAllocation[] = [];
 
       for (const group of GROUP_ORDER) {
-        const percentage = GROUP_PERCENTAGES[group];
-        const allocated = Math.floor((monthlyIncome * percentage) / 100);
         const allocation = await indexedDbBudgetRepository.createBudgetAllocation({
           budgetMonthId: budgetMonth.id,
           group,
-          allocated,
+          allocated: allocatedByGroup[group],
         });
         allocations.push(allocation);
       }

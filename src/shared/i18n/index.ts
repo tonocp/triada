@@ -11,6 +11,15 @@ export const supportedLocales: { code: SupportedLocale; name: string }[] = [
   { code: 'en', name: 'English' },
 ];
 
+const BCP47_TAG_BY_LOCALE: Record<SupportedLocale, string> = {
+  es: 'es-ES',
+  en: 'en-US',
+};
+
+export function getIntlLocale(locale: SupportedLocale): string {
+  return BCP47_TAG_BY_LOCALE[locale];
+}
+
 const savedLocale = (
   typeof localStorage !== 'undefined' ? localStorage.getItem('triada-locale') : null
 ) as SupportedLocale | null;

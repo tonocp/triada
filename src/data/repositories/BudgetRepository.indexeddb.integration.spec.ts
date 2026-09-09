@@ -8,11 +8,13 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split?: { needs: number; wants: number; savings: number };
     }) => Promise<{
       id: string;
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     }>;
@@ -21,6 +23,7 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     } | null>;
@@ -29,9 +32,14 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number;
       year: number;
       currency: 'USD' | 'EUR';
+      split: { needs: number; wants: number; savings: number };
       createdAt: string;
       updatedAt: string;
     } | null>;
+    updateBudgetSplitForYear: (input: {
+      budgetYearId: string;
+      split: { needs: number; wants: number; savings: number };
+    }) => Promise<void>;
     createBudgetMonth: (input: {
       budgetYearId: string;
       month: number;
@@ -68,6 +76,7 @@ interface IndexedDbRepositoryModule {
       budgetYearId: string;
       fromMonth: number;
       monthlyIncome: number;
+      split: { needs: number; wants: number; savings: number };
     }) => Promise<void>;
     createBudgetAllocation: (input: {
       budgetMonthId: string;
@@ -144,6 +153,19 @@ interface IndexedDbRepositoryModule {
         updatedAt: string;
       }>
     >;
+    getExpensesByYear: (budgetYearId: string) => Promise<
+      Array<{
+        id: string;
+        budgetMonthId: string;
+        group: 'needs' | 'wants' | 'savings';
+        categoryId: string;
+        amount: number;
+        description: string;
+        recurringRuleId: string | null;
+        createdAt: string;
+        updatedAt: string;
+      }>
+    >;
     getCategoriesByGroup: (
       group: 'needs' | 'wants' | 'savings',
       options?: { includeInactive?: boolean },
@@ -188,12 +210,14 @@ interface IndexedDbRepositoryModule {
       monthlyIncome: number,
       year: number,
       currency: 'USD' | 'EUR',
+      split?: { needs: number; wants: number; savings: number },
     ) => Promise<{
       budgetYear: {
         id: string;
         monthlyIncome: number;
         year: number;
         currency: 'USD' | 'EUR';
+        split: { needs: number; wants: number; savings: number };
       };
       months: Array<{
         id: string;
@@ -604,6 +628,24 @@ describe('data/repositories IndexedDB integration', () => {
     expect(month?.allocations.find((allocation) => allocation.group === 'wants')?.spent).toBe(
       5_000,
     );
+
+    const yearExpenses = await repositoryModule.indexedDbBudgetRepository.getExpensesByYear(
+      budgetYear.id,
+    );
+    expect(yearExpenses.map((expense) => expense.description).sort()).toEqual([
+      'Cine',
+      'Supermercado semanal',
+      'Transporte',
+    ]);
+
+    const otherYear = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2027,
+      'USD',
+    );
+    expect(
+      await repositoryModule.indexedDbBudgetRepository.getExpensesByYear(otherYear.budgetYear.id),
+    ).toEqual([]);
   });
 
   it('should update and delete expense while keeping allocation spent in sync', async () => {
@@ -1053,6 +1095,7 @@ describe('data/repositories IndexedDB integration', () => {
       budgetYearId: result.budgetYear.id,
       fromMonth: 6,
       monthlyIncome: 120_000,
+      split: result.budgetYear.split,
     });
 
     const month5 = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
@@ -1075,6 +1118,46 @@ describe('data/repositories IndexedDB integration', () => {
     expect(
       month6?.allocations.find((allocation) => allocation.group === 'savings')?.allocated,
     ).toBe(24_000);
+  });
+
+  it('should default the split when creating a year without one, then persist a custom split', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2026,
+      'USD',
+    );
+    expect(created.budgetYear.split).toEqual({ needs: 50, wants: 30, savings: 20 });
+
+    await repositoryModule.indexedDbBudgetRepository.updateBudgetSplitForYear({
+      budgetYearId: created.budgetYear.id,
+      split: { needs: 60, wants: 25, savings: 15 },
+    });
+
+    const reloaded = await repositoryModule.indexedDbBudgetRepository.getBudgetYearByYear(2026);
+    expect(reloaded?.split).toEqual({ needs: 60, wants: 25, savings: 15 });
+
+    const month = await repositoryModule.indexedDbBudgetRepository.getBudgetMonth(
+      created.budgetYear.id,
+      1,
+    );
+    expect(month?.allocations.find((a) => a.group === 'needs')?.allocated).toBe(60_000);
+    expect(month?.allocations.find((a) => a.group === 'wants')?.allocated).toBe(25_000);
+    expect(month?.allocations.find((a) => a.group === 'savings')?.allocated).toBe(15_000);
+  });
+
+  it('should build a year with a custom split from creation', async () => {
+    const { repositoryModule } = await loadModules();
+
+    const created = await repositoryModule.indexedDbBudgetRepository.createYearWithAllocations(
+      100_000,
+      2027,
+      'EUR',
+      { needs: 40, wants: 40, savings: 20 },
+    );
+
+    expect(created.months[0]?.allocations.find((a) => a.group === 'wants')?.allocated).toBe(40_000);
   });
 
   it('should expose default categories by group', async () => {
@@ -1531,7 +1614,7 @@ describe('data/repositories IndexedDB integration', () => {
     expect(exported.data.expense_categories).toHaveLength(1);
   });
 
-  it('should import sqlite category snapshot shape and normalize fields', async () => {
+  it('should import a legacy column-shaped category snapshot and normalize fields', async () => {
     const { repositoryModule } = await loadModules();
 
     const snapshot = {

@@ -19,9 +19,6 @@
     "baseUrl": "./",
     "allowSyntheticDefaultImports": true,
     "paths": {
-      "@Shared/*": [
-        "modules/shared/*"
-      ],
       "@/*": [
         "src/*"
       ]
@@ -29,12 +26,7 @@
   },
   "exclude": [
     "node_modules",
-    "dist",
-    "ios",
-    "android"
-  ],
-  "files": [
-    "env.d.ts"
+    "dist"
   ],
   "include": [
     "src/**/*.ts",

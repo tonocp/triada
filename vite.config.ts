@@ -4,13 +4,12 @@ import { defineConfig, type PluginOption } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const pwaPlugin = VitePWA({
-  registerType: 'autoUpdate',
+  registerType: 'prompt',
   injectRegister: false,
   manifest: false,
   workbox: {
     cleanupOutdatedCaches: true,
     clientsClaim: true,
-    skipWaiting: true,
     globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,ttf}'],
     navigateFallback: 'index.html',
     runtimeCaching: [

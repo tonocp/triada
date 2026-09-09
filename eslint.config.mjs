@@ -17,12 +17,7 @@ export default [
       'dist/**',
       'build/**',
       'coverage/**',
-      'android/**',
       'prettier.config.cjs',
-      'ios/**',
-      'android/app/src/main/assets/public/**',
-      'ios/App/App/public/**',
-      'tailwind.config.ts',
       'vitest.config.ts',
       'cypress.config.ts',
     ],
@@ -103,17 +98,6 @@ export default [
       'vue/html-closing-bracket-newline': 'off',
       'vue/html-closing-bracket-spacing': 'off',
       'max-len': 'off',
-    },
-    settings: {
-      'import/resolver': {
-        alias: {
-          map: [
-            ['@src', './src'],
-            ['@Shared', './src/modules/shared'],
-          ],
-          extensions: ['.js', '.jsx', '.ts', '.tsx', '.json', '.vue'],
-        },
-      },
     },
   },
   {

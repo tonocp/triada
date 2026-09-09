@@ -1,7 +1,0 @@
-services:
-  triada-web:
-    image: ${IMAGE_NAME:-ghcr.io/tonocp/triada:latest}
-    container_name: triada-web
-    ports:
-      - '${APP_PORT:-8081}:80'
-    restart: unless-stopped

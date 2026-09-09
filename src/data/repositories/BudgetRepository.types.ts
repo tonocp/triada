@@ -2,6 +2,7 @@ import type {
   AddExpenseToAllocationInput,
   BudgetAllocation,
   BudgetMonth,
+  BudgetSplit,
   BudgetYear,
   Category,
   CategoryId,
@@ -13,6 +14,7 @@ import type {
   DeleteExpenseInput,
   Expense,
   GroupType,
+  UpdateBudgetSplitInput,
   UpdateCategoryNameInput,
   UpdateExpenseInput,
   UpdateMonthlyIncomeFromMonthInput,
@@ -32,7 +34,9 @@ export interface BudgetRepository {
   updateExpense(input: UpdateExpenseInput): Promise<Expense>;
   deleteExpense(input: DeleteExpenseInput): Promise<void>;
   updateMonthlyIncomeFromMonth(input: UpdateMonthlyIncomeFromMonthInput): Promise<void>;
+  updateBudgetSplitForYear(input: UpdateBudgetSplitInput): Promise<void>;
   getExpensesByMonthAndGroup(budgetMonthId: string, group: GroupType): Promise<Expense[]>;
+  getExpensesByYear(budgetYearId: string): Promise<Expense[]>;
   getCategoriesByGroup(
     group: GroupType,
     options?: { includeInactive?: boolean },
@@ -49,6 +53,7 @@ export interface BudgetRepository {
     monthlyIncome: number,
     year: number,
     currency: SupportedCurrency,
+    split?: BudgetSplit,
   ): Promise<{ budgetYear: BudgetYear; months: BudgetMonth[] }>;
   exportDatabase(): Promise<BudgetDatabaseSnapshot>;
   importDatabase(snapshot: unknown): Promise<void>;

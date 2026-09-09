@@ -1,48 +1,60 @@
 <template>
   <div
     class="group-display"
-    :class="{ 'group-display--interactive': interactive }"
+    :class="{
+      'group-display--interactive': interactive,
+      'is-warn': progressState === 'warn',
+      'is-over': progressState === 'over',
+    }"
+    :data-group="group"
     :role="interactive ? 'button' : undefined"
     :tabindex="interactive ? 0 : undefined"
     @click="onSelect"
     @keydown.enter.prevent="onSelect"
   >
     <div class="group-header">
-      <i :class="groupIcon" class="group-icon"></i>
+      <span class="group-icon-tile">
+        <i :class="groupIcon" aria-hidden="true"></i>
+      </span>
       <span class="group-label">{{ groupLabel }}</span>
-      <span class="group-percentage">{{ groupPercentage }}%</span>
+      <span class="group-percentage">{{ progressPercent }}%</span>
     </div>
+
+    <div class="group-bar">
+      <div class="group-bar-fill" :style="{ width: `${progressPercent}%` }"></div>
+    </div>
+
     <div class="group-amounts">
-      <div class="amount-row">
+      <div class="amount-cell">
         <span class="amount-label">{{ t('dashboard.allocated') }}</span>
         <span class="amount-value">{{ formatCurrencyValue(allocated) }}</span>
       </div>
-      <div class="amount-row">
+      <div class="amount-cell">
         <span class="amount-label">{{ t('dashboard.spent') }}</span>
-        <span class="amount-value spent">{{ formatCurrencyValue(spent) }}</span>
+        <span class="amount-value">{{ formatCurrencyValue(spent) }}</span>
       </div>
-      <div class="amount-row remaining">
+      <div class="amount-cell">
         <span class="amount-label">{{ t('dashboard.remaining') }}</span>
-        <span class="amount-value" :class="remainingClass">{{
-          formatCurrencyValue(remaining)
-        }}</span>
+        <span class="amount-value amount-value--flag">{{ formatCurrencyValue(remaining) }}</span>
       </div>
-    </div>
-    <div class="group-progress">
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
-      </div>
-      <span class="progress-text">{{ progressPercent }}{{ t('dashboard.spentOf') }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { GroupType } from '@/domain/entities';
-import { GROUP_ICONS, GROUP_PERCENTAGES } from '@/domain/entities';
+import { type GroupType } from '@/domain/entities';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+
+const GROUP_ICONS: Record<GroupType, string> = {
+  needs: 'pi pi-home',
+  wants: 'pi pi-shopping-bag',
+  savings: 'pi pi-wallet',
+};
+
+const WARN_RATIO = 0.8;
+const OVER_RATIO = 1;
 
 const { t } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
@@ -66,120 +78,141 @@ function onSelect(): void {
   emit('select', props.group);
 }
 
+const groupIcon = GROUP_ICONS[props.group];
 const groupLabel = computed(() => t(`groups.${props.group}`));
-const groupIcon = computed(() => GROUP_ICONS[props.group]);
-const groupPercentage = computed(() => GROUP_PERCENTAGES[props.group]);
-
 const remaining = computed(() => props.allocated - props.spent);
 
-const remainingClass = computed(() => ({
-  'remaining-positive': remaining.value >= 0,
-  'remaining-negative': remaining.value < 0,
-}));
-
 const progressPercent = computed(() => {
-  if (props.allocated === 0) return 0;
+  if (props.allocated <= 0) return 0;
   return Math.min(100, Math.round((props.spent / props.allocated) * 100));
+});
+
+const progressState = computed<'ok' | 'warn' | 'over'>(() => {
+  if (props.group === 'savings' || props.allocated <= 0) return 'ok';
+  const ratio = props.spent / props.allocated;
+  if (ratio > OVER_RATIO) return 'over';
+  if (ratio >= WARN_RATIO) return 'warn';
+  return 'ok';
 });
 </script>
 
 <style scoped>
 .group-display {
-  padding: 1rem;
-  border-radius: 12px;
-  background: var(--p-content-background);
-  border: 1px solid color-mix(in srgb, var(--p-primary-color) 12%, var(--p-input-border-color));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  padding: 0.9rem;
+  border-radius: var(--t-r-md);
+  background: var(--t-surface);
+  border: 1.5px solid var(--t-border);
+  box-shadow: var(--t-shadow-hard-sm);
   margin-bottom: 0.75rem;
+  --status: var(--group-color);
+  --status-soft: var(--group-tint);
+  --remaining-color: var(--t-ok);
+}
+.group-display.is-warn {
+  --status: var(--t-warn);
+  --status-soft: var(--t-warn);
+  --remaining-color: var(--t-warn);
+}
+.group-display.is-over {
+  --status: var(--t-over);
+  --status-soft: var(--t-over);
+  --remaining-color: var(--t-over);
 }
 
 .group-display--interactive {
   cursor: pointer;
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease,
-    transform 0.18s ease;
-}
-
-.group-display--interactive:hover,
-.group-display--interactive:focus-visible {
-  border-color: color-mix(in srgb, var(--p-primary-color) 35%, var(--p-input-border-color));
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
-  transform: translateY(-1px);
 }
 
 .group-display--interactive:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--p-primary-color) 55%, white);
+  outline: 2px solid var(--t-accent);
   outline-offset: 2px;
 }
 
 .group-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
 }
 
-.group-icon {
-  font-size: 1.25rem;
+.group-icon-tile {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: var(--t-r-sm);
+  border: 1.5px solid var(--t-border);
+  background: var(--group-tint);
+  color: var(--group-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
 }
 
 .group-label {
-  font-weight: 600;
   flex: 1;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 
 .group-percentage {
-  color: var(--p-text-muted-color);
-  font-size: 0.875rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-pill);
+  padding: 0.1rem 0.45rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--status-soft);
+  color: var(--t-ink);
+}
+.is-over .group-percentage {
+  color: #fff;
 }
 
-.group-amounts {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.75rem;
-}
-
-.amount-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.875rem;
-}
-
-.amount-label {
-  color: var(--p-text-muted-color);
-}
-
-.amount-value {
-  font-weight: 500;
-}
-
-.amount-value.spent {
-  color: var(--p-red-500);
-}
-
-.group-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.progress-bar {
-  height: 6px;
-  background: var(--p-surface-200);
-  border-radius: 3px;
+.group-bar {
+  height: 0.55rem;
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-pill);
+  background: var(--t-bg);
   overflow: hidden;
+  margin-bottom: 0.7rem;
 }
 
-.progress-fill {
+.group-bar-fill {
   height: 100%;
-  background: var(--p-primary-color);
+  background: var(--status);
   transition: width 0.3s ease;
 }
 
-.progress-text {
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
+.group-amounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.amount-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.amount-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--t-ink-faint);
+}
+
+.amount-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-value--flag {
+  color: var(--remaining-color);
 }
 </style>

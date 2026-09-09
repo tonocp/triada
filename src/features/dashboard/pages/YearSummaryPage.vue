@@ -1,14 +1,6 @@
 <template>
-  <div class="page-container year-summary-page">
+  <div class="page-container">
     <header class="year-summary-header">
-      <Button
-        id="year-summary-back-to-month"
-        :label="t('dashboard.viewMonthly')"
-        icon="pi pi-arrow-left"
-        severity="secondary"
-        outlined
-        @click="openMonthlyDashboard(activeMonth)"
-      />
       <h1>{{ t('dashboard.yearSummaryTitle') }}</h1>
     </header>
 
@@ -30,6 +22,17 @@
       />
     </section>
 
+    <AppBanner
+      v-if="reminderDue"
+      class="year-summary-backup"
+      :message="t('dashboard.backupReminder')"
+      :action-label="t('dashboard.backupExportNow')"
+      dismissible
+      :dismiss-label="t('dashboard.backupDismiss')"
+      @action="router.push({ name: 'settings' })"
+      @dismiss="snoozeReminder"
+    />
+
     <div v-if="loading" class="year-summary-state">
       <p>{{ t('common.loading') }}</p>
     </div>
@@ -40,10 +43,14 @@
 
     <template v-else>
       <section class="budget-summary">
-        <div class="summary-card">
-          <span class="summary-label">{{ t('dashboard.annualPlannedIncome') }}</span>
-          <span class="summary-value">{{ formatCurrencyValue(annualIncomePlanned) }}</span>
-        </div>
+        <BudgetHero
+          :label="t('dashboard.annualPlannedIncome')"
+          :income="annualIncomePlanned"
+          :buckets="summary.totalsByGroup"
+          :ring-size="150"
+          :ring-caption="t('dashboard.spent')"
+          :ring-value="`${yearProgress}%`"
+        />
       </section>
 
       <section class="groups-section" aria-label="annual-bucket-totals">
@@ -60,6 +67,20 @@
           />
         </div>
       </section>
+
+      <template v-if="yearExpenses.length > 0">
+        <section class="insights-section" aria-label="year-insights">
+          <h2 class="insights-heading">{{ t('dashboard.insightsTrend') }}</h2>
+          <SpendTrend :rows="trendRows" />
+        </section>
+
+        <section class="insights-section" aria-label="year-top-categories">
+          <h2 class="insights-heading">{{ t('dashboard.insightsTopCategories') }}</h2>
+          <TopCategories :entries="topEntries" />
+        </section>
+      </template>
+
+      <p v-else class="insights-empty">{{ t('dashboard.insightsNoData') }}</p>
 
       <section class="months-grid" aria-label="year-month-grid">
         <button
@@ -95,27 +116,63 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
-import { getBudgetMonth, getBudgetYearByYear, getLatestBudgetYear } from '@/data/repositories';
-import { GROUP_ORDER } from '@/domain/entities';
-import { GroupDisplay } from '@/shared/components/molecules';
+import {
+  getBudgetMonth,
+  getBudgetYearByYear,
+  getCategoriesByGroup,
+  getExpensesByYear,
+  getLatestBudgetYear,
+} from '@/data/repositories';
+import { GROUP_ORDER, type Category, type CategoryId, type Expense } from '@/domain/entities';
+import { AppBanner, BudgetHero, GroupDisplay } from '@/shared/components/molecules';
+import { useBackupReminder } from '@/shared/composables/useBackupReminder';
 import { useCurrency } from '@/shared/composables/useCurrency';
 import Button from 'primevue/button';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import SpendTrend, { type TrendRow } from '../components/SpendTrend.vue';
+import TopCategories, { type TopCategoryEntry } from '../components/TopCategories.vue';
+import { categoryLabeller } from '../utils/categoryLabel';
+import { topCategories } from '../utils/insights';
 import { buildYearSummary } from '../utils/yearSummary';
 
 const route = useRoute();
 const router = useRouter();
-const { t, tm } = useI18n();
+const { t, te, tm } = useI18n();
 const { formatCurrency: formatCurrencyValue } = useCurrency();
+const resolveCategoryLabel = categoryLabeller(t, te);
+const { reminderDue, snoozeReminder } = useBackupReminder();
 
 const groups = GROUP_ORDER;
-const activeMonth = ref(new Date().getMonth() + 1);
 const activeYear = ref(new Date().getFullYear());
 const loading = ref(false);
 const hasError = ref(false);
 const summary = ref(buildYearSummary([], activeYear.value));
+const yearExpenses = ref<Expense[]>([]);
+const categoryById = ref(new Map<CategoryId, Category>());
+
+const TOP_CATEGORY_LIMIT = 5;
+
+const trendRows = computed<TrendRow[]>(() =>
+  summary.value.months.map((month) => {
+    const byGroup = {} as TrendRow['byGroup'];
+    let total = 0;
+    for (const group of groups) {
+      byGroup[group] = month.buckets[group].spent;
+      total += byGroup[group];
+    }
+    return { initial: monthLabel(month.month).charAt(0).toUpperCase(), byGroup, total };
+  }),
+);
+
+const topEntries = computed<TopCategoryEntry[]>(() =>
+  topCategories(yearExpenses.value, TOP_CATEGORY_LIMIT).map((entry) => ({
+    label: resolveCategoryLabel(categoryById.value.get(entry.categoryId), entry.categoryId),
+    group: entry.group,
+    spent: entry.spent,
+  })),
+);
 
 const monthNames = computed<string[]>(() => {
   const localized = tm('dashboard.monthNames');
@@ -129,6 +186,13 @@ const monthNames = computed<string[]>(() => {
 
 const annualIncomePlanned = computed(() => {
   return summary.value.months.reduce((total, month) => total + month.monthlyIncome, 0);
+});
+
+const yearProgress = computed(() => {
+  const planned = annualIncomePlanned.value;
+  if (planned === 0) return 0;
+  const spent = summary.value.totalsByGroup.reduce((total, bucket) => total + bucket.spent, 0);
+  return Math.round((spent / planned) * 100);
 });
 
 function toInteger(value: unknown): number | null {
@@ -145,13 +209,8 @@ function monthLabel(month: number): string {
   return monthNames.value[index] ?? String(month);
 }
 
-function resolveRoutePeriod(defaultYear: number): { year: number; month: number } {
-  const routeYear = toInteger(route.query.year);
-  const routeMonth = toInteger(route.query.month);
-  const year = routeYear ?? defaultYear;
-  const month = routeMonth && routeMonth >= 1 && routeMonth <= 12 ? routeMonth : activeMonth.value;
-
-  return { year, month };
+function resolveRouteYear(defaultYear: number): number {
+  return toInteger(route.query.year) ?? defaultYear;
 }
 
 async function loadYearSummary(year: number): Promise<void> {
@@ -162,13 +221,18 @@ async function loadYearSummary(year: number): Promise<void> {
     const budgetYear = await getBudgetYearByYear(year);
     if (!budgetYear) {
       summary.value = buildYearSummary([], year);
+      yearExpenses.value = [];
       return;
     }
 
-    const months = await Promise.all(
-      Array.from({ length: 12 }, (_, index) => getBudgetMonth(budgetYear.id, index + 1)),
-    );
+    const [months, expenses] = await Promise.all([
+      Promise.all(
+        Array.from({ length: 12 }, (_, index) => getBudgetMonth(budgetYear.id, index + 1)),
+      ),
+      getExpensesByYear(budgetYear.id),
+    ]);
     summary.value = buildYearSummary(months, year);
+    yearExpenses.value = expenses;
   } catch (error) {
     console.error('Failed to load annual summary', { error, year });
     hasError.value = true;
@@ -179,7 +243,7 @@ async function loadYearSummary(year: number): Promise<void> {
 
 function openMonthlyDashboard(month: number): void {
   void router.push({
-    name: 'dashboard',
+    name: 'month',
     query: {
       year: String(activeYear.value),
       month: String(month),
@@ -192,29 +256,25 @@ function changeYear(delta: number): void {
   void loadYearSummary(activeYear.value);
 }
 
+async function loadCategories(): Promise<void> {
+  const perGroup = await Promise.all(
+    groups.map((group) => getCategoriesByGroup(group, { includeInactive: true })),
+  );
+  categoryById.value = new Map(perGroup.flat().map((category) => [category.id, category]));
+}
+
 onMounted(async () => {
   await initDatabase();
 
   const latestYear = await getLatestBudgetYear();
-  const fallbackYear = latestYear?.year ?? activeYear.value;
-  const period = resolveRoutePeriod(fallbackYear);
+  activeYear.value = resolveRouteYear(latestYear?.year ?? activeYear.value);
 
-  activeYear.value = period.year;
-  activeMonth.value = period.month;
-
-  await loadYearSummary(activeYear.value);
+  await Promise.all([loadCategories(), loadYearSummary(activeYear.value)]);
 });
 </script>
 
 <style scoped>
-.year-summary-page {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
-}
-
 .year-summary-header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
   margin-bottom: 1rem;
 }
 
@@ -228,43 +288,48 @@ onMounted(async () => {
   justify-content: center;
   gap: 0.5rem;
   margin-bottom: 1rem;
-  border: 1px solid var(--p-input-border-color);
-  border-radius: 12px;
-  background: var(--p-content-background);
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-md);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-hard-sm);
 }
 
 .year-label {
   font-weight: 700;
   min-width: 90px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.year-summary-backup {
+  margin-bottom: 1rem;
 }
 
 .budget-summary {
   margin-bottom: 1rem;
 }
 
-.summary-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 1.1rem 1rem;
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  border-radius: 12px;
-}
-
-.summary-label {
-  font-size: 0.875rem;
-  opacity: 0.9;
-}
-
-.summary-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
 .groups-section {
   margin-bottom: 1rem;
+}
+
+.insights-section {
+  margin-bottom: 1rem;
+}
+
+.insights-heading {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--t-ink-faint);
+  margin: 0 0 0.5rem;
+}
+
+.insights-empty {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--t-ink-faint);
 }
 
 .months-grid {
@@ -275,50 +340,57 @@ onMounted(async () => {
 
 .month-card {
   width: 100%;
-  border: 1px solid var(--p-input-border-color);
-  border-radius: 12px;
-  background: var(--p-content-background);
+  border: 1.5px solid var(--t-border);
+  border-radius: var(--t-r-md);
+  background: var(--t-surface);
+  box-shadow: var(--t-shadow-hard-sm);
   text-align: left;
-  padding: 0.85rem;
+  padding: 0.8rem;
 }
 
 .month-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
   gap: 0.75rem;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.55rem;
 }
 
 .month-card-title {
   font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .month-card-income {
-  color: var(--p-primary-color);
+  color: var(--t-ink-faint);
+  font-size: 0.72rem;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .month-empty {
-  color: var(--p-text-muted-color);
-  font-size: 0.85rem;
+  color: var(--t-ink-faint);
+  font-size: 0.78rem;
 }
 
 .month-buckets {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .month-bucket-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .year-summary-state {
   text-align: center;
-  color: var(--p-text-muted-color);
+  color: var(--t-ink-muted);
   padding: 2rem 0;
 }
 

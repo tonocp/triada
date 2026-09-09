@@ -29,9 +29,7 @@
   },
   "exclude": [
     "node_modules",
-    "dist",
-    "ios",
-    "android"
+    "dist"
   ],
   "files": [
     "env.d.ts"

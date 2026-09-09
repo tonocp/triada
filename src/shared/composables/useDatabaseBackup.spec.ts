@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const exportDatabaseMock = vi.fn();
 const importDatabaseMock = vi.fn();
-const isNativePlatformMock = vi.fn<() => boolean>();
-const getPlatformMock = vi.fn<() => string>();
-const requestPermissionsMock = vi.fn();
-const writeFileMock = vi.fn();
-const shareMock = vi.fn();
 const markBackedUpMock = vi.fn();
 
 function mockModules(): void {
@@ -14,15 +9,6 @@ function mockModules(): void {
     exportDatabase: exportDatabaseMock,
     importDatabase: importDatabaseMock,
   }));
-  vi.doMock('@capacitor/core', () => ({
-    Capacitor: { isNativePlatform: isNativePlatformMock, getPlatform: getPlatformMock },
-  }));
-  vi.doMock('@capacitor/filesystem', () => ({
-    Directory: { ExternalStorage: 'EXTERNAL', Cache: 'CACHE' },
-    Encoding: { UTF8: 'utf8' },
-    Filesystem: { requestPermissions: requestPermissionsMock, writeFile: writeFileMock },
-  }));
-  vi.doMock('@capacitor/share', () => ({ Share: { share: shareMock } }));
   vi.doMock('./useBackupReminder', () => ({ markBackedUp: markBackedUpMock }));
 }
 
@@ -58,30 +44,9 @@ beforeEach(() => {
 
   exportDatabaseMock.mockResolvedValue(SNAPSHOT);
   importDatabaseMock.mockResolvedValue(undefined);
-  isNativePlatformMock.mockReturnValue(false);
-  getPlatformMock.mockReturnValue('web');
-  writeFileMock.mockResolvedValue({ uri: 'file:///cache/backup.json' });
-  requestPermissionsMock.mockResolvedValue({});
-  shareMock.mockResolvedValue(undefined);
 });
 
-describe('exportDetailKey', () => {
-  it('should map the transport to a toast-detail key', async () => {
-    const { exportDetailKey } = await loadModule();
-    const fileName = 'b.json';
-    expect(exportDetailKey({ status: 'exported', via: 'downloads', fileName })).toBe(
-      'dashboard.databaseExportedToDownloads',
-    );
-    expect(exportDetailKey({ status: 'exported', via: 'shared', fileName })).toBe(
-      'dashboard.databaseExportedSharedFallback',
-    );
-    expect(exportDetailKey({ status: 'exported', via: 'file', fileName })).toBe(
-      'dashboard.databaseExported',
-    );
-  });
-});
-
-describe('useDatabaseBackup - export web', () => {
+describe('useDatabaseBackup - export', () => {
   it('should download a file and record the backup when no share API is available', async () => {
     const result = await (await loadModule()).useDatabaseBackup().exportBackup();
 
@@ -128,60 +93,6 @@ describe('useDatabaseBackup - export web', () => {
 
     expect(result).toEqual({ status: 'error' });
     expect(markBackedUpMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('useDatabaseBackup - export native', () => {
-  beforeEach(() => {
-    isNativePlatformMock.mockReturnValue(true);
-  });
-
-  it('should write to the Android downloads directory', async () => {
-    getPlatformMock.mockReturnValue('android');
-    const result = await (await loadModule()).useDatabaseBackup().exportBackup();
-
-    expect(requestPermissionsMock).toHaveBeenCalled();
-    expect(writeFileMock).toHaveBeenCalledWith(expect.objectContaining({ directory: 'EXTERNAL' }));
-    expect(result).toMatchObject({ status: 'exported', via: 'downloads' });
-  });
-
-  it('should fall back to the native share sheet when the downloads write fails', async () => {
-    getPlatformMock.mockReturnValue('android');
-    writeFileMock
-      .mockRejectedValueOnce(new Error('denied'))
-      .mockResolvedValueOnce({ uri: 'file:///cache/backup.json' });
-    const result = await (await loadModule()).useDatabaseBackup().exportBackup();
-
-    expect(shareMock).toHaveBeenCalled();
-    expect(result).toMatchObject({ status: 'exported', via: 'shared' });
-  });
-
-  it('should use the native share sheet on iOS', async () => {
-    getPlatformMock.mockReturnValue('ios');
-    expect(await (await loadModule()).useDatabaseBackup().exportBackup()).toMatchObject({
-      status: 'exported',
-      via: 'shared',
-    });
-  });
-
-  it('should report cancellation when the native share sheet is dismissed', async () => {
-    getPlatformMock.mockReturnValue('ios');
-    shareMock.mockRejectedValue(abortError());
-    expect(await (await loadModule()).useDatabaseBackup().exportBackup()).toEqual({
-      status: 'cancelled',
-    });
-  });
-
-  it('should fall back to download when native share fails otherwise', async () => {
-    getPlatformMock.mockReturnValue('ios');
-    shareMock.mockRejectedValue(new Error('no target'));
-    expect((await (await loadModule()).useDatabaseBackup().exportBackup()).status).toBe('exported');
-  });
-
-  it('should tolerate a permissions request rejection', async () => {
-    getPlatformMock.mockReturnValue('android');
-    requestPermissionsMock.mockRejectedValue(new Error('no prompt'));
-    expect((await (await loadModule()).useDatabaseBackup().exportBackup()).status).toBe('exported');
   });
 });
 

@@ -39,9 +39,3 @@ __screenshots__/
 .env.*
 !.env.pre
 !.env.prod
-
-
-ios/DerivedData/
-android/app/build/
-android/keystore.properties
-android/app/upload-keystore.jks

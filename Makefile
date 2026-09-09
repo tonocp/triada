@@ -132,25 +132,13 @@ clean: ## remove dependencies and cache
 
 ##@ Development
 run: dev ## alias to start app in development mode
-dev: ## start app in development mode (web)
+dev: ## start app in development mode
 	$(call check_node_version)
 	@$(PKG_RUN) dev
-
-dev-android: ## start app in development mode for Android
-	$(call check_node_version)
-	@$(PKG_RUN) dev:android
-
-dev-ios: ## start app in development mode for iOS
-	$(call check_node_version)
-	@$(PKG_RUN) dev:ios
 
 build: ## build app for production
 	$(call check_node_version)
 	@$(PKG_RUN) build
-
-build-sync: ## build app and sync with Capacitor
-	$(call check_node_version)
-	@$(PKG_RUN) build:sync
 
 preview: ## preview built app
 	$(call check_node_version)
@@ -159,25 +147,6 @@ preview: ## preview built app
 type-check: ## check TypeScript types
 	$(call check_node_version)
 	@$(PKG_RUN) exec vue-tsc -p tsconfig.app.json --noEmit
-
-##@ Mobile (Capacitor)
-cap-add-ios: ## add iOS platform (requires Xcode and CocoaPods)
-	@$(PKG_RUN) cap:add:ios
-
-cap-add-android: ## add Android platform
-	@$(PKG_RUN) cap:add:android
-
-cap-sync: ## sync web assets with native projects
-	@$(PKG_RUN) cap:sync
-
-cap-open-ios: ## open iOS project in Xcode
-	@$(PKG_RUN) cap:open:ios
-
-cap-open-android: ## open Android project in Android Studio
-	@$(PKG_RUN) cap:open:android
-
-cap-copy: ## copy web assets to native projects
-	@$(PKG_RUN) cap:copy
 
 ##@ Code quality
 lint: ## check code format and style
@@ -217,11 +186,10 @@ stop-docker: ## stop and remove Docker container
 
 ##@ Help
 .PHONY: help node-version setup-node install install-deps clean
-.PHONY: run dev dev-android dev-ios build build-sync preview type-check
-.PHONY: cap-add-ios cap-add-android cap-sync cap-open-ios cap-open-android cap-copy
+.PHONY: run dev build preview type-check
 .PHONY: lint lint-fix lint-quiet test-unit test-unit-watch test-e2e
 .PHONY: login build-docker push-docker run-docker stop-docker
 
 help: ## show this help message
-	@echo "Vue + Vite + Capacitor Project"
+	@echo "Triada — Vue + Vite PWA"
 	@echo ""

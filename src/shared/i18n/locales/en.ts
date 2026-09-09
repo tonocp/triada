@@ -47,9 +47,7 @@ export default {
     exportDatabase: 'Export JSON backup',
     importDatabase: 'Import JSON backup',
     databaseExported: 'Backup exported successfully.',
-    databaseExportedToDownloads: 'Backup saved to Downloads as {fileName}.',
-    databaseExportedSharedFallback:
-      'Backup ready to share. Choose an app to save it as {fileName}.',
+    databaseExportedShared: 'Backup ready to share. Choose an app to save it as {fileName}.',
     databaseExportError: 'Could not export database backup.',
     databaseImportConfirm:
       'This action will replace your entire current database. Continue with import?',

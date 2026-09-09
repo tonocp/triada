@@ -12,7 +12,5 @@ pnpm-debug.log*
 .DS_Store
 cypress/videos
 cypress/screenshots
-ios/DerivedData
-android/app/build
 docker/
 README.md

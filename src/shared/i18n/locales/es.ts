@@ -47,8 +47,7 @@ export default {
     exportDatabase: 'Exportar respaldo JSON',
     importDatabase: 'Importar respaldo JSON',
     databaseExported: 'Respaldo exportado correctamente.',
-    databaseExportedToDownloads: 'Respaldo guardado en Descargas como {fileName}.',
-    databaseExportedSharedFallback:
+    databaseExportedShared:
       'Respaldo listo para compartir. Selecciona una app para guardarlo como {fileName}.',
     databaseExportError: 'No se pudo exportar el respaldo de datos.',
     databaseImportConfirm:

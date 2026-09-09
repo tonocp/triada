@@ -1614,7 +1614,7 @@ describe('data/repositories IndexedDB integration', () => {
     expect(exported.data.expense_categories).toHaveLength(1);
   });
 
-  it('should import sqlite category snapshot shape and normalize fields', async () => {
+  it('should import a legacy column-shaped category snapshot and normalize fields', async () => {
     const { repositoryModule } = await loadModules();
 
     const snapshot = {

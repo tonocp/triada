@@ -1,12 +1,13 @@
 import { exportDatabase, importDatabase } from '@/data/repositories';
 import type { BudgetDatabaseSnapshot } from '@/data/repositories/BudgetRepository.snapshot';
-import { Capacitor } from '@capacitor/core';
-import { Directory, Encoding, Filesystem } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
 import { markBackedUp } from './useBackupReminder';
 
-/** What the user perceives happened to the file — the caller maps this to copy. */
-export type ExportVia = 'downloads' | 'shared' | 'file';
+/**
+ * How the backup left the app. `'shared'` handed it to the Web Share sheet (the
+ * user still picks where to save it — the toast says so); `'file'` downloaded it
+ * outright.
+ */
+export type ExportVia = 'shared' | 'file';
 
 export type ExportResult =
   | { status: 'exported'; via: ExportVia; fileName: string }
@@ -14,17 +15,6 @@ export type ExportResult =
   | { status: 'error' };
 
 export type ImportResult = { status: 'imported' } | { status: 'error'; reason: string };
-
-/** i18n key for the success-toast detail of an export result. */
-export function exportDetailKey(result: Extract<ExportResult, { status: 'exported' }>): string {
-  if (result.via === 'downloads') {
-    return 'dashboard.databaseExportedToDownloads';
-  }
-  if (result.via === 'shared') {
-    return 'dashboard.databaseExportedSharedFallback';
-  }
-  return 'dashboard.databaseExported';
-}
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && error.name === 'AbortError';
@@ -48,48 +38,8 @@ function triggerDownload(payload: string, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
-/** Try each transport in order; the first that lands (or is cancelled) wins. */
+/** Prefer the Web Share sheet (mobile "Save to Files" etc.), fall back to a download. */
 async function sendBackup(payload: string, fileName: string): Promise<ExportResult> {
-  const isNative = Capacitor.isNativePlatform();
-
-  if (isNative && Capacitor.getPlatform() === 'android') {
-    try {
-      await Filesystem.requestPermissions();
-    } catch {
-      // best effort — the write below may still succeed or fall through
-    }
-    try {
-      await Filesystem.writeFile({
-        path: `Download/${fileName}`,
-        data: payload,
-        directory: Directory.ExternalStorage,
-        encoding: Encoding.UTF8,
-        recursive: true,
-      });
-      return { status: 'exported', via: 'downloads', fileName };
-    } catch {
-      // fall through to share
-    }
-  }
-
-  if (isNative) {
-    try {
-      const written = await Filesystem.writeFile({
-        path: fileName,
-        data: payload,
-        directory: Directory.Cache,
-        encoding: Encoding.UTF8,
-      });
-      await Share.share({ title: fileName, url: written.uri });
-      return { status: 'exported', via: 'shared', fileName };
-    } catch (error) {
-      if (isAbort(error)) {
-        return { status: 'cancelled' };
-      }
-      // fall through to web share / download
-    }
-  }
-
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({

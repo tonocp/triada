@@ -117,7 +117,7 @@ import {
 import { Button, Card } from '@/shared/components/atoms';
 import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
-import { exportDetailKey, useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
+import { useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
@@ -209,14 +209,13 @@ async function runExport(): Promise<void> {
     });
     return;
   }
-  const detailKey = exportDetailKey(result);
   toast.add({
     severity: 'success',
     summary: t('dashboard.databaseExported'),
     detail:
-      detailKey === 'dashboard.databaseExported'
-        ? undefined
-        : t(detailKey, { fileName: result.fileName }),
+      result.via === 'shared'
+        ? t('dashboard.databaseExportedShared', { fileName: result.fileName })
+        : undefined,
     life: 3000,
   });
 }

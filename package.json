@@ -11,28 +11,12 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "dev:server": "vite --host 0.0.0.0 --port 5173",
-    "dev:android": "sh -c 'pnpm dev:server >/tmp/triada-vite.log 2>&1 & VITE_PID=$!; trap \"kill $VITE_PID\" EXIT INT TERM; until nc -z 127.0.0.1 5173; do sleep 1; done; npx cap run android -l --host 10.0.2.2 --port 5173 --no-sync'",
-    "dev:ios": "sh -c 'pnpm dev:server >/tmp/triada-vite.log 2>&1 & VITE_PID=$!; trap \"kill $VITE_PID\" EXIT INT TERM; until nc -z 127.0.0.1 5173; do sleep 1; done; npx cap run ios -l --host localhost --port 5173 --no-sync'",
     "build": "vue-tsc -p tsconfig.app.json --noEmit && vite build",
     "preview": "vite preview",
-    "cap:add:ios": "npx cap add ios",
-    "cap:add:android": "npx cap add android",
-    "cap:sync": "npx cap sync",
-    "cap:sync:ios": "npx cap sync ios && cd ios/App && pod install && cd -",
-    "cap:sync:android": "npx cap sync android",
-    "cap:open:ios": "npx cap open ios",
-    "cap:open:android": "npx cap open android",
-    "cap:copy": "npx cap copy",
-    "cap:build:ios": "xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build",
-    "cap:build:android": "./android/gradlew -p android assembleDebug",
     "test:unit": "vitest",
     "test:unit:coverage": "vitest run src --coverage",
     "test:e2e": "start-server-and-test preview http://localhost:4173 'cypress run --e2e'",
     "test:e2e:dev": "start-server-and-test 'vite dev --port 4173' http://localhost:4173 'cypress open --e2e'",
-    "test:e2e:native": "pnpm test:e2e:native:android && pnpm test:e2e:native:ios",
-    "test:e2e:native:android": "maestro test -p android maestro/flows/android-smoke.yaml",
-    "test:e2e:native:ios": "maestro test -p ios maestro/flows/ios-smoke.yaml",
     "type-check": "vue-tsc -p tsconfig.app.json --noEmit",
     "lint": "eslint src --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache",
     "lint:check": "eslint src --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
@@ -42,13 +26,6 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@capacitor-community/sqlite": "7.0.3",
-    "@capacitor/android": "7.4.4",
-    "@capacitor/core": "7.4.4",
-    "@capacitor/filesystem": "7.1.8",
-    "@capacitor/ios": "7.4.4",
-    "@capacitor/share": "7.0.4",
-    "@capacitor/status-bar": "7.0.3",
     "@primeuix/themes": "1.2.5",
     "@vueuse/core": "14.2.1",
     "pinia": "3.0.4",
@@ -60,7 +37,6 @@
     "workbox-window": "7.4.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "7.5.0",
     "@commitlint/cli": "20.4.2",
     "@commitlint/config-conventional": "20.4.2",
     "@eslint/js": "9.34.0",
@@ -105,8 +81,7 @@
   },
   "pnpm": {
     "overrides": {
-      "serialize-javascript@<7.0.5": "7.1.1",
-      "tar@<7.5.10": "7.5.22"
+      "serialize-javascript@<7.0.5": "7.1.1"
     }
   },
   "volta": {

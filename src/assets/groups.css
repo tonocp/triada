@@ -1,0 +1,23 @@
+/**
+ * Per-bucket colour, keyed off a `data-group` attribute so every consumer
+ * (icon tiles, legend dots, split bars, …) reads one pair of custom props
+ * instead of re-encoding "needs → indigo / wants → coral / savings → green".
+ *
+ * Custom properties inherit across Vue's scoped-style boundary, so this must
+ * stay a plain (non-scoped) global stylesheet — imported once in main.ts.
+ */
+
+[data-group='needs'] {
+  --group-color: var(--t-needs);
+  --group-tint: var(--t-needs-tint);
+}
+
+[data-group='wants'] {
+  --group-color: var(--t-wants);
+  --group-tint: var(--t-wants-tint);
+}
+
+[data-group='savings'] {
+  --group-color: var(--t-savings);
+  --group-tint: var(--t-savings-tint);
+}

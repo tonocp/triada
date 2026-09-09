@@ -1,3 +1,4 @@
+import { getIntlLocale, getLocale } from '@/shared/i18n';
 import { computed, ref } from 'vue';
 
 export type SupportedCurrency = 'USD' | 'EUR';
@@ -28,6 +29,24 @@ const currentCurrency = ref<SupportedCurrency>(
   isSupportedCurrency(savedCurrency) ? savedCurrency : defaultCurrency.code,
 );
 
+const NON_BREAKING_SPACE = /[\u00a0\u202f]/g;
+
+const numberFormatCache = new Map<string, Intl.NumberFormat>();
+
+function getNumberFormat(localeTag: string, currency: SupportedCurrency): Intl.NumberFormat {
+  const key = `${localeTag}|${currency}`;
+  let formatter = numberFormatCache.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(localeTag, {
+      style: 'currency',
+      currency,
+      useGrouping: true,
+    });
+    numberFormatCache.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function useCurrency() {
   const currency = computed(() => currentCurrency.value);
 
@@ -44,9 +63,10 @@ export function useCurrency() {
   }
 
   function formatCurrency(amountMinor: number): string {
-    const info = currencyInfo.value;
-    const amount = amountMinor / 100;
-    return `${info.symbol}${amount.toFixed(2)}`;
+    const formatted = getNumberFormat(getIntlLocale(getLocale()), currentCurrency.value).format(
+      amountMinor / 100,
+    );
+    return formatted.replace(NON_BREAKING_SPACE, ' ');
   }
 
   return {

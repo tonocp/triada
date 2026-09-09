@@ -1,3 +1,4 @@
+import { setLocale } from '@/shared/i18n';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { supportedCurrencies, useCurrency } from './useCurrency';
 
@@ -10,6 +11,8 @@ describe('useCurrency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(localStorage.getItem).mockReturnValue(null);
+    setLocale('es');
+    useCurrency().setCurrency('EUR');
   });
 
   describe('supportedCurrencies', () => {
@@ -34,11 +37,24 @@ describe('useCurrency', () => {
       expect(currencyInfo.value.symbol).toBe('€');
     });
 
-    it('should format currency correctly', () => {
+    it('should format currency with the active locale conventions (es)', () => {
       const { formatCurrency } = useCurrency();
-      expect(formatCurrency(1500)).toBe('€15.00');
-      expect(formatCurrency(100)).toBe('€1.00');
-      expect(formatCurrency(0)).toBe('€0.00');
+      expect(formatCurrency(1500)).toBe('15,00 €');
+      expect(formatCurrency(100)).toBe('1,00 €');
+      expect(formatCurrency(0)).toBe('0,00 €');
+    });
+
+    it('should always group thousands, even in the 1 000-9 999 range', () => {
+      const { formatCurrency } = useCurrency();
+      expect(formatCurrency(500_000)).toBe('5.000,00 €');
+      expect(formatCurrency(1_234_567)).toBe('12.345,67 €');
+    });
+
+    it('should follow english + USD conventions when configured that way', () => {
+      setLocale('en');
+      const { formatCurrency, setCurrency } = useCurrency();
+      setCurrency('USD');
+      expect(formatCurrency(150_000)).toBe('$1,500.00');
     });
 
     it('should set currency and save to localStorage', () => {

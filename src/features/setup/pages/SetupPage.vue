@@ -39,19 +39,16 @@
           <p class="help-text">{{ t('setup.incomeHelp') }}</p>
         </div>
 
+        <div class="form-group">
+          <label>{{ t('settings.budgetSplit') }}</label>
+          <BudgetSplitEditor v-model="split" />
+        </div>
+
         <div class="preview-section" v-if="monthlyIncomeNumber > 0">
           <h3 class="preview-title">{{ t('setup.previewBreakdown') }}</h3>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.needs') }} (50%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(needsAmount) }}</span>
-          </div>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.wants') }} (30%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(wantsAmount) }}</span>
-          </div>
-          <div class="preview-row">
-            <span class="preview-label">{{ t('groups.savings') }} (20%)</span>
-            <span class="preview-value">{{ formatCurrencyValue(savingsAmount) }}</span>
+          <div v-for="group in groups" :key="`preview-${group}`" class="preview-row">
+            <span class="preview-label">{{ t(`groups.${group}`) }} ({{ split[group] }}%)</span>
+            <span class="preview-value">{{ formatCurrencyValue(previewAllocations[group]) }}</span>
           </div>
         </div>
       </template>
@@ -88,23 +85,29 @@
 
 <script setup lang="ts">
 import { initDatabase } from '@/data/database';
+import { createYearWithAllocations } from '@/data/repositories';
 import {
-  createYearWithAllocations,
-  getBudgetMonth,
-  getLatestBudgetYear,
-  importDatabase as importDatabaseSnapshot,
-} from '@/data/repositories';
+  DEFAULT_GROUP_SPLIT,
+  GROUP_ORDER,
+  allocateBudget,
+  isValidBudgetSplit,
+  type BudgetSplit,
+} from '@/domain/entities';
 import { Button, Card, Input } from '@/shared/components/atoms';
+import { BudgetSplitEditor } from '@/shared/components/molecules';
 import { useCurrency, type SupportedCurrency } from '@/shared/composables/useCurrency';
+import { useDatabaseBackup } from '@/shared/composables/useDatabaseBackup';
 import { getLocale, setLocale, supportedLocales, type SupportedLocale } from '@/shared/i18n';
+import { toMinorUnits } from '@/shared/utils/money';
 import { useToast } from 'primevue/usetoast';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const toast = useToast();
 const { t } = useI18n();
+const { importBackup } = useDatabaseBackup();
 const {
   currency,
   currencyInfo,
@@ -127,27 +130,14 @@ watch(selectedCurrency, (newVal) => {
   setCurrency(newVal);
 });
 
-const monthlyIncomeNumber = computed(() => {
-  const num = parseFloat(monthlyIncome.value);
-  return isNaN(num) ? 0 : num * 100;
-});
+const groups = GROUP_ORDER;
+const split = ref<BudgetSplit>({ ...DEFAULT_GROUP_SPLIT });
 
-const needsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.5));
-const wantsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.3));
-const savingsAmount = computed(() => Math.floor(monthlyIncomeNumber.value * 0.2));
+const monthlyIncomeNumber = computed(() => toMinorUnits(monthlyIncome.value));
 
-const isValid = computed(() => monthlyIncomeNumber.value > 0);
+const previewAllocations = computed(() => allocateBudget(monthlyIncomeNumber.value, split.value));
 
-async function hasAnyMonthForYear(budgetYearId: string): Promise<boolean> {
-  for (let month = 1; month <= 12; month++) {
-    const budgetMonth = await getBudgetMonth(budgetYearId, month);
-    if (budgetMonth) {
-      return true;
-    }
-  }
-
-  return false;
-}
+const isValid = computed(() => monthlyIncomeNumber.value > 0 && isValidBudgetSplit(split.value));
 
 async function createBudget(): Promise<void> {
   if (!isValid.value) return;
@@ -157,21 +147,13 @@ async function createBudget(): Promise<void> {
   try {
     await initDatabase();
 
-    const existing = await getLatestBudgetYear();
     const currentYear = new Date().getFullYear();
-
-    if (existing && existing.year === currentYear && (await hasAnyMonthForYear(existing.id))) {
-      toast.add({
-        severity: 'warn',
-        summary: t('setup.budgetExists'),
-        detail: `${currentYear}`,
-        life: 3000,
-      });
-      router.push('/dashboard');
-      return;
-    }
-
-    await createYearWithAllocations(monthlyIncomeNumber.value, currentYear, selectedCurrency.value);
+    await createYearWithAllocations(
+      monthlyIncomeNumber.value,
+      currentYear,
+      selectedCurrency.value,
+      split.value,
+    );
 
     toast.add({
       severity: 'success',
@@ -180,7 +162,7 @@ async function createBudget(): Promise<void> {
       life: 3000,
     });
 
-    router.push('/dashboard');
+    router.push({ name: 'year' });
   } catch (error) {
     console.error('Failed to create budget:', error);
     toast.add({
@@ -191,18 +173,6 @@ async function createBudget(): Promise<void> {
     });
   } finally {
     isLoading.value = false;
-  }
-}
-
-async function checkExistingBudget(): Promise<void> {
-  try {
-    await initDatabase();
-    const existing = await getLatestBudgetYear();
-    if (existing && (await hasAnyMonthForYear(existing.id))) {
-      router.replace('/dashboard');
-    }
-  } catch (error) {
-    console.error('Failed to check existing budget on setup page:', error);
   }
 }
 
@@ -226,38 +196,23 @@ async function onImportFileSelected(event: Event): Promise<void> {
   }
 
   isLoading.value = true;
+  const result = await importBackup(file);
+  isLoading.value = false;
+  resetImportInput();
 
-  try {
-    const fileContents = await file.text();
-    const parsedSnapshot = JSON.parse(fileContents) as unknown;
-    await importDatabaseSnapshot(parsedSnapshot);
-
-    toast.add({
-      severity: 'success',
-      summary: t('dashboard.databaseImported'),
-      detail: t('dashboard.databaseImported'),
-      life: 3000,
-    });
-
-    router.push('/dashboard');
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : t('dashboard.databaseImportError');
-    console.error('Failed to import database snapshot from setup page', { error });
+  if (result.status === 'error') {
     toast.add({
       severity: 'error',
       summary: t('setup.error'),
-      detail: t('dashboard.databaseImportErrorWithReason', { reason }),
+      detail: t('dashboard.databaseImportErrorWithReason', { reason: result.reason }),
       life: 5000,
     });
-  } finally {
-    isLoading.value = false;
-    resetImportInput();
+    return;
   }
-}
 
-onMounted(() => {
-  checkExistingBudget();
-});
+  toast.add({ severity: 'success', summary: t('dashboard.databaseImported'), life: 3000 });
+  router.push({ name: 'year' });
+}
 </script>
 
 <style scoped>
@@ -348,17 +303,5 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 </style>

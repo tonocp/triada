@@ -4,15 +4,12 @@ Operational guide for coding agents working in this repository.
 
 ## 1) Project context
 
-- Hybrid mobile app with Capacitor (web + iOS + Android)
+- Installable offline-first PWA (`vite-plugin-pwa` manifest + Service Worker)
 - Vue 3 + TypeScript + Vite
 - PrimeVue 4 + PrimeIcons
 - Pinia for state
 - i18n with `es` default and `en` fallback
-- Web target is an installable offline-first PWA (manifest + Service Worker)
-- Platform-aware persistence:
-  - native: SQLite
-  - web: IndexedDB
+- Persistence: IndexedDB, behind a repository facade
 
 ## 2) Architecture principles (mandatory)
 
@@ -24,22 +21,18 @@ Operational guide for coding agents working in this repository.
 
 2. **Single repository facade**
    - Consume persistence through `src/data/repositories/BudgetRepository.ts`.
-   - Do not import concrete implementations (`sqlite` / `indexeddb`) from UI.
+   - Do not import the concrete IndexedDB implementation from UI.
 
-3. **Web/native parity**
-   - Any repository contract change must be mirrored in both implementations.
-   - Do not accept platform divergence unless explicitly documented and approved.
-
-4. **Money safety model**
+3. **Money safety model**
    - Keep money values in minor units (integer cents).
    - Do not use floats as persisted financial source of truth.
 
-5. **Errors and recovery**
+4. **Errors and recovery**
    - Handle async boundaries with `try/catch`.
    - Include actionable context in logs.
    - Provide consistent user feedback (toast / empty state / error state).
 
-6. **i18n first**
+5. **i18n first**
    - Avoid hardcoded user-facing strings when translation keys exist.
    - When adding keys, update both `es.ts` and `en.ts`.
 
@@ -75,26 +68,17 @@ Operational guide for coding agents working in this repository.
 - Validate business invariants (for example 50/30/20 allocation and bucket order).
 - Validate null/empty states, partial/corrupted data recovery paths, and sorting consistency.
 
-### 4.3 Web E2E
+### 4.3 E2E
 
 - Framework: Cypress.
 - Minimum required flows:
   - initial setup,
-  - setup -> dashboard redirect when budget exists,
+  - setup -> year redirect when a budget exists,
   - persistence after reload,
-  - offline dashboard render after Service Worker activation.
+  - offline render after Service Worker activation.
 - Also cover critical UX edge cases when relevant (invalid income, locale/currency persistence, rounding display behavior).
 
-### 4.4 Native E2E
-
-- Framework: Maestro.
-- Required smoke flows for iOS and Android when critical UX changes:
-  - app launch,
-  - setup completion,
-  - dashboard visible with expected budget output.
-- Prefer stable selectors/identifiers (for example `id`) when available, and keep separate flows per platform when interactions differ.
-
-### 4.5 Coverage policy
+### 4.4 Coverage policy
 
 - Runtime logic should keep line coverage at 100%.
 - Coverage execution is scoped to `src/` (`vitest run src --coverage`).
@@ -113,9 +97,6 @@ Development:
 
 ```bash
 pnpm dev
-pnpm dev:server
-pnpm dev:android
-pnpm dev:ios
 ```
 
 Quality:
@@ -144,31 +125,12 @@ pnpm test:unit
 pnpm test:unit:coverage
 pnpm test:e2e
 pnpm test:e2e:dev
-pnpm test:e2e:native:android
-pnpm test:e2e:native:ios
-pnpm test:e2e:native
 ```
 
-Web deploy/runtime checks:
-
-```bash
-docker compose up --build -d
-docker compose down
-```
-
-Capacitor:
-
-```bash
-pnpm cap:add:ios
-pnpm cap:add:android
-pnpm cap:sync
-pnpm cap:sync:ios
-pnpm cap:sync:android
-pnpm cap:open:ios
-pnpm cap:open:android
-pnpm cap:build:ios
-pnpm cap:build:android
-```
+Deploy: static build on Netlify (auto-detected Vite build; `public/_redirects`
+for the SPA fallback). Any push to `main` ships a production deploy; pull requests
+get deploy previews. Locally, `pnpm build && pnpm preview` reproduces the deployed
+bundle.
 
 ## 6) Step completion rule
 
@@ -185,8 +147,6 @@ If user flow screens are changed (setup/dashboard/navigation), also run:
 ```bash
 pnpm test:e2e
 ```
-
-If native UX is affected, also run Maestro tests on iOS and Android when environment is available.
 
 ## 7) Git hooks and local quality gates
 
@@ -206,7 +166,6 @@ pnpm build:check
 - Keep PRs focused and avoid unrelated refactors.
 - Include in PR description:
   - functional changes,
-  - platform impact,
   - evidence of executed tests.
 
 ## 9) Agent restrictions
